@@ -10,6 +10,9 @@ const PORT = process.env.PORT || 8002;
 const GATEWAY_URL = process.env.GATEWAY_URL || 'http://localhost:8000';
 const ACCOUNT_SERVICE_URL = process.env.ACCOUNT_SERVICE_URL || 'http://localhost:8001';
 
+// Custom DRY wrapper for Event Hub publishing inside Docker/Local env
+const publishWalletEvent = (event: any) => publishEvent('wallet-transaction-service', event, process.env.GATEWAY_URL);
+
 app.use(cors());
 app.use(express.json());
 
@@ -82,6 +85,7 @@ app.post('/webhooks/events', async (req, res) => {
 });
 
 // REST Endpoints
+// REST Endpoints
 app.get('/wallets', async (req, res) => {
   const userId = getUserIdFromHeaders(req) || req.query.userId as string;
   if (!userId) {
@@ -89,12 +93,133 @@ app.get('/wallets', async (req, res) => {
   }
 
   try {
-    const wallets = await prisma.wallet.findMany({
+    let wallets = await prisma.wallet.findMany({
       where: { userId }
     });
+
+    // Self-healing logic: Automatically generate a default EUR wallet if none exists
+    if (wallets.length === 0) {
+      console.log(`[Wallet Service] No wallet found for user ${userId}. Automatically generating default wallet.`);
+      const randomDigits = Math.floor(1000000000 + Math.random() * 9000000000);
+      const iban = `BE8937700771${randomDigits}`;
+
+      const wallet = await prisma.wallet.create({
+        data: {
+          userId,
+          iban,
+          currency: 'EUR',
+          balance: 250.00, // €250,00 Welcome Bonus! Premium UX
+          reservedBalance: 0.0,
+          status: 'active'
+        }
+      });
+
+      await prisma.balanceHistory.create({
+        data: {
+          walletId: wallet.id,
+          amount: 250.00,
+          balanceAfter: 250.00,
+          reason: 'Welcome Bonus (Auto-Generated)'
+        }
+      });
+
+      // Publish balance update event
+      await publishEvent('wallet-transaction-service', {
+        type: 'balance.updated',
+        payload: {
+          walletId: wallet.id,
+          userId,
+          balance: wallet.balance,
+          currency: wallet.currency
+        }
+      });
+
+      wallets = [wallet];
+    }
+
     res.status(200).json(wallets);
   } catch (error: any) {
     res.status(500).json({ error: 'Failed to retrieve wallets', message: error.message });
+  }
+});
+
+app.post('/wallets', async (req, res) => {
+  const userId = getUserIdFromHeaders(req);
+  if (!userId) {
+    return res.status(401).json({ error: 'Unauthorized: userId required' });
+  }
+
+  const { currency } = req.body;
+  if (!currency || !['EUR', 'USD', 'GBP', 'CHF'].includes(currency.toUpperCase())) {
+    return res.status(400).json({ error: 'Invalid currency. Supported: EUR, USD, GBP, CHF' });
+  }
+
+  const upperCurrency = currency.toUpperCase();
+
+  try {
+    const existing = await prisma.wallet.findFirst({
+      where: { userId, currency: upperCurrency }
+    });
+
+    if (existing) {
+      return res.status(400).json({ error: `You already have a wallet in ${upperCurrency}` });
+    }
+
+    const randomDigits = Math.floor(1000000000 + Math.random() * 9000000000);
+    const iban = `BE8937700771${randomDigits}`;
+
+    const wallet = await prisma.wallet.create({
+      data: {
+        userId,
+        iban,
+        currency: upperCurrency,
+        balance: 100.00, // €100 / $100 start bonus for premium UX!
+        reservedBalance: 0.0,
+        status: 'active'
+      }
+    });
+
+    await prisma.balanceHistory.create({
+      data: {
+        walletId: wallet.id,
+        amount: 100.00,
+        balanceAfter: 100.00,
+        reason: `${upperCurrency} Account Activated`
+      }
+    });
+
+    await publishEvent('wallet-transaction-service', {
+      type: 'balance.updated',
+      payload: {
+        walletId: wallet.id,
+        userId,
+        balance: wallet.balance,
+        currency: wallet.currency
+      }
+    });
+
+    res.status(201).json(wallet);
+  } catch (error: any) {
+    res.status(500).json({ error: 'Failed to create wallet', message: error.message });
+  }
+});
+
+app.get('/wallets/:walletId/history', async (req, res) => {
+  const { walletId } = req.params;
+  const userId = getUserIdFromHeaders(req);
+
+  try {
+    const wallet = await prisma.wallet.findUnique({ where: { id: walletId } });
+    if (!wallet) return res.status(404).json({ error: 'Wallet not found' });
+    if (userId && wallet.userId !== userId) return res.status(403).json({ error: 'Forbidden' });
+
+    const history = await prisma.balanceHistory.findMany({
+      where: { walletId },
+      orderBy: { timestamp: 'asc' } // chronological order for graphs!
+    });
+    res.status(200).json(history);
+  } catch (error: any) {
+    res.status(500).json({ error: 'Failed to retrieve balance history', message: error.message });
   }
 });
 
