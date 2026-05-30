@@ -17,7 +17,8 @@ import {
   Eye,
   EyeOff,
   Copy,
-  Check
+  Check,
+  FileText
 } from 'lucide-react';
 
 // Custom Notification Interface
@@ -37,16 +38,27 @@ export default function App() {
   const [wallets, setWallets] = useState<any[]>([]);
   const [transactions, setTransactions] = useState<any[]>([]);
   
-  // Phase 2 States
+  // Phase 2 & 3 States
   const [activeWalletIndex, setActiveWalletIndex] = useState(0);
   const [isIbanVisible, setIsIbanVisible] = useState(false);
   const [copyFeedback, setCopyFeedback] = useState(false);
   const [balanceHistory, setBalanceHistory] = useState<any[]>([]);
-  const [newWalletCurrency, setNewWalletCurrency] = useState('USD');
+  const [newWalletType, setNewWalletType] = useState('savings'); // checking or savings
   const [newWalletLoading, setNewWalletLoading] = useState(false);
+  const [timeSimulationLoading, setTimeSimulationLoading] = useState(false);
+  
+  // Invoice microservice states
+  const [invoices, setInvoices] = useState<any[]>([]);
+  const [invoiceLoading, setInvoiceLoading] = useState(false);
+  const [invoiceRecipient, setInvoiceRecipient] = useState('');
+  const [invoiceAmount, setInvoiceAmount] = useState('');
+  const [invoiceDesc, setInvoiceDesc] = useState('');
+  const [invoiceDueDate, setInvoiceDueDate] = useState('');
+  const [invoiceError, setInvoiceError] = useState('');
+  const [invoiceSuccess, setInvoiceSuccess] = useState(false);
   
   // UI Control State
-  const [activeTab, setActiveTab] = useState<'overview' | 'transfer' | 'history'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'transfer' | 'history' | 'invoices'>('overview');
   const [isLoginView, setIsLoginView] = useState(true);
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [isNotifOpen, setIsNotifOpen] = useState(false);
@@ -178,6 +190,7 @@ export default function App() {
         setUser(data);
         fetchWallets();
         fetchTransactions();
+        fetchInvoices();
       } else {
         handleLogout();
       }
@@ -219,7 +232,7 @@ export default function App() {
     // Generate high-end mockup session so they can test dashboard styling instantly even if database is fresh/offline!
     const mockUser = {
       id: 'mock-user-123',
-      email: 'premium-user@finvault.com',
+      email: 'tom@finvault.com',
       accountType: 'personal',
       profile: {
         firstName: 'Tom',
@@ -229,15 +242,30 @@ export default function App() {
       }
     };
     setUser(mockUser);
-    setWallets([{
-      id: 'mock-wallet-eur',
-      userId: 'mock-user-123',
-      iban: 'BE89377007719941',
-      currency: 'EUR',
-      balance: 1450.50,
-      reservedBalance: 0.0,
-      status: 'active'
-    }]);
+    setWallets([
+      {
+        id: 'mock-wallet-eur',
+        userId: 'mock-user-123',
+        iban: 'BE89377007719941',
+        currency: 'EUR',
+        type: 'checking',
+        interestRate: 0.0,
+        balance: 1450.50,
+        reservedBalance: 0.0,
+        status: 'active'
+      },
+      {
+        id: 'mock-wallet-savings',
+        userId: 'mock-user-123',
+        iban: 'BE89377007718822',
+        currency: 'EUR',
+        type: 'savings',
+        interestRate: 0.025,
+        balance: 5000.00,
+        reservedBalance: 0.0,
+        status: 'active'
+      }
+    ]);
     setTransactions([
       {
         id: 'tx-1',
@@ -271,6 +299,7 @@ export default function App() {
     ]);
     setWsStatus('connected');
     addNotification('Demo Simulator Actief', 'De API Gateway is offline. FinVault draait in offline demonstratiemodus.', 'warning');
+    fetchInvoices();
   };
 
   const fetchBalanceHistory = async (walletId: string) => {
@@ -306,36 +335,241 @@ export default function App() {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`
         },
-        body: JSON.stringify({ currency: newWalletCurrency })
+        body: JSON.stringify({ type: newWalletType })
       });
 
       const data = await res.json();
       if (res.ok) {
-        addNotification('Nieuwe Wallet Geopend', `Je ${newWalletCurrency} wallet is succesvol geopend met IBAN ${data.iban}`, 'success');
+        const typeName = newWalletType === 'savings' ? 'Spaarrekening' : 'Betaalrekening';
+        addNotification('Nieuwe Rekening Geopend', `Je ${typeName} is succesvol geopend met IBAN ${data.iban}`, 'success');
         fetchWallets();
       } else {
-        addNotification('Wallet Fout', data.error || 'Kon wallet niet aanmaken.', 'warning');
+        addNotification('Rekening Fout', data.error || 'Kon rekening niet aanmaken.', 'warning');
       }
     } catch {
       // Mock creation fallback for demo
       const randomDigits = Math.floor(1000000000 + Math.random() * 9000000000);
+      const startBonus = newWalletType === 'savings' ? 50.00 : 100.00;
       const mockNew = {
-        id: `mock-wallet-${newWalletCurrency.toLowerCase()}`,
+        id: `mock-wallet-${newWalletType}-${Math.random().toString(36).substring(2, 5)}`,
         userId: user ? user.id : 'mock-user-123',
         iban: `BE8937700771${randomDigits}`,
-        currency: newWalletCurrency,
-        balance: 100.00,
+        currency: 'EUR',
+        type: newWalletType,
+        interestRate: newWalletType === 'savings' ? 0.025 : 0.0,
+        balance: startBonus,
         reservedBalance: 0.0,
         status: 'active'
       };
       setWallets(prev => [...prev, mockNew]);
       setBalanceHistory(prev => [
         ...prev,
-        { id: Math.random().toString(), walletId: mockNew.id, amount: 100.00, balanceAfter: 100.00, reason: `${newWalletCurrency} Account Activated`, timestamp: new Date().toISOString() }
+        { id: Math.random().toString(), walletId: mockNew.id, amount: startBonus, balanceAfter: startBonus, reason: newWalletType === 'savings' ? 'Spaarrekening Geopend (Bonus)' : 'Betaalrekening Geopend (Bonus)', timestamp: new Date().toISOString() }
       ]);
-      addNotification('Nieuwe Wallet Geopend (Demo)', `Je ${newWalletCurrency} wallet is succesvol geopend met IBAN ${mockNew.iban} in demonstratiemodus.`, 'success');
+      const typeName = newWalletType === 'savings' ? 'Spaarrekening' : 'Betaalrekening';
+      addNotification('Nieuwe Rekening Geopend (Demo)', `Je ${typeName} is succesvol geopend met IBAN ${mockNew.iban} in demonstratiemodus.`, 'success');
     } finally {
       setNewWalletLoading(false);
+    }
+  };
+
+  const fetchInvoices = async () => {
+    if (!token || token === 'mock-token-abc') {
+      // Mock invoices seed
+      setInvoices([
+        { id: 'inv-1', userId: 'some-other-id', creatorEmail: 'starbucks@coffee.com', recipientEmail: user ? user.email : 'tom@finvault.com', amount: 15.50, currency: 'EUR', description: 'Starbucks Catering Vergadering', dueDate: new Date(Date.now() + 86400000 * 5).toISOString().split('T')[0], status: 'unpaid', createdAt: new Date().toISOString() },
+        { id: 'inv-2', userId: user ? user.id : 'mock-user-123', creatorEmail: user ? user.email : 'tom@finvault.com', recipientEmail: 'client@company.com', amount: 450.00, currency: 'EUR', description: 'Consulting services FinVault Dashboard', dueDate: new Date(Date.now() - 86400000 * 2).toISOString().split('T')[0], status: 'paid', createdAt: new Date(Date.now() - 86400000 * 9).toISOString() }
+      ]);
+      return;
+    }
+    try {
+      const res = await fetch('/api/invoices', {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setInvoices(data);
+      }
+    } catch (err) {
+      console.error('Failed to fetch invoices:', err);
+    }
+  };
+
+  const handleCreateInvoice = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setInvoiceLoading(true);
+    setInvoiceError('');
+    setInvoiceSuccess(false);
+
+    const invoiceAmtVal = parseFloat(invoiceAmount);
+    if (isNaN(invoiceAmtVal) || invoiceAmtVal <= 0) {
+      setInvoiceError('Voer een geldig bedrag in.');
+      setInvoiceLoading(false);
+      return;
+    }
+
+    try {
+      const res = await fetch('/api/invoices', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          recipientEmail: invoiceRecipient,
+          amount: invoiceAmtVal,
+          description: invoiceDesc,
+          dueDate: invoiceDueDate || new Date(Date.now() + 86400000 * 7).toISOString().split('T')[0]
+        })
+      });
+
+      const data = await res.json();
+      if (res.ok) {
+        setInvoiceSuccess(true);
+        setInvoiceRecipient('');
+        setInvoiceAmount('');
+        setInvoiceDesc('');
+        setInvoiceDueDate('');
+        addNotification('Factuur Verzonden', `Factuur voor €${invoiceAmtVal.toFixed(2)} succesvol verzonden naar ${invoiceRecipient}`, 'success');
+        fetchInvoices();
+      } else {
+        setInvoiceError(data.error || 'Kon factuur niet aanmaken.');
+      }
+    } catch {
+      // Mock invoice creator for demo mode
+      const mockInv = {
+        id: `mock-inv-${Math.random().toString(36).substring(2, 6)}`,
+        userId: user ? user.id : 'mock-user-123',
+        creatorEmail: user ? user.email : 'premium-user@finvault.com',
+        recipientEmail: invoiceRecipient,
+        amount: invoiceAmtVal,
+        currency: 'EUR',
+        description: invoiceDesc,
+        dueDate: invoiceDueDate || new Date(Date.now() + 86400000 * 7).toISOString().split('T')[0],
+        status: 'unpaid',
+        createdAt: new Date().toISOString()
+      };
+      setInvoices(prev => [mockInv, ...prev]);
+      setInvoiceSuccess(true);
+      setInvoiceRecipient('');
+      setInvoiceAmount('');
+      setInvoiceDesc('');
+      setInvoiceDueDate('');
+      addNotification('Factuur Verzonden (Demo)', `Factuur voor €${invoiceAmtVal.toFixed(2)} verzonden naar ${invoiceRecipient} via de offline simulator.`, 'success');
+    } finally {
+      setInvoiceLoading(false);
+    }
+  };
+
+  const handlePayInvoice = async (invoiceId: string) => {
+    try {
+      const res = await fetch(`/api/invoices/${invoiceId}/pay`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+
+      const data = await res.json();
+      if (res.ok) {
+        addNotification('Factuur Betaald', 'De factuur is succesvol voldaan en afgeschreven.', 'success');
+        fetchInvoices();
+        fetchWallets();
+        fetchTransactions();
+      } else {
+        addNotification('Betaling Mislukt', data.error || 'De factuurbetaling is afgebroken.', 'warning');
+      }
+    } catch {
+      // Mock payment fallback
+      const invoice = invoices.find(inv => inv.id === invoiceId);
+      if (!invoice) return;
+
+      const checkingWalletIndex = wallets.findIndex(w => w.type === 'checking');
+      const checkingWallet = wallets[checkingWalletIndex >= 0 ? checkingWalletIndex : 0];
+
+      if (checkingWallet.balance < invoice.amount) {
+        addNotification('Fout bij betaling (Demo)', 'Onvoldoende saldo op je Betaalrekening.', 'warning');
+        return;
+      }
+
+      const newBal = parseFloat((checkingWallet.balance - invoice.amount).toFixed(2));
+      setWallets(prev => prev.map((w, idx) => idx === (checkingWalletIndex >= 0 ? checkingWalletIndex : 0) ? { ...w, balance: newBal } : w));
+      
+      const newTx = {
+        id: Math.random().toString(),
+        reference: `INV-${Math.random().toString(36).substring(2, 9).toUpperCase()}`,
+        senderWalletId: checkingWallet.id,
+        receiverWalletId: null,
+        amount: invoice.amount,
+        currency: 'EUR',
+        status: 'confirmed',
+        type: 'transfer',
+        description: `Betaling Factuur: ${invoice.description}`,
+        createdAt: new Date().toISOString()
+      };
+      setTransactions(prev => [newTx, ...prev]);
+
+      setInvoices(prev => prev.map(inv => inv.id === invoiceId ? { ...inv, status: 'paid' } : inv));
+      addNotification('Factuur Betaald (Demo)', `€${invoice.amount.toFixed(2)} succesvol overgemaakt via offline simulator.`, 'success');
+    }
+  };
+
+  const handleSimulateTime = async (months: number) => {
+    setTimeSimulationLoading(true);
+
+    try {
+      const res = await fetch('/api/wallets/simulate-time', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ months })
+      });
+
+      const data = await res.json();
+      if (res.ok) {
+        let renteTotal = 0;
+        if (data.updatedAccounts && data.updatedAccounts.length > 0) {
+          renteTotal = data.updatedAccounts.reduce((acc: number, curr: any) => acc + curr.interestEarned, 0);
+        }
+        addNotification(
+          'Tijd Versneld',
+          `Tijd met ${months} maanden vooruitgespoeld! Totaal ontvangen rente op spaarrekeningen: €${renteTotal.toFixed(2)}`,
+          'success'
+        );
+        fetchWallets();
+        fetchTransactions();
+      } else {
+        addNotification('Simulatie Fout', data.error || 'Kon tijd niet simuleren.', 'warning');
+      }
+    } catch {
+      // Mock simulation fallback
+      let interestTotal = 0;
+      setWallets(prev => prev.map(w => {
+        if (w.type === 'savings' && w.interestRate > 0) {
+          const interest = parseFloat((w.balance * w.interestRate * (months / 12)).toFixed(2));
+          interestTotal += interest;
+          const newBal = parseFloat((w.balance + interest).toFixed(2));
+          
+          // Seed mock history
+          setBalanceHistory(hist => [
+            ...hist,
+            { id: Math.random().toString(), walletId: w.id, amount: interest, balanceAfter: newBal, reason: `Rente-opbouw (${months} mnd @ ${(w.interestRate * 100).toFixed(1)}%)`, timestamp: new Date().toISOString() }
+          ]);
+          
+          return { ...w, balance: newBal };
+        }
+        return w;
+      }));
+
+      addNotification(
+        'Tijd Versneld (Demo)',
+        `Tijd met ${months} maanden vooruitgespoeld in demonstratiemodus! Ontvangen rente: €${interestTotal.toFixed(2)}`,
+        'success'
+      );
+    } finally {
+      setTimeSimulationLoading(false);
     }
   };
 
@@ -431,7 +665,7 @@ export default function App() {
 
     // Direct client validation
     if (currentWallet.balance < amountNum) {
-      setTransferError(`Onvoldoende saldo op je geselecteerde ${currentWallet.currency} wallet.`);
+      setTransferError(`Onvoldoende saldo op je geselecteerde rekening.`);
       setTransferLoading(false);
       return;
     }
@@ -457,8 +691,7 @@ export default function App() {
         setTransferEmail('');
         setTransferAmount('');
         setTransferDesc('');
-        const currencySign = currentWallet.currency === 'EUR' ? '€' : currentWallet.currency === 'USD' ? '$' : currentWallet.currency === 'GBP' ? '£' : '₣';
-        addNotification('Geld Overgemaakt', `${currencySign}${amountNum.toFixed(2)} succesvol verzonden naar ${transferEmail}`, 'success');
+        addNotification('Geld Overgemaakt', `€${amountNum.toFixed(2)} succesvol verzonden naar ${transferEmail}`, 'success');
         fetchWallets();
         fetchTransactions();
       } else {
@@ -487,8 +720,7 @@ export default function App() {
       setTransferEmail('');
       setTransferAmount('');
       setTransferDesc('');
-      const currencySign = mockWallet.currency === 'EUR' ? '€' : mockWallet.currency === 'USD' ? '$' : mockWallet.currency === 'GBP' ? '£' : '₣';
-      addNotification('Geld Overgemaakt (Demo)', `${currencySign}${amountNum.toFixed(2)} succesvol overgeboekt via de offline simulator.`, 'success');
+      addNotification('Geld Overgemaakt (Demo)', `€${amountNum.toFixed(2)} succesvol overgeboekt via de offline simulator.`, 'success');
     } finally {
       setTransferLoading(false);
     }
@@ -527,8 +759,7 @@ export default function App() {
 
       if (res.ok) {
         setDepositAmount('');
-        const currencySign = currentWallet.currency === 'EUR' ? '€' : currentWallet.currency === 'USD' ? '$' : currentWallet.currency === 'GBP' ? '£' : '₣';
-        addNotification('Saldo Gestort', `${currencySign}${amountNum.toFixed(2)} toegevoegd via simulator.`, 'success');
+        addNotification('Saldo Gestort', `€${amountNum.toFixed(2)} toegevoegd via simulator.`, 'success');
         fetchWallets();
         fetchTransactions();
       } else {
@@ -555,8 +786,7 @@ export default function App() {
       };
       setTransactions(prev => [newTx, ...prev]);
       setDepositAmount('');
-      const currencySign = mockWallet.currency === 'EUR' ? '€' : mockWallet.currency === 'USD' ? '$' : mockWallet.currency === 'GBP' ? '£' : '₣';
-      addNotification('Saldo Gestort (Demo)', `${currencySign}${amountNum.toFixed(2)} gestort via offline simulator.`, 'success');
+      addNotification('Saldo Gestort (Demo)', `€${amountNum.toFixed(2)} gestort via offline simulator.`, 'success');
     } finally {
       setDepositLoading(false);
     }
@@ -1006,6 +1236,25 @@ export default function App() {
             <Send size={18} /> P2P Overboeking
           </button>
           <button 
+            onClick={() => setActiveTab('invoices')}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '12px',
+              background: activeTab === 'invoices' ? 'var(--accent-glow)' : 'transparent',
+              color: activeTab === 'invoices' ? 'var(--accent-color)' : 'var(--text-secondary)',
+              border: 'none',
+              padding: '12px 16px',
+              borderRadius: '10px',
+              cursor: 'pointer',
+              fontWeight: 600,
+              fontSize: '0.9rem',
+              textAlign: 'left',
+              transition: 'var(--transition-smooth)'
+            }}>
+            <FileText size={18} /> Facturen
+          </button>
+          <button 
             onClick={() => setActiveTab('history')}
             style={{
               display: 'flex',
@@ -1032,7 +1281,7 @@ export default function App() {
             <div className="animate-slide-in" style={{ display: 'flex', flexDirection: 'column', gap: '32px' }}>
               
               {/* Financial Dashboard Cards */}
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '24px' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '24px' }}>
                 
                 {/* Premium Neon Debit Card */}
                 <div className={`glass-card ${isBalanceUpdated ? 'glow-active' : ''}`} style={{
@@ -1061,10 +1310,10 @@ export default function App() {
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', zIndex: 1 }}>
                     <div>
                       <div style={{ fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '1px', color: 'var(--text-secondary)' }}>
-                        {activeWallet.currency} Rekening
+                        {activeWallet.type === 'savings' ? 'Spaarrekening' : 'Betaalrekening'}
                       </div>
                       <div style={{ fontSize: '1.8rem', fontWeight: 800, marginTop: '8px', display: 'flex', alignItems: 'baseline', gap: '4px' }}>
-                        <span>{curSign}</span>
+                        <span>€</span>
                         <span style={{ fontSize: '2.2rem', letterSpacing: '-1px' }}>{activeWallet.balance.toFixed(2)}</span>
                       </div>
                     </div>
@@ -1075,9 +1324,9 @@ export default function App() {
                       fontSize: '0.75rem',
                       fontWeight: 700,
                       border: '1px solid var(--border-color)',
-                      color: 'var(--accent-secondary)'
+                      color: activeWallet.type === 'savings' ? '#ffb703' : 'var(--accent-secondary)'
                     }}>
-                      {activeWallet.currency}
+                      {activeWallet.type === 'savings' ? '2.5% Rente' : 'Checking'}
                     </div>
                   </div>
 
@@ -1147,7 +1396,7 @@ export default function App() {
                 </div>
 
                 {/* Quick Simulated Deposit widget */}
-                <div className="glass-card" style={{ display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
+                <div className="glass-card" style={{ display: 'flex', flexDirection: 'column', justifyContent: 'space-between', height: '220px' }}>
                   <div>
                     <h3 style={{ fontSize: '1.1rem', fontWeight: 700, marginBottom: '8px' }}>Testbedrag Storten</h3>
                     <p style={{ color: 'var(--text-secondary)', fontSize: '0.8rem', marginBottom: '20px' }}>
@@ -1156,7 +1405,7 @@ export default function App() {
                   </div>
                   <form onSubmit={handleDeposit} style={{ display: 'flex', gap: '12px' }}>
                     <div style={{ flex: 1, position: 'relative' }}>
-                      <span style={{ position: 'absolute', left: '16px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }}>{curSign}</span>
+                      <span style={{ position: 'absolute', left: '16px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }}>€</span>
                       <input 
                         type="number" 
                         className="form-input" 
@@ -1174,14 +1423,14 @@ export default function App() {
                   </form>
                 </div>
 
-                {/* Multi-Currency Account Manager */}
-                <div className="glass-card" style={{ display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
+                {/* Rekeningen & Sparen Card */}
+                <div className="glass-card" style={{ display: 'flex', flexDirection: 'column', justifyContent: 'space-between', height: '220px' }}>
                   <div>
-                    <h3 style={{ fontSize: '1.1rem', fontWeight: 700, marginBottom: '8px' }}>Rekeningen & Valuta</h3>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', maxHeight: '100px', overflowY: 'auto', marginBottom: '12px', paddingRight: '4px' }}>
+                    <h3 style={{ fontSize: '1.1rem', fontWeight: 700, marginBottom: '8px' }}>Rekeningen & Sparen</h3>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', maxHeight: '90px', overflowY: 'auto', marginBottom: '8px', paddingRight: '4px' }}>
                       {wallets.map((w, idx) => {
-                        const sign = currencySigns[w.currency] || '€';
                         const isActive = idx === activeWalletIndex;
+                        const isSavings = w.type === 'savings';
                         return (
                           <div 
                             key={w.id} 
@@ -1196,17 +1445,26 @@ export default function App() {
                               padding: '6px 12px',
                               borderRadius: '8px',
                               background: isActive ? 'var(--accent-glow)' : 'rgba(255,255,255,0.02)',
-                              border: `1px solid ${isActive ? 'var(--accent-color)' : 'var(--border-color)'}`,
+                              border: isActive 
+                                ? `1px solid ${isSavings ? '#ffb703' : 'var(--accent-color)'}` 
+                                : '1px solid var(--border-color)',
+                              boxShadow: isActive ? `0 0 10px ${isSavings ? 'rgba(255,183,3,0.15)' : 'rgba(138,43,226,0.15)'}` : 'none',
                               cursor: 'pointer',
                               fontSize: '0.8rem',
                               transition: 'var(--transition-smooth)'
                             }}
                           >
-                            <span style={{ fontWeight: 600, color: isActive ? 'var(--accent-color)' : '#fff' }}>
-                              {w.currency} Wallet
-                            </span>
+                            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start' }}>
+                              <span style={{ fontWeight: 600, color: isActive ? (isSavings ? '#ffb703' : 'var(--accent-color)') : '#fff', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                {isSavings ? 'Spaarrekening' : 'Betaalrekening'}
+                                {isSavings && <span style={{ fontSize: '0.65rem', background: 'rgba(255,183,3,0.15)', color: '#ffb703', padding: '1px 4px', borderRadius: '4px' }}>2.5%</span>}
+                              </span>
+                              <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)' }}>
+                                {w.iban ? `${w.iban.substring(0, 4)}...${w.iban.substring(w.iban.length - 4)}` : ''}
+                              </span>
+                            </div>
                             <span style={{ fontWeight: 700 }}>
-                              {sign}{w.balance.toFixed(2)}
+                              €{w.balance.toFixed(2)}
                             </span>
                           </div>
                         );
@@ -1214,30 +1472,66 @@ export default function App() {
                     </div>
                   </div>
                   
-                  <form onSubmit={handleCreateWallet} style={{ display: 'flex', gap: '12px', alignItems: 'center', borderTop: '1px solid var(--border-color)', paddingTop: '12px' }}>
+                  <form onSubmit={handleCreateWallet} style={{ display: 'flex', gap: '8px', alignItems: 'center', borderTop: '1px solid var(--border-color)', paddingTop: '8px' }}>
                     <select
-                      value={newWalletCurrency}
-                      onChange={e => setNewWalletCurrency(e.target.value)}
+                      value={newWalletType}
+                      onChange={e => setNewWalletType(e.target.value)}
                       className="form-input"
-                      style={{ flex: 1, padding: '8px 12px', fontSize: '0.8rem', height: '38px', background: 'rgba(0,0,0,0.2)', border: '1px solid var(--border-color)' }}
+                      style={{ flex: 1, padding: '6px 10px', fontSize: '0.75rem', height: '34px', background: 'rgba(0,0,0,0.2)', border: '1px solid var(--border-color)' }}
                       disabled={newWalletLoading}
                     >
-                      {['EUR', 'USD', 'GBP', 'CHF']
-                        .filter(cur => !wallets.some(w => w.currency === cur))
-                        .map(cur => (
-                          <option key={cur} value={cur} style={{ background: 'var(--bg-secondary)', color: '#fff' }}>{cur}</option>
-                        ))
-                      }
+                      <option value="checking" style={{ background: 'var(--bg-secondary)', color: '#fff' }}>Extra Betaalrekening</option>
+                      <option value="savings" style={{ background: 'var(--bg-secondary)', color: '#fff' }}>Nieuwe Spaarrekening</option>
                     </select>
                     <button 
                       type="submit" 
                       className="btn-primary" 
-                      style={{ fontSize: '0.8rem', padding: '0 16px', height: '38px', whiteSpace: 'nowrap' }}
-                      disabled={newWalletLoading || ['EUR', 'USD', 'GBP', 'CHF'].filter(cur => !wallets.some(w => w.currency === cur)).length === 0}
+                      style={{ fontSize: '0.75rem', padding: '0 12px', height: '34px', whiteSpace: 'nowrap' }}
+                      disabled={newWalletLoading}
                     >
-                      {newWalletLoading ? '...' : '+ Rekening'}
+                      {newWalletLoading ? '...' : '+ Openen'}
                     </button>
                   </form>
+                </div>
+
+                {/* Tijd Simulator Widget */}
+                <div className="glass-card" style={{ display: 'flex', flexDirection: 'column', justifyContent: 'space-between', height: '220px' }}>
+                  <div>
+                    <h3 style={{ fontSize: '1.1rem', fontWeight: 700, marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <Zap size={18} style={{ color: '#ffb703' }} /> Tijd Simulator
+                    </h3>
+                    <p style={{ color: 'var(--text-secondary)', fontSize: '0.8rem', marginBottom: '12px' }}>
+                      Versnel de tijd om de rente-opbouw (2,5% p.j.) op spaarrekeningen direct bij te schrijven.
+                    </p>
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                    <div style={{ display: 'flex', gap: '8px' }}>
+                      <button 
+                        onClick={() => handleSimulateTime(1)} 
+                        className="btn-secondary" 
+                        style={{ flex: 1, fontSize: '0.75rem', padding: '8px', border: '1px solid var(--border-color)' }} 
+                        disabled={timeSimulationLoading}
+                      >
+                        +1 Mnd
+                      </button>
+                      <button 
+                        onClick={() => handleSimulateTime(6)} 
+                        className="btn-secondary" 
+                        style={{ flex: 1, fontSize: '0.75rem', padding: '8px', border: '1px solid var(--border-color)' }} 
+                        disabled={timeSimulationLoading}
+                      >
+                        +6 Mnd
+                      </button>
+                      <button 
+                        onClick={() => handleSimulateTime(12)} 
+                        className="btn-primary" 
+                        style={{ flex: 1, fontSize: '0.75rem', padding: '8px', background: 'var(--accent-color)' }} 
+                        disabled={timeSimulationLoading}
+                      >
+                        +1 Jaar
+                      </button>
+                    </div>
+                  </div>
                 </div>
 
               </div>
@@ -1314,9 +1608,14 @@ export default function App() {
                       />
                     </div>
                     <div>
-                      <label style={{ display: 'block', marginBottom: '6px', fontSize: '0.8rem', color: 'var(--text-secondary)' }}>Bedrag</label>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                        <label style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>Bedrag</label>
+                        <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                          Limiet: €{activeWallet.balance.toFixed(2)}
+                        </span>
+                      </div>
                       <div style={{ position: 'relative' }}>
-                        <span style={{ position: 'absolute', left: '16px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }}>{curSign}</span>
+                        <span style={{ position: 'absolute', left: '16px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }}>€</span>
                         <input 
                           type="number" 
                           className="form-input" 
@@ -1328,8 +1627,43 @@ export default function App() {
                         />
                       </div>
                     </div>
-                    <button type="submit" className="btn-primary" style={{ width: '100%' }}>
-                      Geld Verzenden <Send size={16} />
+
+                    {transferError && (
+                      <div style={{
+                        background: 'var(--color-danger-glow)',
+                        border: '1px solid var(--color-danger)',
+                        padding: '8px 12px',
+                        borderRadius: '8px',
+                        color: 'var(--color-danger)',
+                        fontSize: '0.8rem',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '6px'
+                      }}>
+                        <AlertTriangle size={14} />
+                        <span style={{ flex: 1 }}>{transferError}</span>
+                      </div>
+                    )}
+
+                    {transferSuccess && (
+                      <div style={{
+                        background: 'var(--color-success-glow)',
+                        border: '1px solid var(--color-success)',
+                        padding: '8px 12px',
+                        borderRadius: '8px',
+                        color: 'var(--color-success)',
+                        fontSize: '0.8rem',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '6px'
+                      }}>
+                        <CheckCircle size={14} />
+                        <span>Overboeking geslaagd!</span>
+                      </div>
+                    )}
+
+                    <button type="submit" className="btn-primary" style={{ width: '100%' }} disabled={transferLoading}>
+                      {transferLoading ? 'Verzenden...' : 'Geld Verzenden'} <Send size={16} />
                     </button>
                   </form>
                 </div>
@@ -1407,102 +1741,122 @@ export default function App() {
           )}
 
           {activeTab === 'transfer' && (
-            <div className="glass-card animate-slide-in" style={{ maxWidth: '600px', margin: '0 auto', width: '100%' }}>
-              <h2 style={{ fontSize: '1.5rem', fontWeight: 800, marginBottom: '8px' }}>Geld Overboeken</h2>
-              <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', marginBottom: '24px' }}>
-                Verstuur direct geld naar een ander FinVault account met behulp van hun geregistreerde e-mailadres. Het bedrag wordt real-time verwerkt via onze atomaire dubbele boekhouding.
-              </p>
-
-              {transferError && (
-                <div style={{
-                  background: 'var(--color-danger-glow)',
-                  border: '1px solid var(--color-danger)',
-                  padding: '12px',
-                  borderRadius: '10px',
-                  color: 'var(--color-danger)',
-                  fontSize: '0.85rem',
-                  marginBottom: '20px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '8px'
-                }}>
-                  <AlertTriangle size={16} />
-                  {transferError}
-                </div>
-              )}
-
-              {transferSuccess && (
-                <div style={{
-                  background: 'var(--color-success-glow)',
-                  border: '1px solid var(--color-success)',
-                  padding: '12px',
-                  borderRadius: '10px',
-                  color: 'var(--color-success)',
-                  fontSize: '0.85rem',
-                  marginBottom: '20px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '8px'
-                }}>
-                  <CheckCircle size={16} />
-                  Overboeking met succes afgerond en vastgelegd in het grootboek.
-                </div>
-              )}
-
-              <form onSubmit={handleTransfer} style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-                <div>
-                  <label style={{ display: 'block', marginBottom: '8px', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
-                    E-mailadres Ontvanger
-                  </label>
-                  <input 
-                    type="email" 
-                    className="form-input" 
-                    value={transferEmail}
-                    onChange={e => setTransferEmail(e.target.value)}
-                    placeholder="ontvanger@finvault.com" 
-                    required 
-                  />
-                </div>
-
-                <div>
-                  <label style={{ display: 'block', marginBottom: '8px', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
-                    Bedrag (EUR)
-                  </label>
-                  <div style={{ position: 'relative' }}>
-                    <span style={{ position: 'absolute', left: '16px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }}>€</span>
-                    <input 
-                      type="number" 
-                      className="form-input" 
-                      style={{ paddingLeft: '32px' }}
-                      value={transferAmount}
-                      onChange={e => setTransferAmount(e.target.value)}
-                      placeholder="0.00" 
-                      min="0.01" 
-                      step="0.01"
-                      required 
-                    />
+                  <div className="glass-card animate-slide-in" style={{ maxWidth: '600px', margin: '0 auto', width: '100%' }}>
+                    <h2 style={{ fontSize: '1.5rem', fontWeight: 800, marginBottom: '8px' }}>Geld Overboeken</h2>
+                    <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', marginBottom: '24px' }}>
+                      Verstuur direct geld naar een ander FinVault account met behulp van hun geregistreerde e-mailadres. Het bedrag wordt real-time verwerkt via onze atomaire dubbele boekhouding.
+                    </p>
+      
+                    {/* Saldo Limiet Indicator */}
+                    <div style={{ 
+                      background: 'rgba(255, 255, 255, 0.02)',
+                      border: '1px solid var(--border-color)',
+                      borderRadius: '10px',
+                      padding: '12px 16px',
+                      fontSize: '0.85rem',
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                      marginBottom: '20px'
+                    }}>
+                      <span style={{ color: 'var(--text-secondary)' }}>
+                        Geselecteerde rekening: <strong style={{ color: '#fff' }}>{activeWallet.type === 'savings' ? 'Spaarrekening' : 'Betaalrekening'}</strong>
+                      </span>
+                      <span style={{ fontWeight: 700, color: 'var(--accent-secondary)' }}>
+                        Beschikbaar Saldo: €{activeWallet.balance.toFixed(2)}
+                      </span>
+                    </div>
+      
+                    {transferError && (
+                      <div style={{
+                        background: 'var(--color-danger-glow)',
+                        border: '1px solid var(--color-danger)',
+                        padding: '12px',
+                        borderRadius: '10px',
+                        color: 'var(--color-danger)',
+                        fontSize: '0.85rem',
+                        marginBottom: '20px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '8px'
+                      }}>
+                        <AlertTriangle size={16} />
+                        {transferError}
+                      </div>
+                    )}
+      
+                    {transferSuccess && (
+                      <div style={{
+                        background: 'var(--color-success-glow)',
+                        border: '1px solid var(--color-success)',
+                        padding: '12px',
+                        borderRadius: '10px',
+                        color: 'var(--color-success)',
+                        fontSize: '0.85rem',
+                        marginBottom: '20px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '8px'
+                      }}>
+                        <CheckCircle size={16} />
+                        Overboeking met succes afgerond en vastgelegd in het grootboek.
+                      </div>
+                    )}
+      
+                    <form onSubmit={handleTransfer} style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                      <div>
+                        <label style={{ display: 'block', marginBottom: '8px', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
+                          E-mailadres Ontvanger
+                        </label>
+                        <input 
+                          type="email" 
+                          className="form-input" 
+                          value={transferEmail}
+                          onChange={e => setTransferEmail(e.target.value)}
+                          placeholder="ontvanger@finvault.com" 
+                          required 
+                        />
+                      </div>
+      
+                      <div>
+                        <label style={{ display: 'block', marginBottom: '8px', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
+                          Bedrag (EUR)
+                        </label>
+                        <div style={{ position: 'relative' }}>
+                          <span style={{ position: 'absolute', left: '16px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }}>€</span>
+                          <input 
+                            type="number" 
+                            className="form-input" 
+                            style={{ paddingLeft: '32px' }}
+                            value={transferAmount}
+                            onChange={e => setTransferAmount(e.target.value)}
+                            placeholder="0.00" 
+                            min="0.01" 
+                            step="0.01"
+                            required 
+                          />
+                        </div>
+                      </div>
+      
+                      <div>
+                        <label style={{ display: 'block', marginBottom: '8px', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
+                          Omschrijving
+                        </label>
+                        <input 
+                          type="text" 
+                          className="form-input" 
+                          value={transferDesc}
+                          onChange={e => setTransferDesc(e.target.value)}
+                          placeholder="Bijv. Huur, Cadeau, Avondeten" 
+                        />
+                      </div>
+      
+                      <button type="submit" className="btn-primary" style={{ marginTop: '12px' }} disabled={transferLoading}>
+                        {transferLoading ? 'Transactie Verwerken...' : 'Nu Overboeken'}
+                      </button>
+                    </form>
                   </div>
-                </div>
-
-                <div>
-                  <label style={{ display: 'block', marginBottom: '8px', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
-                    Omschrijving
-                  </label>
-                  <input 
-                    type="text" 
-                    className="form-input" 
-                    value={transferDesc}
-                    onChange={e => setTransferDesc(e.target.value)}
-                    placeholder="Bijv. Huur, Cadeau, Avondeten" 
-                  />
-                </div>
-
-                <button type="submit" className="btn-primary" style={{ marginTop: '12px' }} disabled={transferLoading}>
-                  {transferLoading ? 'Transactie Verwerken...' : 'Nu Overboeken'}
-                </button>
-              </form>
-            </div>
-          )}
+                )}
 
           {activeTab === 'history' && (
             <div className="glass-card animate-slide-in">
@@ -1552,7 +1906,7 @@ export default function App() {
                             fontWeight: 700,
                             color: isSender ? 'var(--color-danger)' : 'var(--color-success)'
                           }}>
-                            {isSender ? '-' : '+'} {currencySigns[tx.currency] || '€'}{tx.amount.toFixed(2)}
+                            {isSender ? '-' : '+'} €{tx.amount.toFixed(2)}
                           </td>
                         </tr>
                       );
@@ -1560,6 +1914,246 @@ export default function App() {
                   </tbody>
                 </table>
               )}
+            </div>
+          )}
+
+          {activeTab === 'invoices' && (
+            <div className="animate-slide-in" style={{ display: 'flex', flexDirection: 'column', gap: '32px' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: '32px', alignItems: 'start' }}>
+                
+                {/* Create Invoice Card */}
+                <div className="glass-card">
+                  <h3 style={{ fontSize: '1.1rem', fontWeight: 700, marginBottom: '8px' }}>Factuur Aanmaken</h3>
+                  <p style={{ color: 'var(--text-secondary)', fontSize: '0.8rem', marginBottom: '20px' }}>
+                    Stuur een betalingsverzoek naar een andere FinVault gebruiker via hun e-mailadres.
+                  </p>
+
+                  {invoiceError && (
+                    <div style={{
+                      background: 'var(--color-danger-glow)',
+                      border: '1px solid var(--color-danger)',
+                      padding: '10px 14px',
+                      borderRadius: '8px',
+                      color: 'var(--color-danger)',
+                      fontSize: '0.8rem',
+                      marginBottom: '16px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '8px'
+                    }}>
+                      <AlertTriangle size={16} />
+                      <span style={{ flex: 1 }}>{invoiceError}</span>
+                    </div>
+                  )}
+
+                  {invoiceSuccess && (
+                    <div style={{
+                      background: 'var(--color-success-glow)',
+                      border: '1px solid var(--color-success)',
+                      padding: '10px 14px',
+                      borderRadius: '8px',
+                      color: 'var(--color-success)',
+                      fontSize: '0.8rem',
+                      marginBottom: '16px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '8px'
+                    }}>
+                      <CheckCircle size={16} />
+                      <span>Factuur succesvol verzonden!</span>
+                    </div>
+                  )}
+
+                  <form onSubmit={handleCreateInvoice} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                    <div>
+                      <label style={{ display: 'block', marginBottom: '6px', fontSize: '0.8rem', color: 'var(--text-secondary)' }}>E-mail Ontvanger</label>
+                      <input 
+                        type="email" 
+                        className="form-input"
+                        value={invoiceRecipient}
+                        onChange={e => setInvoiceRecipient(e.target.value)}
+                        placeholder="klant@finvault.com" 
+                        required
+                      />
+                    </div>
+                    <div>
+                      <label style={{ display: 'block', marginBottom: '6px', fontSize: '0.8rem', color: 'var(--text-secondary)' }}>Bedrag (EUR)</label>
+                      <div style={{ position: 'relative' }}>
+                        <span style={{ position: 'absolute', left: '16px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }}>€</span>
+                        <input 
+                          type="number" 
+                          className="form-input" 
+                          style={{ paddingLeft: '32px' }}
+                          value={invoiceAmount}
+                          onChange={e => setInvoiceAmount(e.target.value)}
+                          placeholder="0.00" 
+                          min="0.01"
+                          step="0.01"
+                          required
+                        />
+                      </div>
+                    </div>
+                    <div>
+                      <label style={{ display: 'block', marginBottom: '6px', fontSize: '0.8rem', color: 'var(--text-secondary)' }}>Omschrijving</label>
+                      <input 
+                        type="text" 
+                        className="form-input"
+                        value={invoiceDesc}
+                        onChange={e => setInvoiceDesc(e.target.value)}
+                        placeholder="Bijv. Webdesign Diensten" 
+                        required
+                      />
+                    </div>
+                    <div>
+                      <label style={{ display: 'block', marginBottom: '6px', fontSize: '0.8rem', color: 'var(--text-secondary)' }}>Vervaldatum</label>
+                      <input 
+                        type="date" 
+                        className="form-input"
+                        value={invoiceDueDate}
+                        onChange={e => setInvoiceDueDate(e.target.value)}
+                        style={{ color: '#fff' }}
+                        required
+                      />
+                    </div>
+                    <button type="submit" className="btn-primary" style={{ width: '100%', marginTop: '8px' }} disabled={invoiceLoading}>
+                      {invoiceLoading ? 'Verzenden...' : 'Factuur Versturen'} <FileText size={16} />
+                    </button>
+                  </form>
+                </div>
+
+                {/* Invoices List Dashboard */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '32px' }}>
+                  
+                  {/* Ontvangen Facturen (Inbound) */}
+                  <div className="glass-card">
+                    <h3 style={{ fontSize: '1.1rem', fontWeight: 700, marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <ArrowDownLeft size={18} style={{ color: 'var(--color-success)' }} /> Ontvangen Facturen
+                    </h3>
+                    
+                    {invoices.filter(inv => inv.recipientEmail === user.email).length === 0 ? (
+                      <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', textAlign: 'center', padding: '24px 0' }}>
+                        Geen ontvangen betalingsverzoeken gevonden.
+                      </p>
+                    ) : (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                        {invoices.filter(inv => inv.recipientEmail === user.email).map(inv => {
+                          const isPaid = inv.status === 'paid';
+                          return (
+                            <div key={inv.id} style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'space-between',
+                              background: 'rgba(255, 255, 255, 0.01)',
+                              border: '1px solid var(--border-color)',
+                              padding: '16px 20px',
+                              borderRadius: '12px',
+                              fontSize: '0.9rem'
+                            }}>
+                              <div>
+                                <div style={{ fontWeight: 600 }}>{inv.description}</div>
+                                <div style={{ color: 'var(--text-muted)', fontSize: '0.75rem', marginTop: '4px' }}>
+                                  Van: <span style={{ color: 'var(--text-secondary)' }}>{inv.creatorEmail}</span> • Vervaldatum: {new Date(inv.dueDate).toLocaleDateString()}
+                                </div>
+                              </div>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+                                <div style={{ textAlign: 'right' }}>
+                                  <div style={{ fontWeight: 700, color: '#fff' }}>
+                                    €{inv.amount.toFixed(2)}
+                                  </div>
+                                  <span style={{
+                                    fontSize: '0.65rem',
+                                    background: isPaid ? 'var(--color-success-glow)' : 'var(--color-warning-glow)',
+                                    color: isPaid ? 'var(--color-success)' : 'var(--color-warning)',
+                                    padding: '2px 6px',
+                                    borderRadius: '4px',
+                                    fontWeight: 700,
+                                    display: 'inline-block',
+                                    marginTop: '4px'
+                                  }}>
+                                    {inv.status.toUpperCase()}
+                                  </span>
+                                </div>
+                                {!isPaid && (
+                                  <button 
+                                    onClick={() => handlePayInvoice(inv.id)}
+                                    className="btn-primary animate-pulse"
+                                    style={{
+                                      padding: '8px 16px',
+                                      fontSize: '0.8rem',
+                                      background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+                                      border: 'none',
+                                      boxShadow: '0 0 12px rgba(16, 185, 129, 0.3)'
+                                    }}
+                                  >
+                                    Nu Betalen
+                                  </button>
+                                )}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Outbound Invoices */}
+                  <div className="glass-card">
+                    <h3 style={{ fontSize: '1.1rem', fontWeight: 700, marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <ArrowUpRight size={18} style={{ color: 'var(--accent-color)' }} /> Verzonden Facturen
+                    </h3>
+                    
+                    {invoices.filter(inv => inv.creatorEmail === user.email).length === 0 ? (
+                      <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', textAlign: 'center', padding: '24px 0' }}>
+                        Je hebt nog geen facturen verzonden.
+                      </p>
+                    ) : (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                        {invoices.filter(inv => inv.creatorEmail === user.email).map(inv => {
+                          const isPaid = inv.status === 'paid';
+                          return (
+                            <div key={inv.id} style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'space-between',
+                              background: 'rgba(255, 255, 255, 0.01)',
+                              border: '1px solid var(--border-color)',
+                              padding: '16px 20px',
+                              borderRadius: '12px',
+                              fontSize: '0.9rem'
+                            }}>
+                              <div>
+                                <div style={{ fontWeight: 600 }}>{inv.description}</div>
+                                <div style={{ color: 'var(--text-muted)', fontSize: '0.75rem', marginTop: '4px' }}>
+                                  Aan: <span style={{ color: 'var(--text-secondary)' }}>{inv.recipientEmail}</span> • Vervaldatum: {new Date(inv.dueDate).toLocaleDateString()}
+                                </div>
+                              </div>
+                              <div style={{ textAlign: 'right' }}>
+                                <div style={{ fontWeight: 700, color: '#fff' }}>
+                                  €{inv.amount.toFixed(2)}
+                                </div>
+                                <span style={{
+                                  fontSize: '0.65rem',
+                                  background: isPaid ? 'var(--color-success-glow)' : 'var(--color-warning-glow)',
+                                  color: isPaid ? 'var(--color-success)' : 'var(--color-warning)',
+                                  padding: '2px 6px',
+                                  borderRadius: '4px',
+                                  fontWeight: 700,
+                                  display: 'inline-block',
+                                  marginTop: '4px'
+                                }}>
+                                  {inv.status.toUpperCase()}
+                                </span>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+
+                </div>
+
+              </div>
             </div>
           )}
 
