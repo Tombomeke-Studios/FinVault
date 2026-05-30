@@ -7,16 +7,51 @@ generator client {
   provider = "prisma-client-js"
 }
 
-model Invoice {
+model Receipt {
   id             String   @id @default(uuid())
-  userId         String   // Invoice Creator (Seller/Creditor)
-  creatorEmail   String   // Invoice Creator's email
-  recipientEmail String   // Invoice Recipient (Buyer/Debtor)
+  transactionRef String   @unique    // links to Transaction.reference in wallet-service
+  payerUserId    String
+  payeeUserId    String?
+  payerEmail     String
+  payeeEmail     String?
   amount         Float
   currency       String   @default("EUR")
   description    String
-  dueDate        String
-  status         String   @default("unpaid") // unpaid, paid, overdue
+  pdfPath        String?             // path to generated PDF file
+  createdAt      DateTime @default(now())
+}
+
+model PaymentRequest {
+  id             String   @id @default(uuid())
+  creatorUserId  String              // who's requesting money
+  creatorEmail   String
+  recipientEmail String              // who should pay
+  amount         Float
+  currency       String   @default("EUR")
+  description    String
+  status         String   @default("pending") // pending, paid, declined, expired
+  expiresAt      DateTime?
+  paidAt         DateTime?
+  transactionRef String?             // filled when paid, links to Transaction
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+}
+
+model Mandate {
+  id             String   @id @default(uuid())
+  payerUserId    String              // who gets debited
+  payerEmail     String
+  payeeUserId    String              // who receives money (e.g. server-hosting service)
+  payeeEmail     String
+  amount         Float
+  currency       String   @default("EUR")
+  description    String              // e.g. "Tombomeke Studios - Server Hosting (Maandelijks)"
+  intervalDays   Int      @default(30) // 30 = maandelijks, 7 = wekelijks, 365 = jaarlijks
+  status         String   @default("active") // active, paused, cancelled, expired
+  nextChargeAt   DateTime             // when the next auto-debit fires
+  lastChargedAt  DateTime?
+  totalCharged   Float    @default(0.0)
+  chargeCount    Int      @default(0)
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 }
