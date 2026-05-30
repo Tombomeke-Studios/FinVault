@@ -47,15 +47,26 @@ export default function App() {
   const [newWalletLoading, setNewWalletLoading] = useState(false);
   const [timeSimulationLoading, setTimeSimulationLoading] = useState(false);
   
-  // Invoice microservice states
-  const [invoices, setInvoices] = useState<any[]>([]);
+  // Realistische Bankflows states
+  const [invoiceSubTab, setInvoiceSubTab] = useState<'receipts' | 'requests' | 'mandates'>('receipts');
+  const [receipts, setReceipts] = useState<any[]>([]);
+  const [paymentRequests, setPaymentRequests] = useState<any[]>([]);
+  const [mandates, setMandates] = useState<any[]>([]);
+  
+  // Forms loading/success states
   const [invoiceLoading, setInvoiceLoading] = useState(false);
-  const [invoiceRecipient, setInvoiceRecipient] = useState('');
-  const [invoiceAmount, setInvoiceAmount] = useState('');
-  const [invoiceDesc, setInvoiceDesc] = useState('');
-  const [invoiceDueDate, setInvoiceDueDate] = useState('');
   const [invoiceError, setInvoiceError] = useState('');
   const [invoiceSuccess, setInvoiceSuccess] = useState(false);
+
+  // Form Inputs
+  const [reqRecipient, setReqRecipient] = useState('');
+  const [reqAmount, setReqAmount] = useState('');
+  const [reqDesc, setReqDesc] = useState('');
+
+  const [mandatePayee, setMandatePayee] = useState('');
+  const [mandateAmount, setMandateAmount] = useState('');
+  const [mandateDesc, setMandateDesc] = useState('');
+  const [mandateInterval, setMandateInterval] = useState('30');
   
   // UI Control State
   const [activeTab, setActiveTab] = useState<'overview' | 'transfer' | 'history' | 'invoices'>('overview');
@@ -110,7 +121,7 @@ export default function App() {
     return () => {
       if (wsRef.current) wsRef.current.close();
     };
-  }, [user]);
+  }, [user, token]);
 
   const addNotification = (title: string, body: string, type: 'success' | 'info' | 'warning' = 'info') => {
     const newNotif: Notification = {
@@ -190,7 +201,7 @@ export default function App() {
         setUser(data);
         fetchWallets();
         fetchTransactions();
-        fetchInvoices();
+        fetchAllInvoiceData();
       } else {
         handleLogout();
       }
@@ -299,7 +310,7 @@ export default function App() {
     ]);
     setWsStatus('connected');
     addNotification('Demo Simulator Actief', 'De API Gateway is offline. FinVault draait in offline demonstratiemodus.', 'warning');
-    fetchInvoices();
+    fetchAllInvoiceData();
   };
 
   const fetchBalanceHistory = async (walletId: string) => {
@@ -373,97 +384,233 @@ export default function App() {
     }
   };
 
-  const fetchInvoices = async () => {
+  const fetchReceipts = async () => {
     if (!token || token === 'mock-token-abc') {
-      // Mock invoices seed
-      setInvoices([
-        { id: 'inv-1', userId: 'some-other-id', creatorEmail: 'starbucks@coffee.com', recipientEmail: user ? user.email : 'tom@finvault.com', amount: 15.50, currency: 'EUR', description: 'Starbucks Catering Vergadering', dueDate: new Date(Date.now() + 86400000 * 5).toISOString().split('T')[0], status: 'unpaid', createdAt: new Date().toISOString() },
-        { id: 'inv-2', userId: user ? user.id : 'mock-user-123', creatorEmail: user ? user.email : 'tom@finvault.com', recipientEmail: 'client@company.com', amount: 450.00, currency: 'EUR', description: 'Consulting services FinVault Dashboard', dueDate: new Date(Date.now() - 86400000 * 2).toISOString().split('T')[0], status: 'paid', createdAt: new Date(Date.now() - 86400000 * 9).toISOString() }
+      setReceipts([
+        {
+          id: 'receipt-1',
+          transactionRef: 'DEP-MOCK123',
+          payerUserId: 'EXTERNAL',
+          payeeUserId: user ? user.id : 'mock-user-123',
+          payerEmail: 'cash-deposit@finvault.com',
+          payeeEmail: user ? user.email : 'tom@finvault.com',
+          amount: 250.00,
+          currency: 'EUR',
+          description: 'Cash Deposit Welkomstbonus',
+          pdfPath: null,
+          createdAt: new Date(Date.now() - 86400000 * 2).toISOString()
+        },
+        {
+          id: 'receipt-2',
+          transactionRef: 'TX-MOCK456',
+          payerUserId: user ? user.id : 'mock-user-123',
+          payeeUserId: 'some-other-id',
+          payerEmail: user ? user.email : 'tom@finvault.com',
+          payeeEmail: 'billing@tombomeke-studios.com',
+          amount: 29.99,
+          currency: 'EUR',
+          description: 'Automatische Incasso: VPS Cloud Hosting',
+          pdfPath: null,
+          createdAt: new Date().toISOString()
+        }
       ]);
       return;
     }
     try {
-      const res = await fetch('/api/invoices', {
+      const res = await fetch('/api/invoices/receipts', {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       if (res.ok) {
         const data = await res.json();
-        setInvoices(data);
+        setReceipts(data);
       }
     } catch (err) {
-      console.error('Failed to fetch invoices:', err);
+      console.error('Failed to fetch receipts:', err);
     }
   };
 
-  const handleCreateInvoice = async (e: React.FormEvent) => {
+  const fetchPaymentRequests = async () => {
+    if (!token || token === 'mock-token-abc') {
+      setPaymentRequests([
+        {
+          id: 'req-1',
+          creatorUserId: 'some-other-id',
+          creatorEmail: 'colleague@company.com',
+          recipientEmail: user ? user.email : 'tom@finvault.com',
+          amount: 15.50,
+          currency: 'EUR',
+          description: 'Koffie voor kantoor',
+          status: 'pending',
+          paidAt: null,
+          transactionRef: null,
+          createdAt: new Date().toISOString()
+        },
+        {
+          id: 'req-2',
+          creatorUserId: user ? user.id : 'mock-user-123',
+          creatorEmail: user ? user.email : 'tom@finvault.com',
+          recipientEmail: 'client@company.com',
+          amount: 150.00,
+          currency: 'EUR',
+          description: 'Gezamenlijk Diner Project',
+          status: 'paid',
+          paidAt: new Date().toISOString(),
+          transactionRef: 'TX-PAYREQ88',
+          createdAt: new Date(Date.now() - 86400000).toISOString()
+        }
+      ]);
+      return;
+    }
+    try {
+      const res = await fetch('/api/invoices/payment-requests', {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setPaymentRequests(data);
+      }
+    } catch (err) {
+      console.error('Failed to fetch payment requests:', err);
+    }
+  };
+
+  const fetchMandates = async () => {
+    if (!token || token === 'mock-token-abc') {
+      setMandates([
+        {
+          id: 'mandate-1',
+          payerUserId: user ? user.id : 'mock-user-123',
+          payerEmail: user ? user.email : 'tom@finvault.com',
+          payeeUserId: 'hosting-id',
+          payeeEmail: 'billing@tombomeke-studios.com',
+          amount: 29.99,
+          currency: 'EUR',
+          description: 'VPS Cloud Hosting (Maandelijks)',
+          intervalDays: 30,
+          status: 'active',
+          nextChargeAt: new Date(Date.now() + 86400000 * 15).toISOString(),
+          lastChargedAt: new Date(Date.now() - 86400000 * 15).toISOString(),
+          totalCharged: 59.98,
+          chargeCount: 2,
+          createdAt: new Date(Date.now() - 86400000 * 45).toISOString()
+        }
+      ]);
+      return;
+    }
+    try {
+      const res = await fetch('/api/invoices/mandates', {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setMandates(data);
+      }
+    } catch (err) {
+      console.error('Failed to fetch mandates:', err);
+    }
+  };
+
+  const fetchAllInvoiceData = () => {
+    fetchReceipts();
+    fetchPaymentRequests();
+    fetchMandates();
+  };
+
+  const handleDownloadPdf = async (receiptId: string, transactionRef: string) => {
+    if (!token || token === 'mock-token-abc') {
+      addNotification('PDF Gedownload (Demo)', 'Kwitantie PDF gedownload in demonstratiemodus.', 'success');
+      return;
+    }
+    try {
+      const res = await fetch(`/api/invoices/receipts/${receiptId}/pdf`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (res.ok) {
+        const blob = await res.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `Kwitantie_${transactionRef}.pdf`;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        window.URL.revokeObjectURL(url);
+        addNotification('Download Voltooid', 'Je PDF-kwitantie is succesvol gedownload.', 'success');
+      } else {
+        addNotification('Download Mislukt', 'Kan de PDF-kwitantie op dit moment niet ophalen.', 'warning');
+      }
+    } catch (err) {
+      console.error('Failed to download PDF:', err);
+      addNotification('Fout bij download', 'Er is een fout opgetreden bij het downloaden van de PDF.', 'warning');
+    }
+  };
+
+  const handleCreatePaymentRequest = async (e: React.FormEvent) => {
     e.preventDefault();
     setInvoiceLoading(true);
     setInvoiceError('');
     setInvoiceSuccess(false);
 
-    const invoiceAmtVal = parseFloat(invoiceAmount);
-    if (isNaN(invoiceAmtVal) || invoiceAmtVal <= 0) {
+    const amt = parseFloat(reqAmount);
+    if (isNaN(amt) || amt <= 0) {
       setInvoiceError('Voer een geldig bedrag in.');
       setInvoiceLoading(false);
       return;
     }
 
     try {
-      const res = await fetch('/api/invoices', {
+      const res = await fetch('/api/invoices/payment-requests', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`
         },
         body: JSON.stringify({
-          recipientEmail: invoiceRecipient,
-          amount: invoiceAmtVal,
-          description: invoiceDesc,
-          dueDate: invoiceDueDate || new Date(Date.now() + 86400000 * 7).toISOString().split('T')[0]
+          recipientEmail: reqRecipient,
+          amount: amt,
+          description: reqDesc
         })
       });
 
       const data = await res.json();
       if (res.ok) {
         setInvoiceSuccess(true);
-        setInvoiceRecipient('');
-        setInvoiceAmount('');
-        setInvoiceDesc('');
-        setInvoiceDueDate('');
-        addNotification('Factuur Verzonden', `Factuur voor €${invoiceAmtVal.toFixed(2)} succesvol verzonden naar ${invoiceRecipient}`, 'success');
-        fetchInvoices();
+        setReqRecipient('');
+        setReqAmount('');
+        setReqDesc('');
+        addNotification('Verzoek Verzonden', `Betalingsverzoek voor €${amt.toFixed(2)} verzonden naar ${reqRecipient}`, 'success');
+        fetchPaymentRequests();
       } else {
-        setInvoiceError(data.error || 'Kon factuur niet aanmaken.');
+        setInvoiceError(data.error || 'Kon betalingsverzoek niet aanmaken.');
       }
     } catch {
-      // Mock invoice creator for demo mode
-      const mockInv = {
-        id: `mock-inv-${Math.random().toString(36).substring(2, 6)}`,
-        userId: user ? user.id : 'mock-user-123',
+      const mockReq = {
+        id: `mock-req-${Math.random().toString(36).substring(2, 6)}`,
+        creatorUserId: user ? user.id : 'mock-user-123',
         creatorEmail: user ? user.email : 'premium-user@finvault.com',
-        recipientEmail: invoiceRecipient,
-        amount: invoiceAmtVal,
+        recipientEmail: reqRecipient,
+        amount: amt,
         currency: 'EUR',
-        description: invoiceDesc,
-        dueDate: invoiceDueDate || new Date(Date.now() + 86400000 * 7).toISOString().split('T')[0],
-        status: 'unpaid',
+        description: reqDesc,
+        status: 'pending',
+        paidAt: null,
+        transactionRef: null,
         createdAt: new Date().toISOString()
       };
-      setInvoices(prev => [mockInv, ...prev]);
+      setPaymentRequests(prev => [mockReq, ...prev]);
       setInvoiceSuccess(true);
-      setInvoiceRecipient('');
-      setInvoiceAmount('');
-      setInvoiceDesc('');
-      setInvoiceDueDate('');
-      addNotification('Factuur Verzonden (Demo)', `Factuur voor €${invoiceAmtVal.toFixed(2)} verzonden naar ${invoiceRecipient} via de offline simulator.`, 'success');
+      setReqRecipient('');
+      setReqAmount('');
+      setReqDesc('');
+      addNotification('Verzoek Verzonden (Demo)', `Betalingsverzoek voor €${amt.toFixed(2)} verzonden in offline demo modus.`, 'success');
     } finally {
       setInvoiceLoading(false);
     }
   };
 
-  const handlePayInvoice = async (invoiceId: string) => {
+  const handlePayPaymentRequest = async (reqId: string) => {
     try {
-      const res = await fetch(`/api/invoices/${invoiceId}/pay`, {
+      const res = await fetch(`/api/invoices/payment-requests/${reqId}/pay`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`
@@ -472,45 +619,159 @@ export default function App() {
 
       const data = await res.json();
       if (res.ok) {
-        addNotification('Factuur Betaald', 'De factuur is succesvol voldaan en afgeschreven.', 'success');
-        fetchInvoices();
+        addNotification('Verzoek Voldaan', 'Betalingsverzoek succesvol voldaan.', 'success');
+        fetchPaymentRequests();
         fetchWallets();
         fetchTransactions();
+        fetchReceipts();
       } else {
-        addNotification('Betaling Mislukt', data.error || 'De factuurbetaling is afgebroken.', 'warning');
+        addNotification('Betaling Mislukt', data.error || 'Kon het verzoek niet voldoen.', 'warning');
       }
     } catch {
-      // Mock payment fallback
-      const invoice = invoices.find(inv => inv.id === invoiceId);
-      if (!invoice) return;
+      const request = paymentRequests.find(r => r.id === reqId);
+      if (!request) return;
 
       const checkingWalletIndex = wallets.findIndex(w => w.type === 'checking');
       const checkingWallet = wallets[checkingWalletIndex >= 0 ? checkingWalletIndex : 0];
 
-      if (checkingWallet.balance < invoice.amount) {
-        addNotification('Fout bij betaling (Demo)', 'Onvoldoende saldo op je Betaalrekening.', 'warning');
+      if (checkingWallet.balance < request.amount) {
+        addNotification('Saldo Tekort', 'Onvoldoende saldo op je Betaalrekening.', 'warning');
         return;
       }
 
-      const newBal = parseFloat((checkingWallet.balance - invoice.amount).toFixed(2));
+      const newBal = parseFloat((checkingWallet.balance - request.amount).toFixed(2));
       setWallets(prev => prev.map((w, idx) => idx === (checkingWalletIndex >= 0 ? checkingWalletIndex : 0) ? { ...w, balance: newBal } : w));
       
       const newTx = {
         id: Math.random().toString(),
-        reference: `INV-${Math.random().toString(36).substring(2, 9).toUpperCase()}`,
+        reference: `REQ-${Math.random().toString(36).substring(2, 9).toUpperCase()}`,
         senderWalletId: checkingWallet.id,
         receiverWalletId: null,
-        amount: invoice.amount,
+        amount: request.amount,
         currency: 'EUR',
         status: 'confirmed',
         type: 'transfer',
-        description: `Betaling Factuur: ${invoice.description}`,
+        description: `Betaling verzoek: ${request.description}`,
         createdAt: new Date().toISOString()
       };
       setTransactions(prev => [newTx, ...prev]);
 
-      setInvoices(prev => prev.map(inv => inv.id === invoiceId ? { ...inv, status: 'paid' } : inv));
-      addNotification('Factuur Betaald (Demo)', `€${invoice.amount.toFixed(2)} succesvol overgemaakt via offline simulator.`, 'success');
+      setPaymentRequests(prev => prev.map(r => r.id === reqId ? { ...r, status: 'paid', paidAt: new Date().toISOString(), transactionRef: newTx.reference } : r));
+      addNotification('Verzoek Voldaan (Demo)', `€${request.amount.toFixed(2)} overgemaakt via offline simulator.`, 'success');
+      fetchReceipts();
+    }
+  };
+
+  const handleDeclinePaymentRequest = async (reqId: string) => {
+    try {
+      const res = await fetch(`/api/invoices/payment-requests/${reqId}/decline`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      if (res.ok) {
+        addNotification('Verzoek Geweigerd', 'Je hebt het betalingsverzoek geweigerd.', 'info');
+        fetchPaymentRequests();
+      }
+    } catch {
+      setPaymentRequests(prev => prev.map(r => r.id === reqId ? { ...r, status: 'declined' } : r));
+      addNotification('Verzoek Geweigerd (Demo)', 'Verzoek gemarkeerd als geweigerd.', 'info');
+    }
+  };
+
+  const handleCreateMandate = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setInvoiceLoading(true);
+    setInvoiceError('');
+    setInvoiceSuccess(false);
+
+    const amt = parseFloat(mandateAmount);
+    if (isNaN(amt) || amt <= 0) {
+      setInvoiceError('Voer een geldig bedrag in.');
+      setInvoiceLoading(false);
+      return;
+    }
+
+    const intervalVal = parseInt(mandateInterval, 10);
+    if (isNaN(intervalVal) || intervalVal <= 0) {
+      setInvoiceError('Voer een geldige frequentie in.');
+      setInvoiceLoading(false);
+      return;
+    }
+
+    try {
+      const res = await fetch('/api/invoices/mandates', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          payeeEmail: mandatePayee,
+          amount: amt,
+          description: mandateDesc,
+          intervalDays: intervalVal
+        })
+      });
+
+      const data = await res.json();
+      if (res.ok) {
+        setInvoiceSuccess(true);
+        setMandatePayee('');
+        setMandateAmount('');
+        setMandateDesc('');
+        setMandateInterval('30');
+        addNotification('Mandaat Actief', `Automatische incasso ingesteld voor €${amt.toFixed(2)} naar ${mandatePayee}`, 'success');
+        fetchMandates();
+      } else {
+        setInvoiceError(data.error || 'Kon automatische incasso niet instellen.');
+      }
+    } catch {
+      const mockMandate = {
+        id: `mock-mnd-${Math.random().toString(36).substring(2, 6)}`,
+        payerUserId: user ? user.id : 'mock-user-123',
+        payerEmail: user ? user.email : 'premium-user@finvault.com',
+        payeeUserId: 'some-other-id',
+        payeeEmail: mandatePayee,
+        amount: amt,
+        currency: 'EUR',
+        description: mandateDesc,
+        intervalDays: intervalVal,
+        status: 'active',
+        nextChargeAt: new Date(Date.now() + intervalVal * 24 * 60 * 60 * 1000).toISOString(),
+        lastChargedAt: null,
+        totalCharged: 0.0,
+        chargeCount: 0,
+        createdAt: new Date().toISOString()
+      };
+      setMandates(prev => [mockMandate, ...prev]);
+      setInvoiceSuccess(true);
+      setMandatePayee('');
+      setMandateAmount('');
+      setMandateDesc('');
+      setMandateInterval('30');
+      addNotification('Mandaat Actief (Demo)', `Mandaat voor €${amt.toFixed(2)} aangemaakt in offline demo modus.`, 'success');
+    } finally {
+      setInvoiceLoading(false);
+    }
+  };
+
+  const handleCancelMandate = async (mandateId: string) => {
+    try {
+      const res = await fetch(`/api/invoices/mandates/${mandateId}/cancel`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      if (res.ok) {
+        addNotification('Mandaat Geannuleerd', 'De automatische incasso is geannuleerd.', 'info');
+        fetchMandates();
+      }
+    } catch {
+      setMandates(prev => prev.map(m => m.id === mandateId ? { ...m, status: 'cancelled' } : m));
+      addNotification('Mandaat Geannuleerd (Demo)', 'Mandaat gemarkeerd als geannuleerd.', 'info');
     }
   };
 
@@ -540,6 +801,7 @@ export default function App() {
         );
         fetchWallets();
         fetchTransactions();
+        fetchAllInvoiceData();
       } else {
         addNotification('Simulatie Fout', data.error || 'Kon tijd niet simuleren.', 'warning');
       }
@@ -1918,128 +2180,504 @@ export default function App() {
           )}
 
           {activeTab === 'invoices' && (
-            <div className="animate-slide-in" style={{ display: 'flex', flexDirection: 'column', gap: '32px' }}>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: '32px', alignItems: 'start' }}>
-                
-                {/* Create Invoice Card */}
-                <div className="glass-card">
-                  <h3 style={{ fontSize: '1.1rem', fontWeight: 700, marginBottom: '8px' }}>Factuur Aanmaken</h3>
-                  <p style={{ color: 'var(--text-secondary)', fontSize: '0.8rem', marginBottom: '20px' }}>
-                    Stuur een betalingsverzoek naar een andere FinVault gebruiker via hun e-mailadres.
+            <div className="animate-slide-in" style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+              {/* Header and Sub-tabs */}
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--border-color)', paddingBottom: '16px' }}>
+                <div>
+                  <h2 style={{ fontSize: '1.6rem', fontWeight: 800, marginBottom: '4px' }}>Facturen & Bankflows</h2>
+                  <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem' }}>
+                    Beheer je kwitanties, betalingsverzoeken (Tikkie) en automatische incasso's.
+                  </p>
+                </div>
+
+                <div style={{ display: 'flex', gap: '8px', background: 'rgba(255, 255, 255, 0.02)', padding: '4px', borderRadius: '10px', border: '1px solid var(--border-color)' }}>
+                  <button 
+                    onClick={() => setInvoiceSubTab('receipts')}
+                    style={{
+                      padding: '8px 16px',
+                      fontSize: '0.8rem',
+                      fontWeight: 600,
+                      borderRadius: '8px',
+                      border: 'none',
+                      background: invoiceSubTab === 'receipts' ? 'var(--accent-glow)' : 'transparent',
+                      color: invoiceSubTab === 'receipts' ? 'var(--accent-color)' : 'var(--text-secondary)',
+                      cursor: 'pointer',
+                      transition: 'all 0.2s'
+                    }}
+                  >
+                    Kwitanties
+                  </button>
+                  <button 
+                    onClick={() => setInvoiceSubTab('requests')}
+                    style={{
+                      padding: '8px 16px',
+                      fontSize: '0.8rem',
+                      fontWeight: 600,
+                      borderRadius: '8px',
+                      border: 'none',
+                      background: invoiceSubTab === 'requests' ? 'var(--accent-glow)' : 'transparent',
+                      color: invoiceSubTab === 'requests' ? 'var(--accent-color)' : 'var(--text-secondary)',
+                      cursor: 'pointer',
+                      transition: 'all 0.2s'
+                    }}
+                  >
+                    Betalingsverzoeken
+                  </button>
+                  <button 
+                    onClick={() => setInvoiceSubTab('mandates')}
+                    style={{
+                      padding: '8px 16px',
+                      fontSize: '0.8rem',
+                      fontWeight: 600,
+                      borderRadius: '8px',
+                      border: 'none',
+                      background: invoiceSubTab === 'mandates' ? 'var(--accent-glow)' : 'transparent',
+                      color: invoiceSubTab === 'mandates' ? 'var(--accent-color)' : 'var(--text-secondary)',
+                      cursor: 'pointer',
+                      transition: 'all 0.2s'
+                    }}
+                  >
+                    Automatische Incasso
+                  </button>
+                </div>
+              </div>
+
+              {invoiceSubTab === 'receipts' && (
+                <div className="glass-card animate-slide-in">
+                  <h3 style={{ fontSize: '1.2rem', fontWeight: 700, marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <FileText size={20} style={{ color: 'var(--accent-color)' }} /> Officiële Transactiebewijzen
+                  </h3>
+                  <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', marginBottom: '24px' }}>
+                    Hieronder vind je de automatisch gegenereerde cryptografisch getekende PDF kwitanties van al je bij- en afschrijvingen.
                   </p>
 
-                  {invoiceError && (
-                    <div style={{
-                      background: 'var(--color-danger-glow)',
-                      border: '1px solid var(--color-danger)',
-                      padding: '10px 14px',
-                      borderRadius: '8px',
-                      color: 'var(--color-danger)',
-                      fontSize: '0.8rem',
-                      marginBottom: '16px',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '8px'
-                    }}>
-                      <AlertTriangle size={16} />
-                      <span style={{ flex: 1 }}>{invoiceError}</span>
+                  {receipts.length === 0 ? (
+                    <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', textAlign: 'center', padding: '36px 0' }}>
+                      Nog geen kwitanties beschikbaar. Voer een transactie uit om er een te genereren.
+                    </p>
+                  ) : (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                      {receipts.map(rec => {
+                        const isPayer = rec.payerUserId === (user ? user.id : 'mock-user-123') || rec.payerEmail === (user ? user.email : 'tom@finvault.com');
+                        return (
+                          <div key={rec.id} style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            background: 'rgba(255, 255, 255, 0.01)',
+                            border: '1px solid var(--border-color)',
+                            padding: '16px 20px',
+                            borderRadius: '12px',
+                            fontSize: '0.9rem'
+                          }}>
+                            <div>
+                              <div style={{ fontWeight: 600, display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                <span>{rec.description}</span>
+                                <span style={{
+                                  fontSize: '0.65rem',
+                                  fontFamily: 'monospace',
+                                  background: 'rgba(255,255,255,0.05)',
+                                  padding: '2px 6px',
+                                  borderRadius: '4px',
+                                  color: 'var(--text-muted)'
+                                }}>
+                                  {rec.transactionRef}
+                                </span>
+                              </div>
+                              <div style={{ color: 'var(--text-muted)', fontSize: '0.75rem', marginTop: '4px' }}>
+                                Van: <span style={{ color: 'var(--text-secondary)' }}>{rec.payerEmail}</span> • Aan: <span style={{ color: 'var(--text-secondary)' }}>{rec.payeeEmail || 'Externe Deposit'}</span> • Datum: {new Date(rec.createdAt).toLocaleString()}
+                              </div>
+                            </div>
+
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
+                              <div style={{ textAlign: 'right' }}>
+                                <div style={{ fontWeight: 700, color: isPayer ? 'var(--color-danger)' : 'var(--color-success)' }}>
+                                  {isPayer ? '-' : '+'} €{rec.amount.toFixed(2)}
+                                </div>
+                              </div>
+                              
+                              <button 
+                                onClick={() => handleDownloadPdf(rec.id, rec.transactionRef)}
+                                className="btn-secondary"
+                                style={{
+                                  padding: '8px 12px',
+                                  fontSize: '0.75rem',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  gap: '6px'
+                                }}
+                              >
+                                <ArrowDownLeft size={14} /> PDF Kwitantie
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      })}
                     </div>
                   )}
+                </div>
+              )}
 
-                  {invoiceSuccess && (
-                    <div style={{
-                      background: 'var(--color-success-glow)',
-                      border: '1px solid var(--color-success)',
-                      padding: '10px 14px',
-                      borderRadius: '8px',
-                      color: 'var(--color-success)',
-                      fontSize: '0.8rem',
-                      marginBottom: '16px',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '8px'
-                    }}>
-                      <CheckCircle size={16} />
-                      <span>Factuur succesvol verzonden!</span>
-                    </div>
-                  )}
+              {invoiceSubTab === 'requests' && (
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: '32px', alignItems: 'start' }}>
+                  
+                  {/* Create Payment Request Card */}
+                  <div className="glass-card">
+                    <h3 style={{ fontSize: '1.1rem', fontWeight: 700, marginBottom: '8px' }}>Verzoek Aanmaken</h3>
+                    <p style={{ color: 'var(--text-secondary)', fontSize: '0.8rem', marginBottom: '20px' }}>
+                      Stuur een Tikkie-achtig betalingsverzoek naar een andere FinVault gebruiker via e-mail.
+                    </p>
 
-                  <form onSubmit={handleCreateInvoice} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                    <div>
-                      <label style={{ display: 'block', marginBottom: '6px', fontSize: '0.8rem', color: 'var(--text-secondary)' }}>E-mail Ontvanger</label>
-                      <input 
-                        type="email" 
-                        className="form-input"
-                        value={invoiceRecipient}
-                        onChange={e => setInvoiceRecipient(e.target.value)}
-                        placeholder="klant@finvault.com" 
-                        required
-                      />
-                    </div>
-                    <div>
-                      <label style={{ display: 'block', marginBottom: '6px', fontSize: '0.8rem', color: 'var(--text-secondary)' }}>Bedrag (EUR)</label>
-                      <div style={{ position: 'relative' }}>
-                        <span style={{ position: 'absolute', left: '16px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }}>€</span>
+                    {invoiceError && (
+                      <div style={{
+                        background: 'var(--color-danger-glow)',
+                        border: '1px solid var(--color-danger)',
+                        padding: '10px 14px',
+                        borderRadius: '8px',
+                        color: 'var(--color-danger)',
+                        fontSize: '0.8rem',
+                        marginBottom: '16px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '8px'
+                      }}>
+                        <AlertTriangle size={16} />
+                        <span style={{ flex: 1 }}>{invoiceError}</span>
+                      </div>
+                    )}
+
+                    {invoiceSuccess && (
+                      <div style={{
+                        background: 'var(--color-success-glow)',
+                        border: '1px solid var(--color-success)',
+                        padding: '10px 14px',
+                        borderRadius: '8px',
+                        color: 'var(--color-success)',
+                        fontSize: '0.8rem',
+                        marginBottom: '16px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '8px'
+                      }}>
+                        <CheckCircle size={16} />
+                        <span>Betalingsverzoek succesvol verzonden!</span>
+                      </div>
+                    )}
+
+                    <form onSubmit={handleCreatePaymentRequest} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                      <div>
+                        <label style={{ display: 'block', marginBottom: '6px', fontSize: '0.8rem', color: 'var(--text-secondary)' }}>E-mail Ontvanger</label>
                         <input 
-                          type="number" 
-                          className="form-input" 
-                          style={{ paddingLeft: '32px' }}
-                          value={invoiceAmount}
-                          onChange={e => setInvoiceAmount(e.target.value)}
-                          placeholder="0.00" 
-                          min="0.01"
-                          step="0.01"
+                          type="email" 
+                          className="form-input"
+                          value={reqRecipient}
+                          onChange={e => setReqRecipient(e.target.value)}
+                          placeholder="klant@gmail.com" 
                           required
                         />
                       </div>
-                    </div>
-                    <div>
-                      <label style={{ display: 'block', marginBottom: '6px', fontSize: '0.8rem', color: 'var(--text-secondary)' }}>Omschrijving</label>
-                      <input 
-                        type="text" 
-                        className="form-input"
-                        value={invoiceDesc}
-                        onChange={e => setInvoiceDesc(e.target.value)}
-                        placeholder="Bijv. Webdesign Diensten" 
-                        required
-                      />
-                    </div>
-                    <div>
-                      <label style={{ display: 'block', marginBottom: '6px', fontSize: '0.8rem', color: 'var(--text-secondary)' }}>Vervaldatum</label>
-                      <input 
-                        type="date" 
-                        className="form-input"
-                        value={invoiceDueDate}
-                        onChange={e => setInvoiceDueDate(e.target.value)}
-                        style={{ color: '#fff' }}
-                        required
-                      />
-                    </div>
-                    <button type="submit" className="btn-primary" style={{ width: '100%', marginTop: '8px' }} disabled={invoiceLoading}>
-                      {invoiceLoading ? 'Verzenden...' : 'Factuur Versturen'} <FileText size={16} />
-                    </button>
-                  </form>
-                </div>
+                      <div>
+                        <label style={{ display: 'block', marginBottom: '6px', fontSize: '0.8rem', color: 'var(--text-secondary)' }}>Bedrag (EUR)</label>
+                        <div style={{ position: 'relative' }}>
+                          <span style={{ position: 'absolute', left: '16px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }}>€</span>
+                          <input 
+                            type="number" 
+                            className="form-input" 
+                            style={{ paddingLeft: '32px' }}
+                            value={reqAmount}
+                            onChange={e => setReqAmount(e.target.value)}
+                            placeholder="0.00" 
+                            min="0.01"
+                            step="0.01"
+                            required
+                          />
+                        </div>
+                      </div>
+                      <div>
+                        <label style={{ display: 'block', marginBottom: '6px', fontSize: '0.8rem', color: 'var(--text-secondary)' }}>Omschrijving</label>
+                        <input 
+                          type="text" 
+                          className="form-input"
+                          value={reqDesc}
+                          onChange={e => setReqDesc(e.target.value)}
+                          placeholder="Bijv. Pizza avond, lunch" 
+                          required
+                        />
+                      </div>
+                      <button type="submit" className="btn-primary" style={{ width: '100%', marginTop: '8px' }} disabled={invoiceLoading}>
+                        {invoiceLoading ? 'Verzenden...' : 'Verzoek Versturen'} <Send size={16} />
+                      </button>
+                    </form>
+                  </div>
 
-                {/* Invoices List Dashboard */}
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '32px' }}>
+                  {/* Payment Requests Lists */}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '32px' }}>
+                    
+                    {/* Ontvangen Verzoeken */}
+                    <div className="glass-card">
+                      <h3 style={{ fontSize: '1.1rem', fontWeight: 700, marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <ArrowDownLeft size={18} style={{ color: 'var(--color-success)' }} /> Ontvangen Verzoeken
+                      </h3>
+                      
+                      {paymentRequests.filter(r => r.recipientEmail === (user ? user.email : 'tom@finvault.com')).length === 0 ? (
+                        <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', textAlign: 'center', padding: '24px 0' }}>
+                          Geen openstaande ontvangen betalingsverzoeken.
+                        </p>
+                      ) : (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                          {paymentRequests.filter(r => r.recipientEmail === (user ? user.email : 'tom@finvault.com')).map(r => {
+                            const isPending = r.status === 'pending';
+                            return (
+                              <div key={r.id} style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'space-between',
+                                background: 'rgba(255, 255, 255, 0.01)',
+                                border: '1px solid var(--border-color)',
+                                padding: '16px 20px',
+                                borderRadius: '12px',
+                                fontSize: '0.9rem'
+                              }}>
+                                <div>
+                                  <div style={{ fontWeight: 600 }}>{r.description}</div>
+                                  <div style={{ color: 'var(--text-muted)', fontSize: '0.75rem', marginTop: '4px' }}>
+                                    Van: <span style={{ color: 'var(--text-secondary)' }}>{r.creatorEmail}</span> • Aangemaakt: {new Date(r.createdAt).toLocaleDateString()}
+                                  </div>
+                                </div>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                                  <div style={{ textAlign: 'right' }}>
+                                    <div style={{ fontWeight: 700, color: '#fff' }}>
+                                      €{r.amount.toFixed(2)}
+                                    </div>
+                                    <span style={{
+                                      fontSize: '0.65rem',
+                                      background: r.status === 'paid' ? 'var(--color-success-glow)' : r.status === 'declined' ? 'var(--color-danger-glow)' : 'var(--color-warning-glow)',
+                                      color: r.status === 'paid' ? 'var(--color-success)' : r.status === 'declined' ? 'var(--color-danger)' : 'var(--color-warning)',
+                                      padding: '2px 6px',
+                                      borderRadius: '4px',
+                                      fontWeight: 700,
+                                      display: 'inline-block',
+                                      marginTop: '4px'
+                                    }}>
+                                      {r.status.toUpperCase()}
+                                    </span>
+                                  </div>
+
+                                  {isPending && (
+                                    <div style={{ display: 'flex', gap: '6px' }}>
+                                      <button 
+                                        onClick={() => handlePayPaymentRequest(r.id)}
+                                        className="btn-primary animate-pulse"
+                                        style={{
+                                          padding: '6px 12px',
+                                          fontSize: '0.75rem',
+                                          background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+                                          border: 'none',
+                                          boxShadow: '0 0 10px rgba(16, 185, 129, 0.3)'
+                                        }}
+                                      >
+                                        Betaal
+                                      </button>
+                                      <button 
+                                        onClick={() => handleDeclinePaymentRequest(r.id)}
+                                        className="btn-secondary"
+                                        style={{
+                                          padding: '6px 12px',
+                                          fontSize: '0.75rem'
+                                        }}
+                                      >
+                                        Weiger
+                                      </button>
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Verzonden Verzoeken */}
+                    <div className="glass-card">
+                      <h3 style={{ fontSize: '1.1rem', fontWeight: 700, marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <ArrowUpRight size={18} style={{ color: 'var(--accent-color)' }} /> Verzonden Verzoeken
+                      </h3>
+                      
+                      {paymentRequests.filter(r => r.creatorEmail === (user ? user.email : 'tom@finvault.com')).length === 0 ? (
+                        <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', textAlign: 'center', padding: '24px 0' }}>
+                          Je hebt nog geen betalingsverzoeken verzonden.
+                        </p>
+                      ) : (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                          {paymentRequests.filter(r => r.creatorEmail === (user ? user.email : 'tom@finvault.com')).map(r => {
+                            return (
+                              <div key={r.id} style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'space-between',
+                                background: 'rgba(255, 255, 255, 0.01)',
+                                border: '1px solid var(--border-color)',
+                                padding: '16px 20px',
+                                borderRadius: '12px',
+                                fontSize: '0.9rem'
+                              }}>
+                                <div>
+                                  <div style={{ fontWeight: 600 }}>{r.description}</div>
+                                  <div style={{ color: 'var(--text-muted)', fontSize: '0.75rem', marginTop: '4px' }}>
+                                    Aan: <span style={{ color: 'var(--text-secondary)' }}>{r.recipientEmail}</span> • Aangemaakt: {new Date(r.createdAt).toLocaleDateString()}
+                                  </div>
+                                </div>
+                                <div style={{ textAlign: 'right' }}>
+                                  <div style={{ fontWeight: 700, color: '#fff' }}>
+                                    €{r.amount.toFixed(2)}
+                                  </div>
+                                  <span style={{
+                                    fontSize: '0.65rem',
+                                    background: r.status === 'paid' ? 'var(--color-success-glow)' : r.status === 'declined' ? 'var(--color-danger-glow)' : 'var(--color-warning-glow)',
+                                    color: r.status === 'paid' ? 'var(--color-success)' : r.status === 'declined' ? 'var(--color-danger)' : 'var(--color-warning)',
+                                    padding: '2px 6px',
+                                    borderRadius: '4px',
+                                    fontWeight: 700,
+                                    display: 'inline-block',
+                                    marginTop: '4px'
+                                  }}>
+                                    {r.status.toUpperCase()}
+                                  </span>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+
+                  </div>
+                </div>
+              )}
+
+              {invoiceSubTab === 'mandates' && (
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: '32px', alignItems: 'start' }}>
                   
-                  {/* Ontvangen Facturen (Inbound) */}
+                  {/* Create Mandate Card */}
+                  <div className="glass-card">
+                    <h3 style={{ fontSize: '1.1rem', fontWeight: 700, marginBottom: '8px' }}>Mandaat Instellen</h3>
+                    <p style={{ color: 'var(--text-secondary)', fontSize: '0.8rem', marginBottom: '20px' }}>
+                      Geef toestemming voor automatische incasso (terugkerende afschrijvingen) naar een leverancier of service.
+                    </p>
+
+                    {invoiceError && (
+                      <div style={{
+                        background: 'var(--color-danger-glow)',
+                        border: '1px solid var(--color-danger)',
+                        padding: '10px 14px',
+                        borderRadius: '8px',
+                        color: 'var(--color-danger)',
+                        fontSize: '0.8rem',
+                        marginBottom: '16px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '8px'
+                      }}>
+                        <AlertTriangle size={16} />
+                        <span style={{ flex: 1 }}>{invoiceError}</span>
+                      </div>
+                    )}
+
+                    {invoiceSuccess && (
+                      <div style={{
+                        background: 'var(--color-success-glow)',
+                        border: '1px solid var(--color-success)',
+                        padding: '10px 14px',
+                        borderRadius: '8px',
+                        color: 'var(--color-success)',
+                        fontSize: '0.8rem',
+                        marginBottom: '16px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '8px'
+                      }}>
+                        <CheckCircle size={16} />
+                        <span>Mandaat succesvol ingesteld!</span>
+                      </div>
+                    )}
+
+                    <form onSubmit={handleCreateMandate} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                      <div>
+                        <label style={{ display: 'block', marginBottom: '6px', fontSize: '0.8rem', color: 'var(--text-secondary)' }}>E-mail Ontvanger (Crediteur)</label>
+                        <input 
+                          type="email" 
+                          className="form-input"
+                          value={mandatePayee}
+                          onChange={e => setMandatePayee(e.target.value)}
+                          placeholder="hosting@tombomeke-studios.com" 
+                          required
+                        />
+                      </div>
+                      <div>
+                        <label style={{ display: 'block', marginBottom: '6px', fontSize: '0.8rem', color: 'var(--text-secondary)' }}>Bedrag per Termijn (EUR)</label>
+                        <div style={{ position: 'relative' }}>
+                          <span style={{ position: 'absolute', left: '16px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }}>€</span>
+                          <input 
+                            type="number" 
+                            className="form-input" 
+                            style={{ paddingLeft: '32px' }}
+                            value={mandateAmount}
+                            onChange={e => setMandateAmount(e.target.value)}
+                            placeholder="0.00" 
+                            min="0.01"
+                            step="0.01"
+                            required
+                          />
+                        </div>
+                      </div>
+                      <div>
+                        <label style={{ display: 'block', marginBottom: '6px', fontSize: '0.8rem', color: 'var(--text-secondary)' }}>Omschrijving</label>
+                        <input 
+                          type="text" 
+                          className="form-input"
+                          value={mandateDesc}
+                          onChange={e => setMandateDesc(e.target.value)}
+                          placeholder="Bijv. Maandelijks Server Hosting Abonnement" 
+                          required
+                        />
+                      </div>
+                      <div>
+                        <label style={{ display: 'block', marginBottom: '6px', fontSize: '0.8rem', color: 'var(--text-secondary)' }}>Interval (Dagen)</label>
+                        <select 
+                          className="form-input"
+                          value={mandateInterval}
+                          onChange={e => setMandateInterval(e.target.value)}
+                          style={{ color: '#fff', background: '#1e293b' }}
+                        >
+                          <option value="7">Wekelijks (7 dagen)</option>
+                          <option value="30">Maandelijks (30 dagen)</option>
+                          <option value="365">Jaarlijks (365 dagen)</option>
+                        </select>
+                      </div>
+                      <button type="submit" className="btn-primary" style={{ width: '100%', marginTop: '8px' }} disabled={invoiceLoading}>
+                        {invoiceLoading ? 'Verwerken...' : 'Mandaat Activeren'} <Plus size={16} />
+                      </button>
+                    </form>
+                  </div>
+
+                  {/* Mandates Lists */}
                   <div className="glass-card">
                     <h3 style={{ fontSize: '1.1rem', fontWeight: 700, marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                      <ArrowDownLeft size={18} style={{ color: 'var(--color-success)' }} /> Ontvangen Facturen
+                      <Layers size={18} style={{ color: 'var(--accent-color)' }} /> Actieve Automatische Incasso's
                     </h3>
                     
-                    {invoices.filter(inv => inv.recipientEmail === user.email).length === 0 ? (
+                    {mandates.length === 0 ? (
                       <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', textAlign: 'center', padding: '24px 0' }}>
-                        Geen ontvangen betalingsverzoeken gevonden.
+                        Geen actieve mandaten gevonden.
                       </p>
                     ) : (
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                        {invoices.filter(inv => inv.recipientEmail === user.email).map(inv => {
-                          const isPaid = inv.status === 'paid';
+                        {mandates.map(m => {
+                          const isActive = m.status === 'active';
+                          const isPayer = m.payerUserId === (user ? user.id : 'mock-user-123') || m.payerEmail === (user ? user.email : 'tom@finvault.com');
                           return (
-                            <div key={inv.id} style={{
+                            <div key={m.id} style={{
                               display: 'flex',
                               alignItems: 'center',
                               justifyContent: 'space-between',
@@ -2050,42 +2688,44 @@ export default function App() {
                               fontSize: '0.9rem'
                             }}>
                               <div>
-                                <div style={{ fontWeight: 600 }}>{inv.description}</div>
-                                <div style={{ color: 'var(--text-muted)', fontSize: '0.75rem', marginTop: '4px' }}>
-                                  Van: <span style={{ color: 'var(--text-secondary)' }}>{inv.creatorEmail}</span> • Vervaldatum: {new Date(inv.dueDate).toLocaleDateString()}
-                                </div>
-                              </div>
-                              <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-                                <div style={{ textAlign: 'right' }}>
-                                  <div style={{ fontWeight: 700, color: '#fff' }}>
-                                    €{inv.amount.toFixed(2)}
-                                  </div>
+                                <div style={{ fontWeight: 600, display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                  <span>{m.description}</span>
                                   <span style={{
                                     fontSize: '0.65rem',
-                                    background: isPaid ? 'var(--color-success-glow)' : 'var(--color-warning-glow)',
-                                    color: isPaid ? 'var(--color-success)' : 'var(--color-warning)',
+                                    background: isActive ? 'var(--color-success-glow)' : 'rgba(255,255,255,0.05)',
+                                    color: isActive ? 'var(--color-success)' : 'var(--text-muted)',
                                     padding: '2px 6px',
                                     borderRadius: '4px',
-                                    fontWeight: 700,
-                                    display: 'inline-block',
-                                    marginTop: '4px'
+                                    fontWeight: 700
                                   }}>
-                                    {inv.status.toUpperCase()}
+                                    {m.status.toUpperCase()}
                                   </span>
                                 </div>
-                                {!isPaid && (
+                                <div style={{ color: 'var(--text-muted)', fontSize: '0.75rem', marginTop: '4px' }}>
+                                  Incassant: <span style={{ color: 'var(--text-secondary)' }}>{m.payeeEmail}</span> • Betaler: <span style={{ color: 'var(--text-secondary)' }}>{m.payerEmail}</span>
+                                </div>
+                                <div style={{ color: 'var(--text-muted)', fontSize: '0.72rem', marginTop: '4px' }}>
+                                  Volgende afschrijving: <span style={{ color: 'var(--accent-color)', fontWeight: 600 }}>{new Date(m.nextChargeAt).toLocaleDateString()}</span> • Totaal geïncasseerd: €{m.totalCharged.toFixed(2)} ({m.chargeCount}x)
+                                </div>
+                              </div>
+
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+                                <div style={{ fontWeight: 700, color: '#fff', fontSize: '1rem' }}>
+                                  €{m.amount.toFixed(2)}
+                                </div>
+                                {isActive && isPayer && (
                                   <button 
-                                    onClick={() => handlePayInvoice(inv.id)}
-                                    className="btn-primary animate-pulse"
+                                    onClick={() => handleCancelMandate(m.id)}
+                                    className="btn-secondary"
                                     style={{
-                                      padding: '8px 16px',
-                                      fontSize: '0.8rem',
-                                      background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
-                                      border: 'none',
-                                      boxShadow: '0 0 12px rgba(16, 185, 129, 0.3)'
+                                      padding: '6px 12px',
+                                      fontSize: '0.75rem',
+                                      color: 'var(--color-danger)',
+                                      border: '1px solid var(--color-danger-glow)',
+                                      background: 'var(--color-danger-glow)'
                                     }}
                                   >
-                                    Nu Betalen
+                                    Intrekken
                                   </button>
                                 )}
                               </div>
@@ -2096,64 +2736,8 @@ export default function App() {
                     )}
                   </div>
 
-                  {/* Outbound Invoices */}
-                  <div className="glass-card">
-                    <h3 style={{ fontSize: '1.1rem', fontWeight: 700, marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                      <ArrowUpRight size={18} style={{ color: 'var(--accent-color)' }} /> Verzonden Facturen
-                    </h3>
-                    
-                    {invoices.filter(inv => inv.creatorEmail === user.email).length === 0 ? (
-                      <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', textAlign: 'center', padding: '24px 0' }}>
-                        Je hebt nog geen facturen verzonden.
-                      </p>
-                    ) : (
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                        {invoices.filter(inv => inv.creatorEmail === user.email).map(inv => {
-                          const isPaid = inv.status === 'paid';
-                          return (
-                            <div key={inv.id} style={{
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'space-between',
-                              background: 'rgba(255, 255, 255, 0.01)',
-                              border: '1px solid var(--border-color)',
-                              padding: '16px 20px',
-                              borderRadius: '12px',
-                              fontSize: '0.9rem'
-                            }}>
-                              <div>
-                                <div style={{ fontWeight: 600 }}>{inv.description}</div>
-                                <div style={{ color: 'var(--text-muted)', fontSize: '0.75rem', marginTop: '4px' }}>
-                                  Aan: <span style={{ color: 'var(--text-secondary)' }}>{inv.recipientEmail}</span> • Vervaldatum: {new Date(inv.dueDate).toLocaleDateString()}
-                                </div>
-                              </div>
-                              <div style={{ textAlign: 'right' }}>
-                                <div style={{ fontWeight: 700, color: '#fff' }}>
-                                  €{inv.amount.toFixed(2)}
-                                </div>
-                                <span style={{
-                                  fontSize: '0.65rem',
-                                  background: isPaid ? 'var(--color-success-glow)' : 'var(--color-warning-glow)',
-                                  color: isPaid ? 'var(--color-success)' : 'var(--color-warning)',
-                                  padding: '2px 6px',
-                                  borderRadius: '4px',
-                                  fontWeight: 700,
-                                  display: 'inline-block',
-                                  marginTop: '4px'
-                                }}>
-                                  {inv.status.toUpperCase()}
-                                </span>
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    )}
-                  </div>
-
                 </div>
-
-              </div>
+              )}
             </div>
           )}
 
