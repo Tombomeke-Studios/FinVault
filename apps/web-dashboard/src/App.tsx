@@ -774,6 +774,27 @@ export default function App() {
 
   const activeWallet = wallets[activeWalletIndex] || { balance: 0.0, currency: 'EUR', id: '', iban: '' };
 
+  const formatIban = (iban: string, visible: boolean) => {
+    if (!iban) return 'BE89 •••• •••• ••••';
+    const clean = iban.replace(/\s+/g, '');
+    if (visible) {
+      return clean.replace(/(.{4})/g, '$1 ').trim();
+    } else {
+      if (clean.length >= 16) {
+        return `${clean.substring(0, 4)} •••• •••• ${clean.substring(clean.length - 4)}`;
+      }
+      return 'BE89 •••• •••• ••••';
+    }
+  };
+
+  const currencySigns: Record<string, string> = {
+    EUR: '€',
+    USD: '$',
+    GBP: '£',
+    CHF: '₣'
+  };
+  const curSign = currencySigns[activeWallet.currency] || '€';
+
   return (
     <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', background: 'var(--bg-primary)' }}>
       {/* Top Navbar */}
@@ -1005,10 +1026,12 @@ export default function App() {
 
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', zIndex: 1 }}>
                     <div>
-                      <div style={{ fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '1px', color: 'var(--text-secondary)' }}>Hoofdrekening</div>
+                      <div style={{ fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '1px', color: 'var(--text-secondary)' }}>
+                        {activeWallet.currency} Rekening
+                      </div>
                       <div style={{ fontSize: '1.8rem', fontWeight: 800, marginTop: '8px', display: 'flex', alignItems: 'baseline', gap: '4px' }}>
-                        <span>€</span>
-                        <span style={{ fontSize: '2.2rem', letterSpacing: '-1px' }}>{primaryWallet.balance.toFixed(2)}</span>
+                        <span>{curSign}</span>
+                        <span style={{ fontSize: '2.2rem', letterSpacing: '-1px' }}>{activeWallet.balance.toFixed(2)}</span>
                       </div>
                     </div>
                     <div style={{
@@ -1020,19 +1043,68 @@ export default function App() {
                       border: '1px solid var(--border-color)',
                       color: 'var(--accent-secondary)'
                     }}>
-                      EUR
+                      {activeWallet.currency}
                     </div>
                   </div>
 
                   <div style={{ zIndex: 1 }}>
-                    <div style={{ fontFamily: 'monospace', fontSize: '0.95rem', letterSpacing: '2px', color: 'var(--text-secondary)' }}>
-                      ••••  ••••  ••••  {primaryWallet.id ? primaryWallet.id.substring(0, 4).toUpperCase() : '8841'}
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px', position: 'relative' }}>
+                      <div style={{ fontFamily: 'monospace', fontSize: '0.9rem', letterSpacing: '1.5px', color: 'var(--text-secondary)' }}>
+                        {formatIban(activeWallet.iban, isIbanVisible)}
+                      </div>
+                      <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+                        <button 
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setIsIbanVisible(!isIbanVisible);
+                          }}
+                          style={{
+                            background: 'transparent',
+                            border: 'none',
+                            color: 'var(--text-secondary)',
+                            cursor: 'pointer',
+                            padding: '4px',
+                            display: 'flex',
+                            alignItems: 'center',
+                            transition: 'var(--transition-smooth)'
+                          }}
+                          title={isIbanVisible ? "IBAN verbergen" : "IBAN tonen"}
+                        >
+                          {isIbanVisible ? <EyeOff size={14} /> : <Eye size={14} />}
+                        </button>
+                        <button 
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (activeWallet.iban) {
+                              navigator.clipboard.writeText(activeWallet.iban);
+                              setCopyFeedback(true);
+                              setTimeout(() => setCopyFeedback(false), 2000);
+                              addNotification('Gekopieerd', 'IBAN is gekopieerd naar het klembord!', 'success');
+                            }
+                          }}
+                          style={{
+                            background: 'transparent',
+                            border: 'none',
+                            color: 'var(--text-secondary)',
+                            cursor: 'pointer',
+                            padding: '4px',
+                            display: 'flex',
+                            alignItems: 'center',
+                            transition: 'var(--transition-smooth)',
+                            position: 'relative'
+                          }}
+                          title="Kopieer IBAN"
+                        >
+                          {copyFeedback ? <Check size={14} style={{ color: 'var(--color-success)' }} /> : <Copy size={14} />}
+                          {copyFeedback && <span className="copy-tooltip">Gekopieerd!</span>}
+                        </button>
+                      </div>
                     </div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginTop: '16px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginTop: '12px' }}>
                       <div>
                         <div style={{ fontSize: '0.6rem', textTransform: 'uppercase', color: 'var(--text-muted)' }}>Kaarthouder</div>
                         <div style={{ fontSize: '0.8rem', fontWeight: 600, color: '#fff', marginTop: '2px' }}>
-                          {user.profile?.firstName.toUpperCase()} {user.profile?.lastName.toUpperCase()}
+                          {user.profile?.firstName?.toUpperCase()} {user.profile?.lastName?.toUpperCase()}
                         </div>
                       </div>
                       <Zap size={20} style={{ color: 'var(--accent-color)' }} />
