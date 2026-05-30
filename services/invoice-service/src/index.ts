@@ -244,7 +244,12 @@ app.post('/payment-requests/:id/pay', requireAuth, async (req, res) => {
       return res.status(404).json({ error: 'No active EUR checking account found' });
     }
 
-    if (buyerCheckingWallet.balance < request.amount) {
+    let availableCredit = 0.0;
+    if (buyerCheckingWallet.creditLine && ['active', 'suspended'].includes(buyerCheckingWallet.creditLine.status)) {
+      availableCredit = buyerCheckingWallet.creditLine.creditLimit - buyerCheckingWallet.creditLine.usedCredit;
+    }
+
+    if (buyerCheckingWallet.balance + availableCredit < request.amount) {
       return res.status(400).json({ error: 'Insufficient balance to satisfy this payment request' });
     }
 
