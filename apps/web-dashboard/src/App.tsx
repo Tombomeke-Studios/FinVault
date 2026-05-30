@@ -13,7 +13,11 @@ import {
   Shield, 
   Zap, 
   AlertTriangle,
-  Globe
+  Globe,
+  Eye,
+  EyeOff,
+  Copy,
+  Check
 } from 'lucide-react';
 
 // Custom Notification Interface
@@ -32,6 +36,14 @@ export default function App() {
   const [user, setUser] = useState<any>(null);
   const [wallets, setWallets] = useState<any[]>([]);
   const [transactions, setTransactions] = useState<any[]>([]);
+  
+  // Phase 2 States
+  const [activeWalletIndex, setActiveWalletIndex] = useState(0);
+  const [isIbanVisible, setIsIbanVisible] = useState(false);
+  const [copyFeedback, setCopyFeedback] = useState(false);
+  const [balanceHistory, setBalanceHistory] = useState<any[]>([]);
+  const [newWalletCurrency, setNewWalletCurrency] = useState('USD');
+  const [newWalletLoading, setNewWalletLoading] = useState(false);
   
   // UI Control State
   const [activeTab, setActiveTab] = useState<'overview' | 'transfer' | 'history'>('overview');
@@ -220,6 +232,7 @@ export default function App() {
     setWallets([{
       id: 'mock-wallet-eur',
       userId: 'mock-user-123',
+      iban: 'BE89377007719941',
       currency: 'EUR',
       balance: 1450.50,
       reservedBalance: 0.0,
@@ -236,7 +249,7 @@ export default function App() {
         status: 'confirmed',
         type: 'deposit',
         description: 'FinVault Welkomstbonus',
-        createdAt: new Date().toISOString()
+        createdAt: new Date(Date.now() - 86400000 * 2).toISOString()
       },
       {
         id: 'tx-2',
@@ -251,9 +264,81 @@ export default function App() {
         createdAt: new Date(Date.now() - 3600000).toISOString()
       }
     ]);
+    setBalanceHistory([
+      { id: '1', walletId: 'mock-wallet-eur', amount: 1200.50, balanceAfter: 1200.50, reason: 'Salaris storting', timestamp: new Date(Date.now() - 86400000 * 3).toISOString() },
+      { id: '2', walletId: 'mock-wallet-eur', amount: 250.00, balanceAfter: 1450.50, reason: 'Welkomstbonus', timestamp: new Date(Date.now() - 86400000 * 2).toISOString() },
+      { id: '3', walletId: 'mock-wallet-eur', amount: -4.80, balanceAfter: 1445.70, reason: 'Starbucks Antwerpen', timestamp: new Date(Date.now() - 3600000).toISOString() }
+    ]);
     setWsStatus('connected');
     addNotification('Demo Simulator Actief', 'De API Gateway is offline. FinVault draait in offline demonstratiemodus.', 'warning');
   };
+
+  const fetchBalanceHistory = async (walletId: string) => {
+    if (!walletId) return;
+    if (walletId.startsWith('mock-')) return;
+    try {
+      const res = await fetch(`/api/wallets/${walletId}/history`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setBalanceHistory(data);
+      }
+    } catch (err) {
+      console.error('Failed to fetch balance history:', err);
+    }
+  };
+
+  useEffect(() => {
+    if (wallets.length > 0 && wallets[activeWalletIndex]) {
+      fetchBalanceHistory(wallets[activeWalletIndex].id);
+    }
+  }, [wallets, activeWalletIndex]);
+
+  const handleCreateWallet = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setNewWalletLoading(true);
+
+    try {
+      const res = await fetch('/api/wallets', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ currency: newWalletCurrency })
+      });
+
+      const data = await res.json();
+      if (res.ok) {
+        addNotification('Nieuwe Wallet Geopend', `Je ${newWalletCurrency} wallet is succesvol geopend met IBAN ${data.iban}`, 'success');
+        fetchWallets();
+      } else {
+        addNotification('Wallet Fout', data.error || 'Kon wallet niet aanmaken.', 'warning');
+      }
+    } catch {
+      // Mock creation fallback for demo
+      const randomDigits = Math.floor(1000000000 + Math.random() * 9000000000);
+      const mockNew = {
+        id: `mock-wallet-${newWalletCurrency.toLowerCase()}`,
+        userId: user ? user.id : 'mock-user-123',
+        iban: `BE8937700771${randomDigits}`,
+        currency: newWalletCurrency,
+        balance: 100.00,
+        reservedBalance: 0.0,
+        status: 'active'
+      };
+      setWallets(prev => [...prev, mockNew]);
+      setBalanceHistory(prev => [
+        ...prev,
+        { id: Math.random().toString(), walletId: mockNew.id, amount: 100.00, balanceAfter: 100.00, reason: `${newWalletCurrency} Account Activated`, timestamp: new Date().toISOString() }
+      ]);
+      addNotification('Nieuwe Wallet Geopend (Demo)', `Je ${newWalletCurrency} wallet is succesvol geopend met IBAN ${mockNew.iban} in demonstratiemodus.`, 'success');
+    } finally {
+      setNewWalletLoading(false);
+    }
+  };
+
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -326,7 +411,10 @@ export default function App() {
 
   const handleTransfer = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (wallets.length === 0) return;
+    if (wallets.length === 0) {
+      setTransferError('Geen actieve rekeningen gevonden.');
+      return;
+    }
     
     setTransferLoading(true);
     setTransferError('');
@@ -339,9 +427,11 @@ export default function App() {
       return;
     }
 
+    const currentWallet = wallets[activeWalletIndex];
+
     // Direct client validation
-    if (wallets[0].balance < amountNum) {
-      setTransferError('Onvoldoende saldo op je geselecteerde wallet.');
+    if (currentWallet.balance < amountNum) {
+      setTransferError(`Onvoldoende saldo op je geselecteerde ${currentWallet.currency} wallet.`);
       setTransferLoading(false);
       return;
     }
@@ -354,7 +444,7 @@ export default function App() {
           'Authorization': `Bearer ${token}`
         },
         body: JSON.stringify({
-          senderWalletId: wallets[0].id,
+          senderWalletId: currentWallet.id,
           receiverEmail: transferEmail,
           amount: amountNum,
           description: transferDesc || 'Overboeking'
@@ -367,7 +457,8 @@ export default function App() {
         setTransferEmail('');
         setTransferAmount('');
         setTransferDesc('');
-        addNotification('Geld Overgemaakt', `€${amountNum.toFixed(2)} succesvol verzonden naar ${transferEmail}`, 'success');
+        const currencySign = currentWallet.currency === 'EUR' ? '€' : currentWallet.currency === 'USD' ? '$' : currentWallet.currency === 'GBP' ? '£' : '₣';
+        addNotification('Geld Overgemaakt', `${currencySign}${amountNum.toFixed(2)} succesvol verzonden naar ${transferEmail}`, 'success');
         fetchWallets();
         fetchTransactions();
       } else {
@@ -375,9 +466,9 @@ export default function App() {
       }
     } catch {
       // Mock transfer simulator if backend offline
-      const mockWallet = wallets[0];
+      const mockWallet = currentWallet;
       const newBal = mockWallet.balance - amountNum;
-      setWallets([{ ...mockWallet, balance: newBal }]);
+      setWallets(prev => prev.map((w, idx) => idx === activeWalletIndex ? { ...w, balance: newBal } : w));
       
       const newTx = {
         id: Math.random().toString(),
@@ -385,7 +476,7 @@ export default function App() {
         senderWalletId: mockWallet.id,
         receiverWalletId: null,
         amount: amountNum,
-        currency: 'EUR',
+        currency: mockWallet.currency,
         status: 'confirmed',
         type: 'transfer',
         description: transferDesc || `Overboeking naar ${transferEmail}`,
@@ -396,7 +487,8 @@ export default function App() {
       setTransferEmail('');
       setTransferAmount('');
       setTransferDesc('');
-      addNotification('Geld Overgemaakt (Demo)', `€${amountNum.toFixed(2)} succesvol overgeboekt via de offline simulator.`, 'success');
+      const currencySign = mockWallet.currency === 'EUR' ? '€' : mockWallet.currency === 'USD' ? '$' : mockWallet.currency === 'GBP' ? '£' : '₣';
+      addNotification('Geld Overgemaakt (Demo)', `${currencySign}${amountNum.toFixed(2)} succesvol overgeboekt via de offline simulator.`, 'success');
     } finally {
       setTransferLoading(false);
     }
@@ -404,15 +496,21 @@ export default function App() {
 
   const handleDeposit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (wallets.length === 0) return;
+    if (wallets.length === 0) {
+      addNotification('Fout', 'Geen actieve rekeningen om op te storten.', 'warning');
+      return;
+    }
     
     setDepositLoading(true);
     const amountNum = parseFloat(depositAmount);
 
     if (isNaN(amountNum) || amountNum <= 0) {
       setDepositLoading(false);
+      addNotification('Fout', 'Voer een geldig bedrag in om te storten.', 'warning');
       return;
     }
+
+    const currentWallet = wallets[activeWalletIndex];
 
     try {
       const res = await fetch('/api/wallets/deposit', {
@@ -422,22 +520,26 @@ export default function App() {
           'Authorization': `Bearer ${token}`
         },
         body: JSON.stringify({
-          walletId: wallets[0].id,
+          walletId: currentWallet.id,
           amount: amountNum
         })
       });
 
       if (res.ok) {
         setDepositAmount('');
-        addNotification('Saldo Gestort', `€${amountNum.toFixed(2)} toegevoegd via simulator.`, 'success');
+        const currencySign = currentWallet.currency === 'EUR' ? '€' : currentWallet.currency === 'USD' ? '$' : currentWallet.currency === 'GBP' ? '£' : '₣';
+        addNotification('Saldo Gestort', `${currencySign}${amountNum.toFixed(2)} toegevoegd via simulator.`, 'success');
         fetchWallets();
         fetchTransactions();
+      } else {
+        const data = await res.json();
+        addNotification('Storting Mislukt', data.error || 'Er is een fout opgetreden bij het storten.', 'warning');
       }
     } catch {
       // Mock deposit
-      const mockWallet = wallets[0];
+      const mockWallet = currentWallet;
       const newBal = mockWallet.balance + amountNum;
-      setWallets([{ ...mockWallet, balance: newBal }]);
+      setWallets(prev => prev.map((w, idx) => idx === activeWalletIndex ? { ...w, balance: newBal } : w));
       
       const newTx = {
         id: Math.random().toString(),
@@ -445,7 +547,7 @@ export default function App() {
         senderWalletId: null,
         receiverWalletId: mockWallet.id,
         amount: amountNum,
-        currency: 'EUR',
+        currency: mockWallet.currency,
         status: 'confirmed',
         type: 'deposit',
         description: 'Simulated cash deposit',
@@ -453,7 +555,8 @@ export default function App() {
       };
       setTransactions(prev => [newTx, ...prev]);
       setDepositAmount('');
-      addNotification('Saldo Gestort (Demo)', `€${amountNum.toFixed(2)} gestort via offline simulator.`, 'success');
+      const currencySign = mockWallet.currency === 'EUR' ? '€' : mockWallet.currency === 'USD' ? '$' : mockWallet.currency === 'GBP' ? '£' : '₣';
+      addNotification('Saldo Gestort (Demo)', `${currencySign}${amountNum.toFixed(2)} gestort via offline simulator.`, 'success');
     } finally {
       setDepositLoading(false);
     }
@@ -669,7 +772,7 @@ export default function App() {
     );
   }
 
-  const primaryWallet = wallets[0] || { balance: 0.0, currency: 'EUR', id: '' };
+  const activeWallet = wallets[activeWalletIndex] || { balance: 0.0, currency: 'EUR', id: '', iban: '' };
 
   return (
     <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', background: 'var(--bg-primary)' }}>
