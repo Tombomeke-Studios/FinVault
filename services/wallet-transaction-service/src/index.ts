@@ -91,6 +91,97 @@ async function generateReceipt(data: {
 }
 
 // =============================================
+// Credit/Debit Overdraft Helper Functions
+// =============================================
+
+async function debitWallet(
+  walletId: string,
+  amount: number,
+  prismaTx: any
+): Promise<{ newBalance: number; newUsedCredit: number }> {
+  const wallet = await prismaTx.wallet.findUnique({
+    where: { id: walletId },
+    include: { creditLine: true }
+  });
+  if (!wallet) throw new Error('Wallet not found');
+
+  let availableCredit = 0.0;
+  if (wallet.creditLine && ['active', 'suspended'].includes(wallet.creditLine.status)) {
+    availableCredit = wallet.creditLine.creditLimit - wallet.creditLine.usedCredit;
+  }
+
+  if (wallet.balance + availableCredit < amount) {
+    throw new Error('Insufficient balance');
+  }
+
+  let newBalance = wallet.balance;
+  let newUsedCredit = wallet.creditLine ? wallet.creditLine.usedCredit : 0.0;
+
+  if (newBalance >= amount) {
+    newBalance -= amount;
+  } else {
+    const needed = amount - newBalance;
+    newBalance = 0.0;
+    newUsedCredit += needed;
+
+    await prismaTx.creditLine.update({
+      where: { walletId },
+      data: { usedCredit: newUsedCredit }
+    });
+  }
+
+  await prismaTx.wallet.update({
+    where: { id: walletId },
+    data: { balance: newBalance }
+  });
+
+  return { newBalance, newUsedCredit };
+}
+
+async function creditWallet(
+  walletId: string,
+  amount: number,
+  prismaTx: any
+): Promise<number> {
+  const wallet = await prismaTx.wallet.findUnique({
+    where: { id: walletId },
+    include: { creditLine: true }
+  });
+  if (!wallet) throw new Error('Wallet not found');
+
+  let remainingAmount = amount;
+  let newBalance = wallet.balance;
+
+  if (wallet.creditLine && ['active', 'suspended'].includes(wallet.creditLine.status) && wallet.creditLine.usedCredit > 0) {
+    const used = wallet.creditLine.usedCredit;
+    if (remainingAmount >= used) {
+      await prismaTx.creditLine.update({
+        where: { walletId },
+        data: { usedCredit: 0.0 }
+      });
+      remainingAmount -= used;
+    } else {
+      await prismaTx.creditLine.update({
+        where: { walletId },
+        data: { usedCredit: used - remainingAmount }
+      });
+      remainingAmount = 0.0;
+    }
+  }
+
+  if (remainingAmount > 0) {
+    newBalance += remainingAmount;
+  }
+
+  await prismaTx.wallet.update({
+    where: { id: walletId },
+    data: { balance: newBalance }
+  });
+
+  return newBalance;
+}
+
+// =============================================
 // Webhook listener for Gateway events (e.g. account.created)
 // =============================================
 app.post('/webhooks/events', async (req, res) => {
@@ -155,7 +246,8 @@ app.get('/wallets', requireAuth, async (req, res) => {
 
   try {
     let wallets = await prisma.wallet.findMany({
-      where: { userId }
+      where: { userId },
+      include: { creditLine: true }
     });
 
     // Self-healing logic: Automatically generate a default EUR wallet if none exists
@@ -172,7 +264,8 @@ app.get('/wallets', requireAuth, async (req, res) => {
           balance: 250.00,
           reservedBalance: 0.0,
           status: 'active'
-        }
+        },
+        include: { creditLine: true }
       });
 
       await prisma.balanceHistory.create({
@@ -228,7 +321,8 @@ app.post('/wallets', requireAuth, async (req, res) => {
         balance: startBonus,
         reservedBalance: 0.0,
         status: 'active'
-      }
+      },
+      include: { creditLine: true }
     });
 
     await prisma.balanceHistory.create({
@@ -267,14 +361,15 @@ app.post('/wallets/simulate-time', requireAuth, async (req, res) => {
   }
 
   try {
-    // 1. Get all wallets of the user
+    // 1. Get all wallets of the user with creditLine included
     const wallets = await prisma.wallet.findMany({
-      where: { userId }
+      where: { userId },
+      include: { creditLine: true }
     });
 
     const updatedWallets = [];
 
-    // 2. Loop through all accounts, calculate interest for savings accounts
+    // 2. Loop through all accounts, calculate interest for savings and roodstand/credit lines
     for (const wallet of wallets) {
       if (wallet.type === 'savings' && wallet.interestRate > 0) {
         // Rente = Saldo * Rentepercentage * (maanden / 12)
@@ -330,6 +425,48 @@ app.post('/wallets/simulate-time', requireAuth, async (req, res) => {
             oldBalance: wallet.balance,
             newBalance,
             interestEarned: interestAmount
+          });
+        }
+      } else if (wallet.type === 'checking' && wallet.creditLine && ['active', 'suspended'].includes(wallet.creditLine.status) && wallet.creditLine.usedCredit > 0) {
+        // Rente op roodstand = Kredietschuld * Rentevoet * (maanden / 12)
+        const debtInterest = parseFloat((wallet.creditLine.usedCredit * wallet.creditLine.interestRate * (simulatedMonths / 12)).toFixed(2));
+
+        if (debtInterest > 0) {
+          const newUsedCredit = parseFloat((wallet.creditLine.usedCredit + debtInterest).toFixed(2));
+          const isOverLimit = newUsedCredit > wallet.creditLine.creditLimit;
+          const finalUsedCredit = Math.min(newUsedCredit, wallet.creditLine.creditLimit);
+
+          await prisma.$transaction([
+            prisma.creditLine.update({
+              where: { walletId: wallet.id },
+              data: {
+                usedCredit: finalUsedCredit,
+                status: isOverLimit ? 'suspended' : wallet.creditLine.status
+              }
+            }),
+            prisma.transaction.create({
+              data: {
+                reference: `INT-DEBT-${Math.random().toString(36).substring(2, 9).toUpperCase()}`,
+                senderWalletId: wallet.id,
+                receiverWalletId: null,
+                amount: debtInterest,
+                currency: wallet.currency,
+                status: 'confirmed',
+                type: 'withdrawal',
+                description: `Simulatie: Rente op roodstand/kredietschuld (${simulatedMonths} mnd @ ${(wallet.creditLine.interestRate * 100).toFixed(0)}%)`
+              }
+            })
+          ]);
+
+          updatedWallets.push({
+            id: wallet.id,
+            iban: wallet.iban,
+            currency: wallet.currency,
+            type: wallet.type,
+            oldBalance: -wallet.creditLine.usedCredit,
+            newBalance: -finalUsedCredit,
+            interestCharged: debtInterest,
+            status: isOverLimit ? 'suspended' : 'active'
           });
         }
       }
@@ -400,7 +537,8 @@ app.post('/wallets/deposit', requireAuth, async (req, res) => {
     if (!wallet) return res.status(404).json({ error: 'Wallet not found' });
     if (wallet.userId !== userId) return res.status(403).json({ error: 'Forbidden' });
 
-    const newBalance = wallet.balance + amount;
+    // Use the creditWallet helper which pays off credit line debt first
+    const newBalance = await creditWallet(walletId, amount, prisma);
     const reference = `DEP-${Math.random().toString(36).substring(2, 9).toUpperCase()}`;
 
     // Compute integrity hash
@@ -412,9 +550,9 @@ app.post('/wallets/deposit', requireAuth, async (req, res) => {
       currency: wallet.currency
     });
 
-    const updatedWallet = await prisma.wallet.update({
+    const updatedWallet = await prisma.wallet.findUnique({
       where: { id: walletId },
-      data: { balance: newBalance }
+      include: { creditLine: true }
     });
 
     await prisma.balanceHistory.create({
@@ -534,11 +672,19 @@ app.post('/transactions/transfer', requireAuth, async (req, res) => {
 
   try {
     // 1. Validate sender wallet
-    const senderWallet = await prisma.wallet.findUnique({ where: { id: senderWalletId } });
+    const senderWallet = await prisma.wallet.findUnique({
+      where: { id: senderWalletId },
+      include: { creditLine: true }
+    });
     if (!senderWallet) return res.status(404).json({ error: 'Sender wallet not found' });
     if (senderWallet.userId !== userId) return res.status(403).json({ error: 'Unauthorized to spend from this wallet' });
 
-    if (senderWallet.balance < amount) {
+    let availableCredit = 0.0;
+    if (senderWallet.creditLine && ['active', 'suspended'].includes(senderWallet.creditLine.status)) {
+      availableCredit = senderWallet.creditLine.creditLimit - senderWallet.creditLine.usedCredit;
+    }
+
+    if (senderWallet.balance + availableCredit < amount) {
       return res.status(400).json({ error: 'Insufficient balance' });
     }
 
@@ -583,9 +729,15 @@ app.post('/transactions/transfer', requireAuth, async (req, res) => {
     });
 
     // 4. Perform atomic double-entry bookkeeping in Prisma Transaction
-    const [transaction] = await prisma.$transaction([
-      // Create transaction log with integrity hash
-      prisma.transaction.create({
+    const [transaction, debitRes, receiverBalance] = await prisma.$transaction(async (prismaTx) => {
+      // 1. Debit sender
+      const debitRes = await debitWallet(senderWallet.id, amount, prismaTx);
+      
+      // 2. Credit receiver
+      const receiverBalance = await creditWallet(receiverWallet.id, amount, prismaTx);
+
+      // 3. Create transaction log with integrity hash
+      const transaction = await prismaTx.transaction.create({
         data: {
           reference,
           senderWalletId: senderWallet.id,
@@ -597,34 +749,30 @@ app.post('/transactions/transfer', requireAuth, async (req, res) => {
           description: description || `Transfer to ${receiverEmail}`,
           integrityHash
         }
-      }),
-      // Debit sender
-      prisma.wallet.update({
-        where: { id: senderWallet.id },
-        data: { balance: { decrement: amount } }
-      }),
-      prisma.balanceHistory.create({
+      });
+
+      // 4. Log sender balance history
+      await prismaTx.balanceHistory.create({
         data: {
           walletId: senderWallet.id,
           amount: -amount,
-          balanceAfter: senderWallet.balance - amount,
-          reason: `Transfer to ${receiverEmail}`
+          balanceAfter: debitRes.newBalance,
+          reason: description || `Transfer to ${receiverEmail}`
         }
-      }),
-      // Credit receiver
-      prisma.wallet.update({
-        where: { id: receiverWallet.id },
-        data: { balance: { increment: amount } }
-      }),
-      prisma.balanceHistory.create({
+      });
+
+      // 5. Log receiver balance history
+      await prismaTx.balanceHistory.create({
         data: {
           walletId: receiverWallet.id,
-          amount,
-          balanceAfter: receiverWallet.balance + amount,
+          amount: amount,
+          balanceAfter: receiverBalance,
           reason: `Transfer from ${(req as any).user.email}`
         }
-      })
-    ]);
+      });
+
+      return [transaction, debitRes, receiverBalance];
+    });
 
     console.log(`[Wallet Service] P2P transaction confirmed: ${reference}`);
 
@@ -646,7 +794,7 @@ app.post('/transactions/transfer', requireAuth, async (req, res) => {
       payload: {
         walletId: senderWallet.id,
         userId: senderWallet.userId,
-        balance: senderWallet.balance - amount,
+        balance: debitRes.newBalance,
         currency: senderWallet.currency
       }
     });
@@ -656,7 +804,7 @@ app.post('/transactions/transfer', requireAuth, async (req, res) => {
       payload: {
         walletId: receiverWallet.id,
         userId: receiverWallet.userId,
-        balance: receiverWallet.balance + amount,
+        balance: receiverBalance,
         currency: receiverWallet.currency
       }
     });
@@ -703,12 +851,20 @@ app.post('/transactions/sepa-transfer', requireAuth, async (req, res) => {
 
   try {
     // 2. Resolve sender wallet by IBAN
-    const senderWallet = await prisma.wallet.findUnique({ where: { iban: senderIban } });
+    const senderWallet = await prisma.wallet.findUnique({
+      where: { iban: senderIban },
+      include: { creditLine: true }
+    });
     if (!senderWallet) {
       return res.status(404).json({ error: `SEPA processing aborted: Debtor account with IBAN ${senderIban} not found.` });
     }
 
-    if (senderWallet.balance < amount) {
+    let availableCredit = 0.0;
+    if (senderWallet.creditLine && ['active', 'suspended'].includes(senderWallet.creditLine.status)) {
+      availableCredit = senderWallet.creditLine.creditLimit - senderWallet.creditLine.usedCredit;
+    }
+
+    if (senderWallet.balance + availableCredit < amount) {
       return res.status(400).json({ error: 'SEPA processing aborted: Insufficient funds in debtor wallet.' });
     }
 
@@ -746,8 +902,15 @@ app.post('/transactions/sepa-transfer', requireAuth, async (req, res) => {
     });
 
     // 5. Execute atomic double-entry bookkeeping ledger entry
-    const [transaction] = await prisma.$transaction([
-      prisma.transaction.create({
+    const [transaction, debitRes, receiverBalance] = await prisma.$transaction(async (prismaTx) => {
+      // 1. Debit sender
+      const debitRes = await debitWallet(senderWallet.id, amount, prismaTx);
+      
+      // 2. Credit receiver
+      const receiverBalance = await creditWallet(receiverWallet.id, amount, prismaTx);
+
+      // 3. Create transaction log with integrity hash
+      const transaction = await prismaTx.transaction.create({
         data: {
           reference,
           senderWalletId: senderWallet.id,
@@ -759,34 +922,30 @@ app.post('/transactions/sepa-transfer', requireAuth, async (req, res) => {
           description: `SEPA: ${description}`,
           integrityHash
         }
-      }),
-      // Debit sender
-      prisma.wallet.update({
-        where: { id: senderWallet.id },
-        data: { balance: { decrement: amount } }
-      }),
-      prisma.balanceHistory.create({
+      });
+
+      // 4. Log sender balance history
+      await prismaTx.balanceHistory.create({
         data: {
           walletId: senderWallet.id,
           amount: -amount,
-          balanceAfter: senderWallet.balance - amount,
-          reason: `SEPA Credit Transfer out (Msg: ${validation.paymentInfo.msgId})`
+          balanceAfter: debitRes.newBalance,
+          reason: `SEPA Credit Transfer out (Msg: ${validation.paymentInfo!.msgId})`
         }
-      }),
-      // Credit receiver
-      prisma.wallet.update({
-        where: { id: receiverWallet.id },
-        data: { balance: { increment: amount } }
-      }),
-      prisma.balanceHistory.create({
+      });
+
+      // 5. Log receiver balance history
+      await prismaTx.balanceHistory.create({
         data: {
           walletId: receiverWallet.id,
           amount,
-          balanceAfter: receiverWallet.balance + amount,
-          reason: `SEPA Credit Transfer in (Msg: ${validation.paymentInfo.msgId})`
+          balanceAfter: receiverBalance,
+          reason: `SEPA Credit Transfer in (Msg: ${validation.paymentInfo!.msgId})`
         }
-      })
-    ]);
+      });
+
+      return [transaction, debitRes, receiverBalance];
+    });
 
     console.log(`[Wallet Service] SEPA XML Pain.001 Credit Transfer processed successfully. Ref: ${reference}`);
 
@@ -807,7 +966,7 @@ app.post('/transactions/sepa-transfer', requireAuth, async (req, res) => {
       payload: {
         walletId: senderWallet.id,
         userId: senderWallet.userId,
-        balance: senderWallet.balance - amount,
+        balance: debitRes.newBalance,
         currency: senderWallet.currency
       }
     });
@@ -817,7 +976,7 @@ app.post('/transactions/sepa-transfer', requireAuth, async (req, res) => {
       payload: {
         walletId: receiverWallet.id,
         userId: receiverWallet.userId,
-        balance: receiverWallet.balance + amount,
+        balance: receiverBalance,
         currency: receiverWallet.currency
       }
     });
@@ -862,10 +1021,14 @@ app.post('/transactions/internal-transfer', async (req, res) => {
   try {
     let senderWallet = null;
     if (senderWalletId) {
-      senderWallet = await prisma.wallet.findUnique({ where: { id: senderWalletId } });
+      senderWallet = await prisma.wallet.findUnique({
+        where: { id: senderWalletId },
+        include: { creditLine: true }
+      });
     } else if (senderUserId) {
       senderWallet = await prisma.wallet.findFirst({
-        where: { userId: senderUserId, type: 'checking', currency: 'EUR' }
+        where: { userId: senderUserId, type: 'checking', currency: 'EUR' },
+        include: { creditLine: true }
       });
     }
 
@@ -882,7 +1045,12 @@ app.post('/transactions/internal-transfer', async (req, res) => {
       return res.status(404).json({ error: 'Sender or Receiver checking wallet not found' });
     }
 
-    if (senderWallet.balance < amount) {
+    let availableCredit = 0.0;
+    if (senderWallet.creditLine && ['active', 'suspended'].includes(senderWallet.creditLine.status)) {
+      availableCredit = senderWallet.creditLine.creditLimit - senderWallet.creditLine.usedCredit;
+    }
+
+    if (senderWallet.balance + availableCredit < amount) {
       return res.status(400).json({ error: 'Insufficient balance for mandate charge' });
     }
 
@@ -896,8 +1064,15 @@ app.post('/transactions/internal-transfer', async (req, res) => {
       currency: senderWallet.currency
     });
 
-    const [transaction] = await prisma.$transaction([
-      prisma.transaction.create({
+    const [transaction, debitRes, receiverBalance] = await prisma.$transaction(async (prismaTx) => {
+      // 1. Debit sender
+      const debitRes = await debitWallet(senderWallet.id, amount, prismaTx);
+      
+      // 2. Credit receiver
+      const receiverBalance = await creditWallet(receiverWallet.id, amount, prismaTx);
+
+      // 3. Create transaction log with integrity hash
+      const transaction = await prismaTx.transaction.create({
         data: {
           reference,
           senderWalletId: senderWallet.id,
@@ -909,32 +1084,30 @@ app.post('/transactions/internal-transfer', async (req, res) => {
           description: description || 'Automatische Incasso',
           integrityHash
         }
-      }),
-      prisma.wallet.update({
-        where: { id: senderWallet.id },
-        data: { balance: { decrement: amount } }
-      }),
-      prisma.balanceHistory.create({
+      });
+
+      // 4. Log sender balance history
+      await prismaTx.balanceHistory.create({
         data: {
           walletId: senderWallet.id,
           amount: -amount,
-          balanceAfter: senderWallet.balance - amount,
+          balanceAfter: debitRes.newBalance,
           reason: description || 'Automatische Incasso'
         }
-      }),
-      prisma.wallet.update({
-        where: { id: receiverWallet.id },
-        data: { balance: { increment: amount } }
-      }),
-      prisma.balanceHistory.create({
+      });
+
+      // 5. Log receiver balance history
+      await prismaTx.balanceHistory.create({
         data: {
           walletId: receiverWallet.id,
           amount,
-          balanceAfter: receiverWallet.balance + amount,
+          balanceAfter: receiverBalance,
           reason: `Ontvangen: ${description || 'Automatische Incasso'}`
         }
-      })
-    ]);
+      });
+
+      return [transaction, debitRes, receiverBalance];
+    });
 
     // Publish events
     await publishEvent('wallet-transaction-service', {
@@ -953,7 +1126,7 @@ app.post('/transactions/internal-transfer', async (req, res) => {
       payload: {
         walletId: senderWallet.id,
         userId: senderWallet.userId,
-        balance: senderWallet.balance - amount,
+        balance: debitRes.newBalance,
         currency: senderWallet.currency
       }
     });
@@ -963,7 +1136,7 @@ app.post('/transactions/internal-transfer', async (req, res) => {
       payload: {
         walletId: receiverWallet.id,
         userId: receiverWallet.userId,
-        balance: receiverWallet.balance + amount,
+        balance: receiverBalance,
         currency: receiverWallet.currency
       }
     });
@@ -972,6 +1145,55 @@ app.post('/transactions/internal-transfer', async (req, res) => {
   } catch (error: any) {
     console.error('Internal transfer error:', error);
     res.status(500).json({ error: 'Internal transfer failed', message: error.message });
+  }
+});
+
+// Expose endpoint to activate or modify credit limits (up to €5000) and toggle status
+app.post('/wallets/:walletId/credit-line', requireAuth, async (req, res) => {
+  const { walletId } = req.params;
+  const { creditLimit, status } = req.body;
+  const userId = (req as any).user.userId;
+
+  if (creditLimit !== undefined && (typeof creditLimit !== 'number' || creditLimit < 0 || creditLimit > 5000)) {
+    return res.status(400).json({ error: 'Credit limit must be a positive number up to €5000' });
+  }
+
+  if (status !== undefined && !['inactive', 'active', 'suspended'].includes(status)) {
+    return res.status(400).json({ error: 'Invalid credit line status. Allowed: inactive, active, suspended' });
+  }
+
+  try {
+    const wallet = await prisma.wallet.findUnique({
+      where: { id: walletId },
+      include: { creditLine: true }
+    });
+
+    if (!wallet) return res.status(404).json({ error: 'Wallet not found' });
+    if (wallet.userId !== userId) return res.status(403).json({ error: 'Forbidden' });
+    if (wallet.type !== 'checking') {
+      return res.status(400).json({ error: 'Credit line can only be activated for checking accounts' });
+    }
+
+    // Upsert creditLine
+    const creditLine = await prisma.creditLine.upsert({
+      where: { walletId },
+      create: {
+        walletId,
+        creditLimit: creditLimit ?? 500.0, // default limit is €500
+        interestRate: 0.15, // 15% annual overdraft rate
+        status: status ?? 'active',
+        usedCredit: 0.0
+      },
+      update: {
+        creditLimit: creditLimit !== undefined ? creditLimit : undefined,
+        status: status !== undefined ? status : undefined
+      }
+    });
+
+    res.status(200).json(creditLine);
+  } catch (error: any) {
+    console.error('Credit line update error:', error);
+    res.status(500).json({ error: 'Failed to update credit line', message: error.message });
   }
 });
 

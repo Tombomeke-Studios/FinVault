@@ -19,6 +19,7 @@ model Wallet {
   status          String           @default("active") // active, frozen
   createdAt       DateTime         @default(now())
   histories       BalanceHistory[]
+  creditLine      CreditLine?
 }
 
 model BalanceHistory {
@@ -55,10 +56,11 @@ model IdempotencyKey {
   createdAt    DateTime @default(now())
 }
 
-// Fase 4 Credit/Debit System Preparation (schema only — logic in future phase)
+// Fase 4 Credit/Debit System
 model CreditLine {
   id           String   @id @default(uuid())
   walletId     String   @unique
+  wallet       Wallet   @relation(fields: [walletId], references: [id], onDelete: Cascade)
   creditLimit  Float    @default(0.0)      // maximum credit amount
   usedCredit   Float    @default(0.0)      // how much credit is currently drawn
   interestRate Float    @default(0.15)     // 15% annual interest on credit debt
