@@ -1,0 +1,27 @@
+{
+  "name": "finvault-monorepo",
+  "version": "1.0.0",
+  "description": "FinVault Custom Banking App Monorepo",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "services/*",
+    "shared"
+  ],
+  "scripts": {
+    "dev:shared": "npm run dev --workspace=shared",
+    "dev:gateway": "npm run dev --workspace=services/gateway",
+    "dev:account": "npm run dev --workspace=services/account-service",
+    "dev:wallet": "npm run dev --workspace=services/wallet-transaction-service",
+    "dev:web": "npm run dev --workspace=apps/web-dashboard",
+    "dev": "concurrently \"npm run dev:shared\" \"npm run dev:gateway\" \"npm run dev:account\" \"npm run dev:wallet\" \"npm run dev:web\"",
+    "build": "npm run build --workspaces --if-present",
+    "install:all": "npm install",
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2",
+    "typescript": "^5.3.3",
+    "vitest": "^1.6.0"
+  }
+}
