@@ -1,18 +1,15 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { 
-  DollarSign, 
   ArrowUpRight, 
   ArrowDownLeft, 
   Send, 
   Plus, 
   History, 
   Layers, 
-  User as UserIcon, 
   LogOut, 
   Bell, 
   CheckCircle, 
   XCircle, 
-  RefreshCw, 
   Shield, 
   Zap, 
   AlertTriangle,
@@ -921,7 +918,7 @@ export default function App() {
 
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', zIndex: 1 }}>
                     <div>
-                      <div style={{ fontSize: '0.75rem', textTransform: 'uppercase', tracking: '1px', color: 'var(--text-secondary)' }}>Hoofdrekening</div>
+                      <div style={{ fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '1px', color: 'var(--text-secondary)' }}>Hoofdrekening</div>
                       <div style={{ fontSize: '1.8rem', fontWeight: 800, marginTop: '8px', display: 'flex', alignItems: 'baseline', gap: '4px' }}>
                         <span>€</span>
                         <span style={{ fontSize: '2.2rem', letterSpacing: '-1px' }}>{primaryWallet.balance.toFixed(2)}</span>
@@ -1263,7 +1260,7 @@ export default function App() {
                     {transactions.map(tx => {
                       const isSender = tx.senderWalletId === primaryWallet.id;
                       return (
-                        <tr key={tx.id} style={{ borderBottom: '1px solid var(--border-color)', hover: { background: 'rgba(255,255,255,0.01)' } }}>
+                        <tr key={tx.id} style={{ borderBottom: '1px solid var(--border-color)' }}>
                           <td style={{ padding: '16px' }}>{new Date(tx.createdAt).toLocaleString()}</td>
                           <td style={{ padding: '16px', fontFamily: 'monospace' }}>{tx.reference}</td>
                           <td style={{ padding: '16px' }}>
