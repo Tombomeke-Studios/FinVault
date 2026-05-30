@@ -1122,7 +1122,7 @@ export default function App() {
                   </div>
                   <form onSubmit={handleDeposit} style={{ display: 'flex', gap: '12px' }}>
                     <div style={{ flex: 1, position: 'relative' }}>
-                      <span style={{ position: 'absolute', left: '16px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }}>€</span>
+                      <span style={{ position: 'absolute', left: '16px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }}>{curSign}</span>
                       <input 
                         type="number" 
                         className="form-input" 
@@ -1136,6 +1136,72 @@ export default function App() {
                     </div>
                     <button type="submit" className="btn-secondary" style={{ display: 'flex', alignItems: 'center', gap: '8px' }} disabled={depositLoading}>
                       <Plus size={16} /> Stort
+                    </button>
+                  </form>
+                </div>
+
+                {/* Multi-Currency Account Manager */}
+                <div className="glass-card" style={{ display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
+                  <div>
+                    <h3 style={{ fontSize: '1.1rem', fontWeight: 700, marginBottom: '8px' }}>Rekeningen & Valuta</h3>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', maxHeight: '100px', overflowY: 'auto', marginBottom: '12px', paddingRight: '4px' }}>
+                      {wallets.map((w, idx) => {
+                        const sign = currencySigns[w.currency] || '€';
+                        const isActive = idx === activeWalletIndex;
+                        return (
+                          <div 
+                            key={w.id} 
+                            onClick={() => {
+                              setActiveWalletIndex(idx);
+                              setIsIbanVisible(false);
+                            }}
+                            style={{
+                              display: 'flex',
+                              justifyContent: 'space-between',
+                              alignItems: 'center',
+                              padding: '6px 12px',
+                              borderRadius: '8px',
+                              background: isActive ? 'var(--accent-glow)' : 'rgba(255,255,255,0.02)',
+                              border: `1px solid ${isActive ? 'var(--accent-color)' : 'var(--border-color)'}`,
+                              cursor: 'pointer',
+                              fontSize: '0.8rem',
+                              transition: 'var(--transition-smooth)'
+                            }}
+                          >
+                            <span style={{ fontWeight: 600, color: isActive ? 'var(--accent-color)' : '#fff' }}>
+                              {w.currency} Wallet
+                            </span>
+                            <span style={{ fontWeight: 700 }}>
+                              {sign}{w.balance.toFixed(2)}
+                            </span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                  
+                  <form onSubmit={handleCreateWallet} style={{ display: 'flex', gap: '12px', alignItems: 'center', borderTop: '1px solid var(--border-color)', paddingTop: '12px' }}>
+                    <select
+                      value={newWalletCurrency}
+                      onChange={e => setNewWalletCurrency(e.target.value)}
+                      className="form-input"
+                      style={{ flex: 1, padding: '8px 12px', fontSize: '0.8rem', height: '38px', background: 'rgba(0,0,0,0.2)', border: '1px solid var(--border-color)' }}
+                      disabled={newWalletLoading}
+                    >
+                      {['EUR', 'USD', 'GBP', 'CHF']
+                        .filter(cur => !wallets.some(w => w.currency === cur))
+                        .map(cur => (
+                          <option key={cur} value={cur} style={{ background: 'var(--bg-secondary)', color: '#fff' }}>{cur}</option>
+                        ))
+                      }
+                    </select>
+                    <button 
+                      type="submit" 
+                      className="btn-primary" 
+                      style={{ fontSize: '0.8rem', padding: '0 16px', height: '38px', whiteSpace: 'nowrap' }}
+                      disabled={newWalletLoading || ['EUR', 'USD', 'GBP', 'CHF'].filter(cur => !wallets.some(w => w.currency === cur)).length === 0}
+                    >
+                      {newWalletLoading ? '...' : '+ Rekening'}
                     </button>
                   </form>
                 </div>
