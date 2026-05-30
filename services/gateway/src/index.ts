@@ -1,9 +1,10 @@
 import express from 'express';
 import cors from 'cors';
+import helmet from 'helmet';
 import { createServer } from 'http';
 import { WebSocketServer, WebSocket } from 'ws';
 import dotenv from 'dotenv';
-import { EventEnvelope } from 'shared';
+import { EventEnvelope, verifyToken } from 'shared';
 
 dotenv.config();
 
@@ -13,8 +14,32 @@ const WALLET_SERVICE_URL = process.env.WALLET_SERVICE_URL || 'http://localhost:8
 const INVOICE_SERVICE_URL = process.env.INVOICE_SERVICE_URL || 'http://localhost:8003';
 
 const app = express();
+
+app.use(helmet());
 app.use(cors());
 app.use(express.json());
+
+// Global Gateway Rate Limiter (Max 100 requests per minute per IP)
+const apiAttempts = new Map<string, { count: number; resetAt: number }>();
+app.use((req, res, next) => {
+  const ip = req.ip || '127.0.0.1';
+  const now = Date.now();
+  const limit = 100;
+  const windowMs = 60 * 1000;
+
+  const record = apiAttempts.get(ip);
+  if (!record || now > record.resetAt) {
+    apiAttempts.set(ip, { count: 1, resetAt: now + windowMs });
+    return next();
+  }
+
+  if (record.count >= limit) {
+    return res.status(429).json({ error: 'Too many requests. Please try again in a minute.' });
+  }
+
+  record.count += 1;
+  next();
+});
 
 // Proxy helper function
 const proxyTo = (targetUrl: string) => async (req: express.Request, res: express.Response) => {
@@ -59,8 +84,14 @@ const subscriptions: WebhookSubscription[] = [
   }
 ];
 
-// Event Hub endpoint
+// Event Hub endpoint with X-Service-Secret authentication
 app.post('/api/events/publish', async (req, res) => {
+  const serviceSecret = req.headers['x-service-secret'] as string;
+  const expectedSecret = process.env.SERVICE_SECRET || 'finvault-internal-service-secret';
+  if (serviceSecret !== expectedSecret) {
+    return res.status(403).json({ error: 'Forbidden: Event Hub requires valid service authentication.' });
+  }
+
   const envelope = req.body as EventEnvelope;
   console.log(`[Event Hub] Received event: ${envelope.event.type} from ${envelope.source}`);
 
@@ -92,15 +123,23 @@ const clientConnections = new Map<string, WebSocket>(); // userId -> WS connecti
 
 wss.on('connection', (ws, req) => {
   const urlParams = new URLSearchParams(req.url?.split('?')[1] || '');
-  const userId = urlParams.get('userId');
+  const token = urlParams.get('token');
 
-  if (!userId) {
-    ws.close(4001, 'Unauthorized: userId required');
+  if (!token) {
+    ws.close(4001, 'Unauthorized: token required');
     return;
   }
 
+  const decoded = verifyToken(token);
+  if (!decoded) {
+    ws.close(4002, 'Unauthorized: Invalid or expired token');
+    return;
+  }
+
+  const userId = decoded.userId;
+
   clientConnections.set(userId, ws);
-  console.log(`[WebSocket] Client connected: ${userId}`);
+  console.log(`[WebSocket] Client connected: ${userId} (verified via JWT)`);
 
   ws.on('close', () => {
     clientConnections.delete(userId);
