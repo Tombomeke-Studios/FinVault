@@ -22,6 +22,7 @@ services:
       - PORT=8000
       - ACCOUNT_SERVICE_URL=http://account-service:8001
       - WALLET_SERVICE_URL=http://wallet-transaction-service:8002
+      - INVOICE_SERVICE_URL=http://invoice-service:8003
     depends_on:
       - rabbitmq
 
@@ -51,6 +52,23 @@ services:
       - ACCOUNT_SERVICE_URL=http://account-service:8001
     depends_on:
       - gateway
+      - account-service
+
+  invoice-service:
+    build:
+      context: .
+      dockerfile: services/invoice-service/Dockerfile
+    container_name: finvault-invoice-service
+    ports:
+      - "8003:8003"
+    environment:
+      - PORT=8003
+      - GATEWAY_URL=http://gateway:8000
+      - WALLET_SERVICE_URL=http://wallet-transaction-service:8002
+      - ACCOUNT_SERVICE_URL=http://account-service:8001
+    depends_on:
+      - gateway
+      - wallet-transaction-service
       - account-service
 
   web-dashboard:
