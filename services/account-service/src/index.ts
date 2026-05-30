@@ -86,7 +86,7 @@ app.post('/auth/register', async (req, res) => {
         email: user.email,
         accountType: user.accountType
       }
-    });
+    }, process.env.GATEWAY_URL);
 
     await logAudit(user.id, 'Account registration completed', req);
 
@@ -272,7 +272,7 @@ async function seedAdmin() {
           email: user.email,
           accountType: user.accountType
         }
-      });
+      }, process.env.GATEWAY_URL);
     }
   } catch (error) {
     console.error('Failed to seed default admin user:', error);
