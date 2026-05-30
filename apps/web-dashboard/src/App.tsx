@@ -872,7 +872,7 @@ export default function App() {
       });
 
       if (res.ok) {
-        const data = await res.json();
+        await res.json();
         addNotification('Kredietlimiet Bijgewerkt', `Je kredietlimiet is ingesteld op €${limit.toFixed(2)}. Status: ${status}`, 'success');
         fetchWallets();
       } else {
