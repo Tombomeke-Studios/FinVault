@@ -22,7 +22,7 @@ export interface EventEnvelope<T extends FinVaultEvent = FinVaultEvent> {
 export async function publishEvent(
   source: string,
   event: FinVaultEvent,
-  gatewayUrl = 'http://localhost:8000'
+  gatewayUrl = process.env.GATEWAY_URL || 'http://localhost:8000'
 ): Promise<boolean> {
   const envelope: EventEnvelope = {
     eventId: Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15),
