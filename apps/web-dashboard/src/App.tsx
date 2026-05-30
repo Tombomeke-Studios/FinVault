@@ -795,6 +795,40 @@ export default function App() {
   };
   const curSign = currencySigns[activeWallet.currency] || '€';
 
+  const renderTrendGraph = () => {
+    if (!balanceHistory || balanceHistory.length === 0) {
+      return {
+        lineD: "M 0 140 L 500 140",
+        areaD: "M 0 140 L 500 140 L 500 200 L 0 200 Z",
+        points: []
+      };
+    }
+
+    const balances = balanceHistory.map(h => h.balanceAfter);
+    const minBal = Math.min(...balances, 0); 
+    const maxBal = Math.max(...balances, 10); 
+    const balRange = maxBal - minBal || 1;
+
+    const pts = balanceHistory.map((item, index) => {
+      const x = balanceHistory.length === 1 ? 250 : (index / (balanceHistory.length - 1)) * 500;
+      const y = 170 - ((item.balanceAfter - minBal) / balRange) * 140; 
+      return {
+        x,
+        y,
+        balance: item.balanceAfter,
+        reason: item.reason,
+        date: new Date(item.timestamp || Date.now()).toLocaleDateString([], { month: 'short', day: 'numeric' })
+      };
+    });
+
+    const lineD = pts.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x} ${p.y}`).join(' ');
+    const areaD = pts.length > 0 ? `${lineD} L ${pts[pts.length - 1].x} 200 L ${pts[0].x} 200 Z` : '';
+
+    return { lineD, areaD, points: pts };
+  };
+
+  const { lineD, areaD, points } = renderTrendGraph();
+
   return (
     <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', background: 'var(--bg-primary)' }}>
       {/* Top Navbar */}
@@ -1236,14 +1270,25 @@ export default function App() {
                       <line x1="0" y1="150" x2="500" y2="150" stroke="rgba(255,255,255,0.03)" strokeWidth="1" />
 
                       {/* Area beneath chart */}
-                      <path d="M 0 170 C 100 130, 200 150, 300 90 C 400 30, 450 70, 500 40 L 500 200 L 0 200 Z" fill="url(#chart-glow)" />
+                      <path d={areaD} fill="url(#chart-glow)" />
 
                       {/* Main Trend Line */}
-                      <path d="M 0 170 C 100 130, 200 150, 300 90 C 400 30, 450 70, 500 40" fill="none" stroke="var(--accent-color)" strokeWidth="3.5" strokeLinecap="round" />
+                      <path d={lineD} fill="none" stroke="var(--accent-color)" strokeWidth="3.5" strokeLinecap="round" />
 
                       {/* Dots on line */}
-                      <circle cx="300" cy="90" r="5" fill="var(--accent-secondary)" stroke="#fff" strokeWidth="1.5" />
-                      <circle cx="500" cy="40" r="5" fill="var(--accent-color)" stroke="#fff" strokeWidth="1.5" />
+                      {points.map((p, i) => (
+                        <g key={i}>
+                          <circle 
+                            cx={p.x} 
+                            cy={p.y} 
+                            r={i === points.length - 1 ? "6" : "4"} 
+                            fill={i === points.length - 1 ? "var(--accent-secondary)" : "var(--accent-color)"} 
+                            stroke="#fff" 
+                            strokeWidth="1.5" 
+                          />
+                          <title>{`${p.reason}: ${curSign}${p.balance.toFixed(2)} (${p.date})`}</title>
+                        </g>
+                      ))}
                     </svg>
                   </div>
                   <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '12px', fontSize: '0.7rem', color: 'var(--text-muted)' }}>
