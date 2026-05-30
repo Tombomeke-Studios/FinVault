@@ -1,17 +1,50 @@
 import express from 'express';
 import cors from 'cors';
+import helmet from 'helmet';
 import { PrismaClient } from '@prisma/client';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
-import { publishEvent } from 'shared';
+import { publishEvent, validateBody, LoginSchema, RegisterSchema } from 'shared';
 
 const prisma = new PrismaClient();
 const app = express();
 const PORT = process.env.PORT || 8001;
 const JWT_SECRET = process.env.JWT_SECRET || 'finvault-super-secret-key-98765';
 
+app.use(helmet());
 app.use(cors());
 app.use(express.json());
+
+// =============================================
+// Rate Limiting & Account Lockout Setup
+// =============================================
+const loginAttempts = new Map<string, { count: number; resetAt: number }>();
+const registerAttempts = new Map<string, { count: number; resetAt: number }>();
+const failedLoginAttemptsByEmail = new Map<string, number>();
+
+function checkRateLimit(
+  ip: string,
+  map: Map<string, { count: number; resetAt: number }>,
+  maxCount: number,
+  windowMs: number
+): { allowed: boolean; remaining: number; resetAt: number } {
+  const now = Date.now();
+  const record = map.get(ip);
+
+  if (!record || now > record.resetAt) {
+    const newRecord = { count: 1, resetAt: now + windowMs };
+    map.set(ip, newRecord);
+    return { allowed: true, remaining: maxCount - 1, resetAt: newRecord.resetAt };
+  }
+
+  if (record.count >= maxCount) {
+    return { allowed: false, remaining: 0, resetAt: record.resetAt };
+  }
+
+  record.count += 1;
+  return { allowed: true, remaining: maxCount - record.count, resetAt: record.resetAt };
+}
+
 
 // Authentication Middleware
 const authenticateToken = (req: express.Request, res: express.Response, next: express.NextFunction) => {
@@ -45,11 +78,21 @@ async function logAudit(userId: string | null, action: string, req: express.Requ
 
 // REST Endpoints
 app.post('/auth/register', async (req, res) => {
-  const { email, password, firstName, lastName, dateOfBirth, address, country, accountType } = req.body;
-
-  if (!email || !password || !firstName || !lastName) {
-    return res.status(400).json({ error: 'Missing required fields' });
+  // Rate limiting check
+  const ip = req.ip || '127.0.0.1';
+  const limitRes = checkRateLimit(ip, registerAttempts, 3, 60 * 60 * 1000);
+  if (!limitRes.allowed) {
+    return res.status(429).json({
+      error: 'Too many account registrations. Please try again in 1 hour.',
+      resetAt: limitRes.resetAt
+    });
   }
+
+  // Zod validation
+  const body = validateBody(RegisterSchema, req, res);
+  if (!body) return;
+
+  const { email, password, firstName, lastName, dateOfBirth, address, country, accountType } = body;
 
   try {
     const existingUser = await prisma.user.findUnique({ where: { email } });
@@ -106,11 +149,21 @@ app.post('/auth/register', async (req, res) => {
 });
 
 app.post('/auth/login', async (req, res) => {
-  const { email, password } = req.body;
-
-  if (!email || !password) {
-    return res.status(400).json({ error: 'Email and password required' });
+  // Rate limiting check
+  const ip = req.ip || '127.0.0.1';
+  const limitRes = checkRateLimit(ip, loginAttempts, 5, 15 * 60 * 1000);
+  if (!limitRes.allowed) {
+    return res.status(429).json({
+      error: 'Too many login attempts. Please try again in 15 minutes.',
+      resetAt: limitRes.resetAt
+    });
   }
+
+  // Zod validation
+  const body = validateBody(LoginSchema, req, res);
+  if (!body) return;
+
+  const { email, password } = body;
 
   try {
     const user = await prisma.user.findUnique({
@@ -118,15 +171,49 @@ app.post('/auth/login', async (req, res) => {
       include: { profile: true }
     });
 
-    if (!user || !(await bcrypt.compare(password, user.passwordHash))) {
-      await logAudit(null, `Failed login attempt for email: ${email}`, req);
+    if (!user) {
+      await logAudit(null, `Failed login attempt (non-existent email): ${email}`, req);
       return res.status(401).json({ error: 'Invalid email or password' });
     }
 
     if (user.status === 'frozen') {
       await logAudit(user.id, 'Blocked login attempt on frozen account', req);
-      return res.status(403).json({ error: 'Account has been frozen by administrator' });
+      return res.status(403).json({ error: 'Account has been frozen' });
     }
+
+    const isMatch = await bcrypt.compare(password, user.passwordHash);
+    if (!isMatch) {
+      // Handle failed attempt & account lockout
+      const attempts = (failedLoginAttemptsByEmail.get(email) || 0) + 1;
+      failedLoginAttemptsByEmail.set(email, attempts);
+
+      if (attempts >= 10) {
+        await prisma.user.update({
+          where: { id: user.id },
+          data: { status: 'frozen' }
+        });
+        await logAudit(user.id, 'Account frozen due to too many failed login attempts', req);
+        
+        await publishEvent('account-service', {
+          type: 'account.frozen',
+          payload: {
+            userId: user.id,
+            reason: 'Too many failed login attempts'
+          }
+        }, process.env.GATEWAY_URL);
+
+        failedLoginAttemptsByEmail.delete(email);
+        return res.status(403).json({ error: 'Account has been frozen due to 10 failed login attempts.' });
+      }
+
+      await logAudit(user.id, `Failed login attempt ${attempts}/10 for email: ${email}`, req);
+      return res.status(401).json({
+        error: `Invalid email or password. Attempt ${attempts} of 10 before your account is frozen.`
+      });
+    }
+
+    // Successful login: reset failed counter
+    failedLoginAttemptsByEmail.delete(email);
 
     const accessToken = jwt.sign(
       { userId: user.id, email: user.email, accountType: user.accountType },
