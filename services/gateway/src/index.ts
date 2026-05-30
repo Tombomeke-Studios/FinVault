@@ -10,6 +10,7 @@ dotenv.config();
 const PORT = process.env.PORT || 8000;
 const ACCOUNT_SERVICE_URL = process.env.ACCOUNT_SERVICE_URL || 'http://localhost:8001';
 const WALLET_SERVICE_URL = process.env.WALLET_SERVICE_URL || 'http://localhost:8002';
+const INVOICE_SERVICE_URL = process.env.INVOICE_SERVICE_URL || 'http://localhost:8003';
 
 const app = express();
 app.use(cors());
@@ -41,6 +42,7 @@ app.use('/api/auth', proxyTo(ACCOUNT_SERVICE_URL));
 app.use('/api/users', proxyTo(ACCOUNT_SERVICE_URL));
 app.use('/api/wallets', proxyTo(WALLET_SERVICE_URL));
 app.use('/api/transactions', proxyTo(WALLET_SERVICE_URL));
+app.use('/api/invoices', proxyTo(INVOICE_SERVICE_URL));
 
 // Simple Webhook Registration for Microservices
 interface WebhookSubscription {
