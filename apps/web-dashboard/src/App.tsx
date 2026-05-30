@@ -1316,7 +1316,7 @@ export default function App() {
                     <div>
                       <label style={{ display: 'block', marginBottom: '6px', fontSize: '0.8rem', color: 'var(--text-secondary)' }}>Bedrag</label>
                       <div style={{ position: 'relative' }}>
-                        <span style={{ position: 'absolute', left: '16px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }}>€</span>
+                        <span style={{ position: 'absolute', left: '16px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }}>{curSign}</span>
                         <input 
                           type="number" 
                           className="form-input" 
@@ -1346,7 +1346,7 @@ export default function App() {
                 ) : (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
                     {transactions.slice(0, 5).map((tx) => {
-                      const isSender = tx.senderWalletId === primaryWallet.id;
+                      const isSender = tx.senderWalletId && wallets.some(w => w.id === tx.senderWalletId);
                       return (
                         <div key={tx.id} style={{
                           display: 'flex',
@@ -1381,7 +1381,7 @@ export default function App() {
                               fontWeight: 700,
                               color: isSender ? 'var(--color-danger)' : 'var(--color-success)'
                             }}>
-                              {isSender ? '-' : '+'} €{tx.amount.toFixed(2)}
+                              {isSender ? '-' : '+'} {currencySigns[tx.currency] || '€'}{tx.amount.toFixed(2)}
                             </div>
                             <span style={{
                               fontSize: '0.65rem',
@@ -1528,7 +1528,7 @@ export default function App() {
                   </thead>
                   <tbody>
                     {transactions.map(tx => {
-                      const isSender = tx.senderWalletId === primaryWallet.id;
+                      const isSender = tx.senderWalletId && wallets.some(w => w.id === tx.senderWalletId);
                       return (
                         <tr key={tx.id} style={{ borderBottom: '1px solid var(--border-color)' }}>
                           <td style={{ padding: '16px' }}>{new Date(tx.createdAt).toLocaleString()}</td>
@@ -1552,7 +1552,7 @@ export default function App() {
                             fontWeight: 700,
                             color: isSender ? 'var(--color-danger)' : 'var(--color-success)'
                           }}>
-                            {isSender ? '-' : '+'} €{tx.amount.toFixed(2)}
+                            {isSender ? '-' : '+'} {currencySigns[tx.currency] || '€'}{tx.amount.toFixed(2)}
                           </td>
                         </tr>
                       );
