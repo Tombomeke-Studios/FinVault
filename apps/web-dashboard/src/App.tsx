@@ -804,26 +804,6 @@ export default function App() {
 
         {/* Server Sync indicators */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
-          <div style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: '8px',
-            background: 'rgba(255, 255, 255, 0.03)',
-            padding: '6px 12px',
-            borderRadius: '20px',
-            border: '1px solid var(--border-color)',
-            fontSize: '0.75rem',
-            color: 'var(--text-secondary)'
-          }}>
-            <span style={{
-              width: '8px',
-              height: '8px',
-              borderRadius: '50%',
-              background: wsStatus === 'connected' ? 'var(--color-success)' : wsStatus === 'connecting' ? 'var(--color-warning)' : 'var(--color-danger)',
-              boxShadow: wsStatus === 'connected' ? '0 0 10px var(--color-success)' : 'none'
-            }}></span>
-            Gateway: {wsStatus === 'connected' ? 'ONLINE' : wsStatus === 'connecting' ? 'SYNCING' : 'OFFLINE'}
-          </div>
 
           <div style={{ position: 'relative' }}>
             <button 
@@ -898,7 +878,11 @@ export default function App() {
             paddingLeft: '20px'
           }}>
             <div style={{ textAlign: 'right' }}>
-              <div style={{ fontWeight: 600, fontSize: '0.85rem' }}>
+              <div style={{ fontWeight: 600, fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '8px', justifyContent: 'flex-end' }}>
+                <span 
+                  className={`status-led ${wsStatus}`} 
+                  title={`Gateway: ${wsStatus === 'connected' ? 'ONLINE' : wsStatus === 'connecting' ? 'SYNCING' : 'OFFLINE'}`}
+                />
                 {user.profile?.firstName} {user.profile?.lastName}
               </div>
               <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', textTransform: 'capitalize' }}>
