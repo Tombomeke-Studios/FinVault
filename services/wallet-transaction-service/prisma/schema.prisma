@@ -12,6 +12,8 @@ model Wallet {
   userId          String
   iban            String           @unique
   currency        String           @default("EUR")
+  type            String           @default("checking") // checking, savings
+  interestRate    Float            @default(0.0)        // e.g. 0.025 for 2.5%
   balance         Float            @default(0.0)
   reservedBalance Float            @default(0.0)
   status          String           @default("active") // active, frozen
