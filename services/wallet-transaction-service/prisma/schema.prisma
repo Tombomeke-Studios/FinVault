@@ -1,0 +1,44 @@
+datasource db {
+  provider = "sqlite"
+  url      = "file:./wallet.db"
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model Wallet {
+  id              String           @id @default(uuid())
+  userId          String
+  iban            String           @unique
+  currency        String           @default("EUR")
+  balance         Float            @default(0.0)
+  reservedBalance Float            @default(0.0)
+  status          String           @default("active") // active, frozen
+  createdAt       DateTime         @default(now())
+  histories       BalanceHistory[]
+}
+
+model BalanceHistory {
+  id           String   @id @default(uuid())
+  walletId     String
+  wallet       Wallet   @relation(fields: [walletId], references: [id], onDelete: Cascade)
+  amount       Float
+  balanceAfter Float
+  reason       String
+  timestamp    DateTime @default(now())
+}
+
+model Transaction {
+  id               String   @id @default(uuid())
+  reference        String   @unique
+  senderWalletId   String?
+  receiverWalletId String?
+  amount           Float
+  currency         String   @default("EUR")
+  status           String   @default("pending") // pending, processing, confirmed, failed, refunded
+  type             String   // deposit, withdrawal, transfer, payment
+  description      String
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+}
