@@ -13,6 +13,7 @@ WORKDIR /app
 RUN npm run build --workspace=services/account-service
 
 FROM node:18-alpine
+RUN apk add --no-cache openssl libc6-compat
 WORKDIR /app
 COPY package*.json ./
 COPY --from=builder /app/shared/dist ./shared/dist
