@@ -25,4 +25,4 @@ WORKDIR /app/services/account-service
 RUN npx prisma generate
 ENV PORT=8001
 EXPOSE 8001
-CMD ["npm", "run", "start", "--workspace=services/account-service"]
+CMD npx prisma db push && node dist/index.js

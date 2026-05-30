@@ -25,4 +25,4 @@ WORKDIR /app/services/wallet-transaction-service
 RUN npx prisma generate
 ENV PORT=8002
 EXPOSE 8002
-CMD ["npm", "run", "start", "--workspace=services/wallet-transaction-service"]
+CMD npx prisma db push && node dist/index.js

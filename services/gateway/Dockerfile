@@ -19,4 +19,4 @@ COPY --from=builder /app/services/gateway/package*.json ./services/gateway/
 RUN npm install --omit=dev
 ENV PORT=8000
 EXPOSE 8000
-CMD ["npm", "run", "start", "--workspace=services/gateway"]
+CMD ["node", "services/gateway/dist/index.js"]
