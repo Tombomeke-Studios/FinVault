@@ -263,7 +263,13 @@ export default function App() {
         interestRate: 0.0,
         balance: 1450.50,
         reservedBalance: 0.0,
-        status: 'active'
+        status: 'active',
+        creditLine: {
+          creditLimit: 1000.0,
+          usedCredit: 0.0,
+          interestRate: 0.15,
+          status: 'active'
+        }
       },
       {
         id: 'mock-wallet-savings',
@@ -832,6 +838,49 @@ export default function App() {
       );
     } finally {
       setTimeSimulationLoading(false);
+    }
+  };
+
+  const handleUpdateCreditLine = async (limit: number, status: string) => {
+    const currentWallet = wallets[activeWalletIndex];
+    if (!currentWallet || currentWallet.type !== 'checking') return;
+
+    if (!token || token === 'mock-token-abc') {
+      // Mock update for offline demo mode
+      const updatedCreditLine = {
+        creditLimit: limit,
+        usedCredit: currentWallet.creditLine ? currentWallet.creditLine.usedCredit : 0.0,
+        interestRate: 0.15,
+        status: status
+      };
+      setWallets(prev => prev.map((w, idx) => idx === activeWalletIndex ? { ...w, creditLine: updatedCreditLine } : w));
+      addNotification('Kredietlimiet Aangepast (Demo)', `Kredietlimiet ingesteld op €${limit.toFixed(2)} (${status})`, 'success');
+      return;
+    }
+
+    try {
+      const res = await fetch(`/api/wallets/${currentWallet.id}/credit-line`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          creditLimit: limit,
+          status: status
+        })
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        addNotification('Kredietlimiet Bijgewerkt', `Je kredietlimiet is ingesteld op €${limit.toFixed(2)}. Status: ${status}`, 'success');
+        fetchWallets();
+      } else {
+        const data = await res.json();
+        addNotification('Fout bij limiet', data.error || 'Kon kredietlimiet niet bijwerken.', 'warning');
+      }
+    } catch (err) {
+      console.error('Failed to update credit line:', err);
     }
   };
 
@@ -1555,7 +1604,7 @@ export default function App() {
                   display: 'flex',
                   flexDirection: 'column',
                   justifyContent: 'space-between',
-                  height: '220px',
+                  minHeight: '220px',
                   boxShadow: '0 15px 35px rgba(0,0,0,0.4), inset 0 1px 1px rgba(255,255,255,0.1)'
                 }}>
                   {/* Subtle hologram overlay */}
@@ -1578,6 +1627,26 @@ export default function App() {
                         <span>€</span>
                         <span style={{ fontSize: '2.2rem', letterSpacing: '-1px' }}>{activeWallet.balance.toFixed(2)}</span>
                       </div>
+                      {activeWallet.type === 'checking' && activeWallet.creditLine && activeWallet.creditLine.status !== 'inactive' && (
+                        <div style={{ display: 'flex', gap: '16px', marginTop: '12px', fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
+                          <div>
+                            <span style={{ display: 'block', fontSize: '0.65rem', textTransform: 'uppercase', color: 'var(--text-muted)' }}>Krediet</span>
+                            <span style={{ fontWeight: 600, color: '#fff' }}>€{activeWallet.creditLine.creditLimit.toFixed(2)}</span>
+                          </div>
+                          <div>
+                            <span style={{ display: 'block', fontSize: '0.65rem', textTransform: 'uppercase', color: 'var(--text-muted)' }}>Gebruikt</span>
+                            <span style={{ fontWeight: 600, color: activeWallet.creditLine.usedCredit > 0 ? 'var(--color-danger)' : '#fff' }}>
+                              €{activeWallet.creditLine.usedCredit.toFixed(2)}
+                            </span>
+                          </div>
+                          <div>
+                            <span style={{ display: 'block', fontSize: '0.65rem', textTransform: 'uppercase', color: 'var(--text-muted)' }}>Bestedingsruimte</span>
+                            <span style={{ fontWeight: 700, color: 'var(--color-success)' }}>
+                              €{(activeWallet.balance + activeWallet.creditLine.creditLimit - activeWallet.creditLine.usedCredit).toFixed(2)}
+                            </span>
+                          </div>
+                        </div>
+                      )}
                     </div>
                     <div style={{
                       background: 'rgba(255, 255, 255, 0.05)',
@@ -1795,6 +1864,83 @@ export default function App() {
                     </div>
                   </div>
                 </div>
+
+                {/* Credit Line Management Widget (Checking Wallets Only) */}
+                {activeWallet.type === 'checking' && (
+                  <div className="glass-card animate-slide-in" style={{ 
+                    display: 'flex', 
+                    flexDirection: 'column', 
+                    justifyContent: 'space-between', 
+                    height: '220px',
+                    border: '1px solid rgba(0, 230, 118, 0.2)' 
+                  }}>
+                    <div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                        <h3 style={{ fontSize: '1.1rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          <Shield size={18} style={{ color: 'var(--color-success)' }} /> Overdraft / Roodstand
+                        </h3>
+                        <span style={{
+                          fontSize: '0.65rem',
+                          background: activeWallet.creditLine && activeWallet.creditLine.status === 'active' 
+                            ? 'rgba(0, 230, 118, 0.15)' 
+                            : activeWallet.creditLine && activeWallet.creditLine.status === 'suspended'
+                            ? 'rgba(255, 53, 104, 0.15)'
+                            : 'rgba(255, 255, 255, 0.05)',
+                          color: activeWallet.creditLine && activeWallet.creditLine.status === 'active'
+                            ? 'var(--color-success)'
+                            : activeWallet.creditLine && activeWallet.creditLine.status === 'suspended'
+                            ? 'var(--color-danger)'
+                            : 'var(--text-secondary)',
+                          padding: '2px 8px',
+                          borderRadius: '12px',
+                          fontWeight: 700,
+                          textTransform: 'uppercase'
+                        }}>
+                          {activeWallet.creditLine ? activeWallet.creditLine.status : 'inactive'}
+                        </span>
+                      </div>
+                      <p style={{ color: 'var(--text-secondary)', fontSize: '0.8rem', marginBottom: '16px' }}>
+                        Activeer of wijzig je kredietlimiet (roodstand) tot €5.000 om flexibel te kunnen betalen (15% rente p.j. bij roodstand).
+                      </p>
+                    </div>
+
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                      {(!activeWallet.creditLine || activeWallet.creditLine.status === 'inactive') ? (
+                        <button 
+                          onClick={() => handleUpdateCreditLine(500, 'active')}
+                          className="btn-primary"
+                          style={{ background: 'linear-gradient(135deg, #00e676 0%, #00b0ff 100%)', border: 'none', width: '100%' }}
+                        >
+                          Activeer €500.00 Kredietlimiet
+                        </button>
+                      ) : (
+                        <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+                          <div style={{ flex: 1, position: 'relative' }}>
+                            <span style={{ position: 'absolute', left: '16px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }}>€</span>
+                            <select
+                              value={activeWallet.creditLine.creditLimit}
+                              onChange={(e) => handleUpdateCreditLine(parseFloat(e.target.value), activeWallet.creditLine.status)}
+                              className="form-input"
+                              style={{ paddingLeft: '32px', height: '38px', background: 'rgba(0,0,0,0.2)', border: '1px solid var(--border-color)' }}
+                            >
+                              <option value="500">500.00</option>
+                              <option value="1000">1000.00</option>
+                              <option value="2500">2500.00</option>
+                              <option value="5000">5000.00</option>
+                            </select>
+                          </div>
+                          <button
+                            onClick={() => handleUpdateCreditLine(0, 'inactive')}
+                            className="btn-secondary"
+                            style={{ color: 'var(--color-danger)', borderColor: 'rgba(255, 53, 104, 0.3)', height: '38px', padding: '0 12px' }}
+                          >
+                            Deactiveren
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
 
               </div>
 
@@ -2017,16 +2163,28 @@ export default function App() {
                       padding: '12px 16px',
                       fontSize: '0.85rem',
                       display: 'flex',
-                      justifyContent: 'space-between',
-                      alignItems: 'center',
+                      flexDirection: 'column',
+                      gap: '8px',
                       marginBottom: '20px'
                     }}>
-                      <span style={{ color: 'var(--text-secondary)' }}>
-                        Geselecteerde rekening: <strong style={{ color: '#fff' }}>{activeWallet.type === 'savings' ? 'Spaarrekening' : 'Betaalrekening'}</strong>
-                      </span>
-                      <span style={{ fontWeight: 700, color: 'var(--accent-secondary)' }}>
-                        Beschikbaar Saldo: €{activeWallet.balance.toFixed(2)}
-                      </span>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <span style={{ color: 'var(--text-secondary)' }}>
+                          Geselecteerde rekening: <strong style={{ color: '#fff' }}>{activeWallet.type === 'savings' ? 'Spaarrekening' : 'Betaalrekening'}</strong>
+                        </span>
+                        <span style={{ fontWeight: 700, color: 'var(--accent-secondary)' }}>
+                          Beschikbaar Saldo: €{activeWallet.balance.toFixed(2)}
+                        </span>
+                      </div>
+                      {activeWallet.type === 'checking' && activeWallet.creditLine && activeWallet.creditLine.status !== 'inactive' && (
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: '6px' }}>
+                          <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
+                            Overdraft Kredietlimiet: <span style={{ color: '#fff', fontWeight: 600 }}>€{activeWallet.creditLine.creditLimit.toFixed(2)}</span> (Opgenomen: €{activeWallet.creditLine.usedCredit.toFixed(2)})
+                          </span>
+                          <span style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--color-success)' }}>
+                            Totale Bestedingsruimte: €{(activeWallet.balance + activeWallet.creditLine.creditLimit - activeWallet.creditLine.usedCredit).toFixed(2)}
+                          </span>
+                        </div>
+                      )}
                     </div>
       
                     {transferError && (
