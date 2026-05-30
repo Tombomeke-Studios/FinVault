@@ -1,0 +1,69 @@
+version: '3.8'
+
+services:
+  rabbitmq:
+    image: rabbitmq:3-management-alpine
+    container_name: finvault-rabbitmq
+    ports:
+      - "5672:5672"   # AMQP protocol
+      - "15672:15672" # Management dashboard
+    environment:
+      RABBITMQ_DEFAULT_USER: guest
+      RABBITMQ_DEFAULT_PASS: guest
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+
+  gateway:
+    build:
+      context: .
+      dockerfile: services/gateway/Dockerfile
+    container_name: finvault-gateway
+    ports:
+      - "8000:8000"
+    environment:
+      - PORT=8000
+      - ACCOUNT_SERVICE_URL=http://account-service:8001
+      - WALLET_SERVICE_URL=http://wallet-transaction-service:8002
+    depends_on:
+      - rabbitmq
+
+  account-service:
+    build:
+      context: .
+      dockerfile: services/account-service/Dockerfile
+    container_name: finvault-account-service
+    ports:
+      - "8001:8001"
+    environment:
+      - PORT=8001
+      - GATEWAY_URL=http://gateway:8000
+    depends_on:
+      - gateway
+
+  wallet-transaction-service:
+    build:
+      context: .
+      dockerfile: services/wallet-transaction-service/Dockerfile
+    container_name: finvault-wallet-transaction-service
+    ports:
+      - "8002:8002"
+    environment:
+      - PORT=8002
+      - GATEWAY_URL=http://gateway:8000
+      - ACCOUNT_SERVICE_URL=http://account-service:8001
+    depends_on:
+      - gateway
+      - account-service
+
+  web-dashboard:
+    build:
+      context: .
+      dockerfile: apps/web-dashboard/Dockerfile
+    container_name: finvault-web-dashboard
+    ports:
+      - "3000:3000"
+    depends_on:
+      - gateway
+
+volumes:
+  rabbitmq_data:
