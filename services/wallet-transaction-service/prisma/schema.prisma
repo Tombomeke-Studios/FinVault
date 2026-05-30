@@ -41,6 +41,28 @@ model Transaction {
   status           String   @default("pending") // pending, processing, confirmed, failed, refunded
   type             String   // deposit, withdrawal, transfer, payment
   description      String
+  integrityHash    String?  // HMAC-SHA256 of critical fields for tamper detection
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
 }
+
+model IdempotencyKey {
+  id           String   @id @default(uuid())
+  key          String   @unique
+  statusCode   Int
+  responseBody String   // JSON stringified response
+  expiresAt    DateTime
+  createdAt    DateTime @default(now())
+}
+
+// Fase 4 Credit/Debit System Preparation (schema only — logic in future phase)
+model CreditLine {
+  id           String   @id @default(uuid())
+  walletId     String   @unique
+  creditLimit  Float    @default(0.0)      // maximum credit amount
+  usedCredit   Float    @default(0.0)      // how much credit is currently drawn
+  interestRate Float    @default(0.15)     // 15% annual interest on credit debt
+  status       String   @default("inactive") // inactive, active, suspended
+  createdAt    DateTime @default(now())
+}
+

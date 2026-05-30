@@ -1,7 +1,8 @@
 import express from 'express';
 import cors from 'cors';
+import helmet from 'helmet';
 import { PrismaClient } from '@prisma/client';
-import { publishEvent } from 'shared';
+import { publishEvent, requireAuth, extractTokenFromRequest, computeTransactionHash } from 'shared';
 import { validateSEPAXML } from './sepa-validator.js';
 
 const prisma = new PrismaClient();
@@ -9,28 +10,89 @@ const app = express();
 const PORT = process.env.PORT || 8002;
 const GATEWAY_URL = process.env.GATEWAY_URL || 'http://localhost:8000';
 const ACCOUNT_SERVICE_URL = process.env.ACCOUNT_SERVICE_URL || 'http://localhost:8001';
+const INVOICE_SERVICE_URL = process.env.INVOICE_SERVICE_URL || 'http://localhost:8003';
 
 // Custom DRY wrapper for Event Hub publishing inside Docker/Local env
 const publishWalletEvent = (event: any) => publishEvent('wallet-transaction-service', event, process.env.GATEWAY_URL);
 
+// =============================================
+// Security Middleware
+// =============================================
+app.use(helmet());
 app.use(cors());
-app.use(express.json());
+app.use(express.json({ limit: '1mb' })); // Prevent oversized payloads
 
-// Helper to get userId from headers/token
-const getUserIdFromHeaders = (req: express.Request): string | null => {
-  const authHeader = req.headers['authorization'];
-  if (!authHeader) return null;
-  const token = authHeader.split(' ')[1];
-  if (!token) return null;
+// =============================================
+// Idempotency Key Middleware
+// =============================================
+async function checkIdempotency(req: express.Request, res: express.Response): Promise<boolean> {
+  const idempotencyKey = req.headers['x-idempotency-key'] as string;
+  if (!idempotencyKey) return false; // No key = proceed normally
+
   try {
-    const payload: any = JSON.parse(Buffer.from(token.split('.')[1], 'base64').toString());
-    return payload.userId || null;
-  } catch {
-    return null;
+    const existing = await prisma.idempotencyKey.findUnique({ where: { key: idempotencyKey } });
+    if (existing) {
+      if (existing.expiresAt > new Date()) {
+        // Return cached response
+        res.status(existing.statusCode).json(JSON.parse(existing.responseBody));
+        return true; // Signal: response already sent
+      } else {
+        // Expired — delete and allow retry
+        await prisma.idempotencyKey.delete({ where: { key: idempotencyKey } });
+      }
+    }
+  } catch (error) {
+    console.error('[Idempotency] Check failed:', error);
   }
-};
+  return false;
+}
 
+async function storeIdempotencyResult(key: string | undefined, statusCode: number, body: any): Promise<void> {
+  if (!key) return;
+  try {
+    const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24h TTL
+    await prisma.idempotencyKey.create({
+      data: {
+        key,
+        statusCode,
+        responseBody: JSON.stringify(body),
+        expiresAt
+      }
+    });
+  } catch (error) {
+    console.error('[Idempotency] Store failed:', error);
+  }
+}
+
+// =============================================
+// Internal receipt generation helper
+// =============================================
+async function generateReceipt(data: {
+  transactionRef: string;
+  payerUserId: string;
+  payeeUserId?: string;
+  payerEmail: string;
+  payeeEmail?: string;
+  amount: number;
+  currency: string;
+  description: string;
+}): Promise<void> {
+  try {
+    await fetch(`${INVOICE_SERVICE_URL}/receipts`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data)
+    });
+    console.log(`[Wallet Service] Receipt generated for transaction ${data.transactionRef}`);
+  } catch (error: any) {
+    // Non-blocking: receipt generation failure shouldn't fail the transaction
+    console.error(`[Wallet Service] Receipt generation failed for ${data.transactionRef}:`, error.message);
+  }
+}
+
+// =============================================
 // Webhook listener for Gateway events (e.g. account.created)
+// =============================================
 app.post('/webhooks/events', async (req, res) => {
   const { event } = req.body;
   console.log(`[Wallet Service Webhook] Received event: ${event.type}`);
@@ -84,13 +146,12 @@ app.post('/webhooks/events', async (req, res) => {
   res.status(200).json({ status: 'processed' });
 });
 
-// REST Endpoints
-// REST Endpoints
-app.get('/wallets', async (req, res) => {
-  const userId = getUserIdFromHeaders(req) || req.query.userId as string;
-  if (!userId) {
-    return res.status(401).json({ error: 'Unauthorized: userId required' });
-  }
+// =============================================
+// REST Endpoints — ALL secured with JWT verification
+// =============================================
+
+app.get('/wallets', requireAuth, async (req, res) => {
+  const userId = (req as any).user.userId;
 
   try {
     let wallets = await prisma.wallet.findMany({
@@ -108,7 +169,7 @@ app.get('/wallets', async (req, res) => {
           userId,
           iban,
           currency: 'EUR',
-          balance: 250.00, // €250,00 Welcome Bonus! Premium UX
+          balance: 250.00,
           reservedBalance: 0.0,
           status: 'active'
         }
@@ -123,7 +184,6 @@ app.get('/wallets', async (req, res) => {
         }
       });
 
-      // Publish balance update event
       await publishEvent('wallet-transaction-service', {
         type: 'balance.updated',
         payload: {
@@ -143,11 +203,8 @@ app.get('/wallets', async (req, res) => {
   }
 });
 
-app.post('/wallets', async (req, res) => {
-  const userId = getUserIdFromHeaders(req);
-  if (!userId) {
-    return res.status(401).json({ error: 'Unauthorized: userId required' });
-  }
+app.post('/wallets', requireAuth, async (req, res) => {
+  const userId = (req as any).user.userId;
 
   const { type } = req.body;
   const accountType = type === 'savings' ? 'savings' : 'checking';
@@ -199,11 +256,8 @@ app.post('/wallets', async (req, res) => {
   }
 });
 
-app.post('/wallets/simulate-time', async (req, res) => {
-  const userId = getUserIdFromHeaders(req);
-  if (!userId) {
-    return res.status(401).json({ error: 'Unauthorized: userId required' });
-  }
+app.post('/wallets/simulate-time', requireAuth, async (req, res) => {
+  const userId = (req as any).user.userId;
 
   const { months } = req.body;
   const simulatedMonths = parseInt(months, 10);
@@ -281,6 +335,21 @@ app.post('/wallets/simulate-time', async (req, res) => {
       }
     }
 
+    // 3. Process mandate charges via invoice-service
+    try {
+      await fetch(`${INVOICE_SERVICE_URL}/mandates/process-charges`, {
+        method: 'POST',
+        headers: { 
+          'Content-Type': 'application/json',
+          'X-Service-Secret': process.env.SERVICE_SECRET || 'finvault-internal-service-secret'
+        },
+        body: JSON.stringify({ simulatedMonths })
+      });
+      console.log(`[Wallet Service] Mandate charges processed for ${simulatedMonths} month(s)`);
+    } catch (error: any) {
+      console.error('[Wallet Service] Mandate charge processing failed:', error.message);
+    }
+
     res.status(200).json({
       message: `Tijdsimulatie van ${simulatedMonths} maanden succesvol uitgevoerd.`,
       updatedAccounts: updatedWallets
@@ -292,14 +361,14 @@ app.post('/wallets/simulate-time', async (req, res) => {
   }
 });
 
-app.get('/wallets/:walletId/history', async (req, res) => {
+app.get('/wallets/:walletId/history', requireAuth, async (req, res) => {
   const { walletId } = req.params;
-  const userId = getUserIdFromHeaders(req);
+  const userId = (req as any).user.userId;
 
   try {
     const wallet = await prisma.wallet.findUnique({ where: { id: walletId } });
     if (!wallet) return res.status(404).json({ error: 'Wallet not found' });
-    if (userId && wallet.userId !== userId) return res.status(403).json({ error: 'Forbidden' });
+    if (wallet.userId !== userId) return res.status(403).json({ error: 'Forbidden' });
 
     const history = await prisma.balanceHistory.findMany({
       where: { walletId },
@@ -311,20 +380,38 @@ app.get('/wallets/:walletId/history', async (req, res) => {
   }
 });
 
-app.post('/wallets/deposit', async (req, res) => {
+app.post('/wallets/deposit', requireAuth, async (req, res) => {
   const { walletId, amount } = req.body;
-  const userId = getUserIdFromHeaders(req);
+  const userId = (req as any).user.userId;
 
   if (!walletId || !amount || amount <= 0) {
     return res.status(400).json({ error: 'Invalid walletId or amount' });
   }
 
+  if (amount > 1_000_000) {
+    return res.status(400).json({ error: 'Maximum single deposit is €1,000,000' });
+  }
+
+  // Idempotency check
+  if (await checkIdempotency(req, res)) return;
+
   try {
     const wallet = await prisma.wallet.findUnique({ where: { id: walletId } });
     if (!wallet) return res.status(404).json({ error: 'Wallet not found' });
-    if (userId && wallet.userId !== userId) return res.status(403).json({ error: 'Forbidden' });
+    if (wallet.userId !== userId) return res.status(403).json({ error: 'Forbidden' });
 
     const newBalance = wallet.balance + amount;
+    const reference = `DEP-${Math.random().toString(36).substring(2, 9).toUpperCase()}`;
+
+    // Compute integrity hash
+    const integrityHash = computeTransactionHash({
+      senderWalletId: null,
+      receiverWalletId: walletId,
+      amount,
+      reference,
+      currency: wallet.currency
+    });
+
     const updatedWallet = await prisma.wallet.update({
       where: { id: walletId },
       data: { balance: newBalance }
@@ -339,17 +426,18 @@ app.post('/wallets/deposit', async (req, res) => {
       }
     });
 
-    // Create a transaction log
+    // Create a transaction log with integrity hash
     await prisma.transaction.create({
       data: {
-        reference: `DEP-${Math.random().toString(36).substring(2, 9).toUpperCase()}`,
+        reference,
         senderWalletId: null,
         receiverWalletId: walletId,
         amount,
         currency: wallet.currency,
         status: 'confirmed',
         type: 'deposit',
-        description: 'Simulated cash deposit'
+        description: 'Simulated cash deposit',
+        integrityHash
       }
     });
 
@@ -364,15 +452,29 @@ app.post('/wallets/deposit', async (req, res) => {
       }
     });
 
-    res.status(200).json(updatedWallet);
+    // Generate receipt asynchronously
+    generateReceipt({
+      transactionRef: reference,
+      payerUserId: 'EXTERNAL',
+      payeeUserId: wallet.userId,
+      payerEmail: 'cash-deposit@finvault.com',
+      payeeEmail: (req as any).user.email,
+      amount,
+      currency: wallet.currency,
+      description: 'Cash Deposit'
+    });
+
+    const responseBody = updatedWallet;
+    await storeIdempotencyResult(req.headers['x-idempotency-key'] as string, 200, responseBody);
+
+    res.status(200).json(responseBody);
   } catch (error: any) {
     res.status(500).json({ error: 'Deposit failed', message: error.message });
   }
 });
 
-app.get('/transactions', async (req, res) => {
-  const userId = getUserIdFromHeaders(req);
-  if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+app.get('/transactions', requireAuth, async (req, res) => {
+  const userId = (req as any).user.userId;
 
   try {
     // 1. Get all wallets of the user
@@ -398,14 +500,21 @@ app.get('/transactions', async (req, res) => {
   }
 });
 
-// P2P Transfer (Atomically)
-app.post('/transactions/transfer', async (req, res) => {
+// P2P Transfer (Atomically) — with idempotency + integrity hash + auto-receipt
+app.post('/transactions/transfer', requireAuth, async (req, res) => {
   const { senderWalletId, receiverEmail, amount, description } = req.body;
-  const userId = getUserIdFromHeaders(req);
+  const userId = (req as any).user.userId;
 
   if (!senderWalletId || !receiverEmail || !amount || amount <= 0) {
     return res.status(400).json({ error: 'Invalid transfer details' });
   }
+
+  if (amount > 1_000_000) {
+    return res.status(400).json({ error: 'Maximum single transfer is €1,000,000' });
+  }
+
+  // Idempotency check
+  if (await checkIdempotency(req, res)) return;
 
   // Deduplication check: check identical transaction in last 10s
   const recentTx = await prisma.transaction.findFirst({
@@ -427,15 +536,13 @@ app.post('/transactions/transfer', async (req, res) => {
     // 1. Validate sender wallet
     const senderWallet = await prisma.wallet.findUnique({ where: { id: senderWalletId } });
     if (!senderWallet) return res.status(404).json({ error: 'Sender wallet not found' });
-    if (userId && senderWallet.userId !== userId) return res.status(403).json({ error: 'Unauthorized to spend from this wallet' });
+    if (senderWallet.userId !== userId) return res.status(403).json({ error: 'Unauthorized to spend from this wallet' });
 
     if (senderWallet.balance < amount) {
       return res.status(400).json({ error: 'Insufficient balance' });
     }
 
     // 2. Find receiver via Account Service
-    // In local dev, we call account service profile search or profile endpoint. Let's make an internal REST call or direct DB if we know the URL.
-    // Let's call the account service endpoint we'll create: GET http://localhost:8001/users/search-by-email?email=...
     let receiverUserId: string | null = null;
     try {
       const response = await fetch(`${ACCOUNT_SERVICE_URL}/users/profile-by-email?email=${encodeURIComponent(receiverEmail)}`);
@@ -466,9 +573,18 @@ app.post('/transactions/transfer', async (req, res) => {
 
     const reference = `TX-${Math.random().toString(36).substring(2, 9).toUpperCase()}`;
 
+    // Compute integrity hash
+    const integrityHash = computeTransactionHash({
+      senderWalletId: senderWallet.id,
+      receiverWalletId: receiverWallet.id,
+      amount,
+      reference,
+      currency: senderWallet.currency
+    });
+
     // 4. Perform atomic double-entry bookkeeping in Prisma Transaction
     const [transaction] = await prisma.$transaction([
-      // Create transaction log
+      // Create transaction log with integrity hash
       prisma.transaction.create({
         data: {
           reference,
@@ -478,7 +594,8 @@ app.post('/transactions/transfer', async (req, res) => {
           currency: senderWallet.currency,
           status: 'confirmed',
           type: 'transfer',
-          description: description || `Transfer to ${receiverEmail}`
+          description: description || `Transfer to ${receiverEmail}`,
+          integrityHash
         }
       }),
       // Debit sender
@@ -504,7 +621,7 @@ app.post('/transactions/transfer', async (req, res) => {
           walletId: receiverWallet.id,
           amount,
           balanceAfter: receiverWallet.balance + amount,
-          reason: `Transfer from ${senderWallet.userId}`
+          reason: `Transfer from ${(req as any).user.email}`
         }
       })
     ]);
@@ -544,10 +661,22 @@ app.post('/transactions/transfer', async (req, res) => {
       }
     });
 
-    res.status(200).json({
-      message: 'Transfer successful',
-      transaction
+    // Generate receipt asynchronously (non-blocking)
+    generateReceipt({
+      transactionRef: reference,
+      payerUserId: senderWallet.userId,
+      payeeUserId: receiverWallet.userId,
+      payerEmail: (req as any).user.email,
+      payeeEmail: receiverEmail,
+      amount,
+      currency: senderWallet.currency,
+      description: description || `Transfer to ${receiverEmail}`
     });
+
+    const responseBody = { message: 'Transfer successful', transaction };
+    await storeIdempotencyResult(req.headers['x-idempotency-key'] as string, 200, responseBody);
+
+    res.status(200).json(responseBody);
   } catch (error: any) {
     console.error('Transfer error:', error);
     res.status(500).json({ error: 'Transfer failed', message: error.message });
@@ -555,7 +684,7 @@ app.post('/transactions/transfer', async (req, res) => {
 });
 
 // SEPA Pain.001 Credit Transfer Processing Endpoint (Validates XML input against custom XSD constraints)
-app.post('/transactions/sepa-transfer', async (req, res) => {
+app.post('/transactions/sepa-transfer', requireAuth, async (req, res) => {
   const { xmlContent } = req.body;
   if (!xmlContent) {
     return res.status(400).json({ error: 'XML body with <xmlContent> parameter is required.' });
@@ -607,6 +736,15 @@ app.post('/transactions/sepa-transfer', async (req, res) => {
       return res.status(409).json({ error: 'Duplicate SEPA transfer detected. Reference must be unique.' });
     }
 
+    // Compute integrity hash
+    const integrityHash = computeTransactionHash({
+      senderWalletId: senderWallet.id,
+      receiverWalletId: receiverWallet.id,
+      amount,
+      reference,
+      currency
+    });
+
     // 5. Execute atomic double-entry bookkeeping ledger entry
     const [transaction] = await prisma.$transaction([
       prisma.transaction.create({
@@ -618,7 +756,8 @@ app.post('/transactions/sepa-transfer', async (req, res) => {
           currency,
           status: 'confirmed',
           type: 'transfer',
-          description: `SEPA: ${description}`
+          description: `SEPA: ${description}`,
+          integrityHash
         }
       }),
       // Debit sender
@@ -683,6 +822,18 @@ app.post('/transactions/sepa-transfer', async (req, res) => {
       }
     });
 
+    // Generate receipt for SEPA transfer
+    generateReceipt({
+      transactionRef: reference,
+      payerUserId: senderWallet.userId,
+      payeeUserId: receiverWallet.userId,
+      payerEmail: `IBAN:${senderIban}`,
+      payeeEmail: `IBAN:${receiverIban}`,
+      amount,
+      currency,
+      description: `SEPA: ${description}`
+    });
+
     res.status(200).json({
       message: 'SEPA Pain.001 XML Credit Transfer successfully validated and processed.',
       transaction
@@ -691,6 +842,136 @@ app.post('/transactions/sepa-transfer', async (req, res) => {
   } catch (error: any) {
     console.error('SEPA processing failure:', error);
     res.status(500).json({ error: 'SEPA processing failed', message: error.message });
+  }
+});
+
+// Internal endpoint for invoice-service to execute mandate charges
+app.post('/transactions/internal-transfer', async (req, res) => {
+  // Verify internal service secret
+  const serviceSecret = req.headers['x-service-secret'] as string;
+  if (serviceSecret !== (process.env.SERVICE_SECRET || 'finvault-internal-service-secret')) {
+    return res.status(403).json({ error: 'Forbidden: Internal endpoint requires service authentication' });
+  }
+
+  const { senderWalletId, receiverWalletId, senderUserId, receiverUserId, amount, description, reference: externalRef } = req.body;
+
+  if ((!senderWalletId && !senderUserId) || (!receiverWalletId && !receiverUserId) || !amount || amount <= 0) {
+    return res.status(400).json({ error: 'Invalid transfer details' });
+  }
+
+  try {
+    let senderWallet = null;
+    if (senderWalletId) {
+      senderWallet = await prisma.wallet.findUnique({ where: { id: senderWalletId } });
+    } else if (senderUserId) {
+      senderWallet = await prisma.wallet.findFirst({
+        where: { userId: senderUserId, type: 'checking', currency: 'EUR' }
+      });
+    }
+
+    let receiverWallet = null;
+    if (receiverWalletId) {
+      receiverWallet = await prisma.wallet.findUnique({ where: { id: receiverWalletId } });
+    } else if (receiverUserId) {
+      receiverWallet = await prisma.wallet.findFirst({
+        where: { userId: receiverUserId, type: 'checking', currency: 'EUR' }
+      });
+    }
+
+    if (!senderWallet || !receiverWallet) {
+      return res.status(404).json({ error: 'Sender or Receiver checking wallet not found' });
+    }
+
+    if (senderWallet.balance < amount) {
+      return res.status(400).json({ error: 'Insufficient balance for mandate charge' });
+    }
+
+    const reference = externalRef || `MND-${Math.random().toString(36).substring(2, 9).toUpperCase()}`;
+
+    const integrityHash = computeTransactionHash({
+      senderWalletId: senderWallet.id,
+      receiverWalletId: receiverWallet.id,
+      amount,
+      reference,
+      currency: senderWallet.currency
+    });
+
+    const [transaction] = await prisma.$transaction([
+      prisma.transaction.create({
+        data: {
+          reference,
+          senderWalletId: senderWallet.id,
+          receiverWalletId: receiverWallet.id,
+          amount,
+          currency: senderWallet.currency,
+          status: 'confirmed',
+          type: 'payment',
+          description: description || 'Automatische Incasso',
+          integrityHash
+        }
+      }),
+      prisma.wallet.update({
+        where: { id: senderWallet.id },
+        data: { balance: { decrement: amount } }
+      }),
+      prisma.balanceHistory.create({
+        data: {
+          walletId: senderWallet.id,
+          amount: -amount,
+          balanceAfter: senderWallet.balance - amount,
+          reason: description || 'Automatische Incasso'
+        }
+      }),
+      prisma.wallet.update({
+        where: { id: receiverWallet.id },
+        data: { balance: { increment: amount } }
+      }),
+      prisma.balanceHistory.create({
+        data: {
+          walletId: receiverWallet.id,
+          amount,
+          balanceAfter: receiverWallet.balance + amount,
+          reason: `Ontvangen: ${description || 'Automatische Incasso'}`
+        }
+      })
+    ]);
+
+    // Publish events
+    await publishEvent('wallet-transaction-service', {
+      type: 'payment.confirmed',
+      payload: {
+        transactionId: transaction.id,
+        reference,
+        amount,
+        senderWalletId: senderWallet.id,
+        receiverWalletId: receiverWallet.id
+      }
+    });
+
+    await publishEvent('wallet-transaction-service', {
+      type: 'balance.updated',
+      payload: {
+        walletId: senderWallet.id,
+        userId: senderWallet.userId,
+        balance: senderWallet.balance - amount,
+        currency: senderWallet.currency
+      }
+    });
+
+    await publishEvent('wallet-transaction-service', {
+      type: 'balance.updated',
+      payload: {
+        walletId: receiverWallet.id,
+        userId: receiverWallet.userId,
+        balance: receiverWallet.balance + amount,
+        currency: receiverWallet.currency
+      }
+    });
+
+    res.status(200).json({ message: 'Internal transfer successful', transaction });
+  } catch (error: any) {
+    console.error('Internal transfer error:', error);
+    res.status(500).json({ error: 'Internal transfer failed', message: error.message });
   }
 });
 
