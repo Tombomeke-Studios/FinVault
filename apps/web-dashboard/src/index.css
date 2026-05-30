@@ -1,0 +1,165 @@
+:root {
+  /* Haromonious HSL Color Palette */
+  --bg-primary: hsl(228, 24%, 6%);
+  --bg-secondary: hsl(228, 20%, 11%);
+  --bg-tertiary: hsl(228, 16%, 16%);
+  
+  --accent-color: hsl(250, 85%, 66%);
+  --accent-glow: hsla(250, 85%, 66%, 0.25);
+  --accent-secondary: hsl(190, 90%, 50%);
+  --accent-secondary-glow: hsla(190, 90%, 50%, 0.2);
+  
+  --color-success: hsl(145, 80%, 45%);
+  --color-success-glow: hsla(145, 80%, 45%, 0.15);
+  --color-danger: hsl(355, 85%, 60%);
+  --color-danger-glow: hsla(355, 85%, 60%, 0.15);
+  --color-warning: hsl(40, 95%, 55%);
+  
+  --text-primary: hsl(0, 0%, 96%);
+  --text-secondary: hsl(228, 12%, 70%);
+  --text-muted: hsl(228, 8%, 45%);
+  
+  --border-color: rgba(255, 255, 255, 0.06);
+  --border-focus: rgba(138, 43, 226, 0.4);
+  
+  --glass-bg: rgba(15, 20, 32, 0.6);
+  --glass-border: rgba(255, 255, 255, 0.06);
+  
+  --font-family: 'Plus Jakarta Sans', 'Outfit', system-ui, sans-serif;
+  --transition-smooth: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+  --shadow-glow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+  --shadow-neon: 0 0 20px var(--accent-glow);
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  background-color: var(--bg-primary);
+  color: var(--text-primary);
+  font-family: var(--font-family);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  overflow-x: hidden;
+}
+
+/* Beautiful Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: var(--bg-primary);
+}
+::-webkit-scrollbar-thumb {
+  background: var(--bg-tertiary);
+  border-radius: 10px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--accent-color);
+}
+
+/* Glassmorphism Card Utility */
+.glass-card {
+  background: var(--glass-bg);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid var(--glass-border);
+  border-radius: 16px;
+  padding: 24px;
+  box-shadow: var(--shadow-glow);
+  transition: var(--transition-smooth);
+}
+.glass-card:hover {
+  border-color: rgba(255, 255, 255, 0.12);
+  box-shadow: 0 10px 40px 0 rgba(0, 0, 0, 0.45);
+}
+
+/* Input Fields Styling */
+.form-input {
+  width: 100%;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
+  padding: 12px 16px;
+  color: var(--text-primary);
+  font-family: var(--font-family);
+  font-size: 0.95rem;
+  transition: var(--transition-smooth);
+}
+.form-input:focus {
+  outline: none;
+  border-color: var(--accent-color);
+  background: rgba(255, 255, 255, 0.06);
+  box-shadow: 0 0 12px rgba(138, 43, 226, 0.2);
+}
+
+/* Primary Button Styling */
+.btn-primary {
+  background: linear-gradient(135deg, var(--accent-color) 0%, hsl(270, 85%, 60%) 100%);
+  border: none;
+  border-radius: 10px;
+  padding: 12px 24px;
+  color: #fff;
+  font-family: var(--font-family);
+  font-weight: 600;
+  font-size: 0.95rem;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  box-shadow: 0 4px 15px rgba(138, 43, 226, 0.3);
+  transition: var(--transition-smooth);
+}
+.btn-primary:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(138, 43, 226, 0.45);
+}
+.btn-primary:active {
+  transform: translateY(0);
+}
+
+.btn-secondary {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
+  padding: 12px 24px;
+  color: var(--text-primary);
+  font-family: var(--font-family);
+  font-weight: 500;
+  font-size: 0.95rem;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  transition: var(--transition-smooth);
+}
+.btn-secondary:hover {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+/* Micro Animate for live changes */
+@keyframes pulseGlow {
+  0% { box-shadow: 0 0 10px rgba(138, 43, 226, 0.2); }
+  50% { box-shadow: 0 0 25px rgba(138, 43, 226, 0.5); }
+  100% { box-shadow: 0 0 10px rgba(138, 43, 226, 0.2); }
+}
+
+@keyframes slideIn {
+  from { transform: translateY(15px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+
+.animate-slide-in {
+  animation: slideIn 0.4s cubic-bezier(0.25, 0.8, 0.25, 1) forwards;
+}
+
+.glow-active {
+  animation: pulseGlow 2s infinite ease-in-out;
+}
