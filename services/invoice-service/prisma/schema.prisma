@@ -1,0 +1,22 @@
+datasource db {
+  provider = "sqlite"
+  url      = "file:./invoice.db"
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model Invoice {
+  id             String   @id @default(uuid())
+  userId         String   // Invoice Creator (Seller/Creditor)
+  creatorEmail   String   // Invoice Creator's email
+  recipientEmail String   // Invoice Recipient (Buyer/Debtor)
+  amount         Float
+  currency       String   @default("EUR")
+  description    String
+  dueDate        String
+  status         String   @default("unpaid") // unpaid, paid, overdue
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+}
