@@ -1,0 +1,38 @@
+name: Validate Codebase
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
+
+      - name: Setup Node.js
+        uses: actions/setup-node@1e60f620b9541d16bece96c5465dc8ee9832be0b # v4.0.3
+        with:
+          node-version: 18
+          cache: 'npm'
+
+      - name: Install Dependencies
+        run: npm install
+
+      - name: Generate Prisma Clients
+        run: |
+          npx prisma generate --schema=services/account-service/prisma/schema.prisma
+          npx prisma generate --schema=services/wallet-transaction-service/prisma/schema.prisma
+
+      - name: Compile Shared Library
+        run: npm run build --workspace=shared
+
+      - name: Compile Codebase (Type-Check)
+        run: npm run build
+
+      - name: Run Unit Tests
+        run: npm test
