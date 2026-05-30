@@ -149,22 +149,15 @@ app.post('/wallets', async (req, res) => {
     return res.status(401).json({ error: 'Unauthorized: userId required' });
   }
 
-  const { currency } = req.body;
-  if (!currency || !['EUR', 'USD', 'GBP', 'CHF'].includes(currency.toUpperCase())) {
-    return res.status(400).json({ error: 'Invalid currency. Supported: EUR, USD, GBP, CHF' });
-  }
-
-  const upperCurrency = currency.toUpperCase();
+  const { type } = req.body;
+  const accountType = type === 'savings' ? 'savings' : 'checking';
+  
+  // All accounts are EUR in Fase 3!
+  const currency = 'EUR';
+  const interestRate = accountType === 'savings' ? 0.025 : 0.0; // 2.5% rente op spaarrekening
+  const startBonus = accountType === 'savings' ? 50.00 : 100.00; // €50 starting bonus for savings, €100 for checking
 
   try {
-    const existing = await prisma.wallet.findFirst({
-      where: { userId, currency: upperCurrency }
-    });
-
-    if (existing) {
-      return res.status(400).json({ error: `You already have a wallet in ${upperCurrency}` });
-    }
-
     const randomDigits = Math.floor(1000000000 + Math.random() * 9000000000);
     const iban = `BE8937700771${randomDigits}`;
 
@@ -172,8 +165,10 @@ app.post('/wallets', async (req, res) => {
       data: {
         userId,
         iban,
-        currency: upperCurrency,
-        balance: 100.00, // €100 / $100 start bonus for premium UX!
+        currency,
+        type: accountType,
+        interestRate,
+        balance: startBonus,
         reservedBalance: 0.0,
         status: 'active'
       }
@@ -182,9 +177,9 @@ app.post('/wallets', async (req, res) => {
     await prisma.balanceHistory.create({
       data: {
         walletId: wallet.id,
-        amount: 100.00,
-        balanceAfter: 100.00,
-        reason: `${upperCurrency} Account Activated`
+        amount: startBonus,
+        balanceAfter: startBonus,
+        reason: accountType === 'savings' ? 'Spaarrekening Geopend (Bonus)' : 'Betaalrekening Geopend (Bonus)'
       }
     });
 
@@ -201,6 +196,99 @@ app.post('/wallets', async (req, res) => {
     res.status(201).json(wallet);
   } catch (error: any) {
     res.status(500).json({ error: 'Failed to create wallet', message: error.message });
+  }
+});
+
+app.post('/wallets/simulate-time', async (req, res) => {
+  const userId = getUserIdFromHeaders(req);
+  if (!userId) {
+    return res.status(401).json({ error: 'Unauthorized: userId required' });
+  }
+
+  const { months } = req.body;
+  const simulatedMonths = parseInt(months, 10);
+
+  if (isNaN(simulatedMonths) || simulatedMonths <= 0) {
+    return res.status(400).json({ error: 'Invalid simulated months' });
+  }
+
+  try {
+    // 1. Get all wallets of the user
+    const wallets = await prisma.wallet.findMany({
+      where: { userId }
+    });
+
+    const updatedWallets = [];
+
+    // 2. Loop through all accounts, calculate interest for savings accounts
+    for (const wallet of wallets) {
+      if (wallet.type === 'savings' && wallet.interestRate > 0) {
+        // Rente = Saldo * Rentepercentage * (maanden / 12)
+        const interestAmount = parseFloat((wallet.balance * wallet.interestRate * (simulatedMonths / 12)).toFixed(2));
+        
+        if (interestAmount > 0) {
+          const newBalance = parseFloat((wallet.balance + interestAmount).toFixed(2));
+          
+          // Update database atomically in transaction
+          await prisma.$transaction([
+            prisma.wallet.update({
+              where: { id: wallet.id },
+              data: { balance: newBalance }
+            }),
+            prisma.balanceHistory.create({
+              data: {
+                walletId: wallet.id,
+                amount: interestAmount,
+                balanceAfter: newBalance,
+                reason: `Rente-opbouw (${simulatedMonths} mnd @ ${(wallet.interestRate * 100).toFixed(1)}%)`
+              }
+            }),
+            prisma.transaction.create({
+              data: {
+                reference: `INT-${Math.random().toString(36).substring(2, 9).toUpperCase()}`,
+                senderWalletId: null,
+                receiverWalletId: wallet.id,
+                amount: interestAmount,
+                currency: wallet.currency,
+                status: 'confirmed',
+                type: 'deposit',
+                description: `Simulatie: Rente-opbouw over ${simulatedMonths} maanden`
+              }
+            })
+          ]);
+
+          // Publish event
+          await publishEvent('wallet-transaction-service', {
+            type: 'balance.updated',
+            payload: {
+              walletId: wallet.id,
+              userId,
+              balance: newBalance,
+              currency: wallet.currency
+            }
+          });
+
+          updatedWallets.push({
+            id: wallet.id,
+            iban: wallet.iban,
+            currency: wallet.currency,
+            type: wallet.type,
+            oldBalance: wallet.balance,
+            newBalance,
+            interestEarned: interestAmount
+          });
+        }
+      }
+    }
+
+    res.status(200).json({
+      message: `Tijdsimulatie van ${simulatedMonths} maanden succesvol uitgevoerd.`,
+      updatedAccounts: updatedWallets
+    });
+
+  } catch (error: any) {
+    console.error('Time simulation error:', error);
+    res.status(500).json({ error: 'Time simulation failed', message: error.message });
   }
 });
 
