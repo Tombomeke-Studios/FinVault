@@ -238,6 +238,49 @@ app.get('/users/audit-logs', authenticateToken, async (req, res) => {
   }
 });
 
-app.listen(PORT, () => {
-  console.log(`[Account Service] running on http://localhost:${PORT}`);
+// Seed default admin account on startup
+async function seedAdmin() {
+  try {
+    const adminEmail = 'admin@finvault.com';
+    const existing = await prisma.user.findUnique({ where: { email: adminEmail } });
+    if (!existing) {
+      const passwordHash = await bcrypt.hash('admin-secure-password-2026', 10);
+      const user = await prisma.user.create({
+        data: {
+          email: adminEmail,
+          passwordHash,
+          accountType: 'business',
+          status: 'active',
+          profile: {
+            create: {
+              firstName: 'FinVault',
+              lastName: 'Administrator',
+              dateOfBirth: '1980-01-01',
+              address: 'Headquarters',
+              country: 'België'
+            }
+          }
+        }
+      });
+      console.log(`[Account Service] Seeded default administrator account: ${adminEmail}`);
+
+      // Publish event: account.created so Wallet service can dynamically create their wallet/IBAN
+      await publishEvent('account-service', {
+        type: 'account.created',
+        payload: {
+          userId: user.id,
+          email: user.email,
+          accountType: user.accountType
+        }
+      });
+    }
+  } catch (error) {
+    console.error('Failed to seed default admin user:', error);
+  }
+}
+
+seedAdmin().then(() => {
+  app.listen(PORT, () => {
+    console.log(`[Account Service] running on http://localhost:${PORT}`);
+  });
 });
