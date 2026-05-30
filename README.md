@@ -68,6 +68,33 @@ Wanneer de applicatie via Docker op een VM of Kubernetes wordt gehost, kan er ee
 
 ---
 
+## Lokale Test-Links & Inloggegevens
+
+Om het testen van FinVault zo soepel en realistisch mogelijk te maken, zijn er verschillende lokale dashboards en pre-seeded inloggegevens beschikbaar.
+
+### 🔑 Pre-Seeded Test-Account
+Er is bij de startup van de `account-service` automatisch een administrator-account gegenereerd. Dit account is direct klaar voor gebruik:
+
+- **E-mailadres:** `admin@finvault.com`
+- **Wachtwoord:** `admin-secure-password-2026`
+
+> [!TIP]
+> Log in met dit account in het Web Dashboard om direct toegang te krijgen tot een volledig functioneel zakelijk account met een automatisch gegenereerd IBAN-nummer en een startkrediet.
+
+### 🔗 Handige Test-Links
+
+| Service / Dashboard | URL | Beschrijving / Credentials |
+| :--- | :--- | :--- |
+| **Web Dashboard** | [http://localhost:3000](http://localhost:3000) | De React + Vite frontend cliënt voor interactie. |
+| **Dozzle Log Monitor** | [http://localhost:8888](http://localhost:8888) | Premium web-dashboard om real-time containerlogs te bekijken. |
+| **RabbitMQ Management** | [http://localhost:15672](http://localhost:15672) | Event Hub management dashboard. (User: `guest` / Pass: `guest`) |
+| **API Gateway** | [http://localhost:8000](http://localhost:8000) | Centraal startpunt voor alle REST & WebSocket API-verzoeken. |
+| **Account Service** | [http://localhost:8001](http://localhost:8001) | Identity & Authentication Service REST API. |
+| **Wallet Service** | [http://localhost:8002](http://localhost:8002) | Ledger, Saldo's & P2P transactie verwerking REST API. |
+| **Invoice Service** | [http://localhost:8003](http://localhost:8003) | Kwitanties (PDF), Betalingsverzoeken & Mandaten REST API. |
+
+---
+
 ## Lokaal Starten
 
 ### 1. Voorbereiding
