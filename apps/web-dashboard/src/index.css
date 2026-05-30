@@ -163,3 +163,54 @@ body {
 .glow-active {
   animation: pulseGlow 2s infinite ease-in-out;
 }
+
+/* Premium Status LED Indicator styling */
+@keyframes ledPulse {
+  0% { transform: scale(1); opacity: 0.8; box-shadow: 0 0 4px var(--led-glow-color); }
+  50% { transform: scale(1.2); opacity: 1; box-shadow: 0 0 12px var(--led-glow-color); }
+  100% { transform: scale(1); opacity: 0.8; box-shadow: 0 0 4px var(--led-glow-color); }
+}
+
+.status-led {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  transition: var(--transition-smooth);
+}
+
+.status-led.connected {
+  --led-glow-color: var(--color-success);
+  background: var(--color-success);
+  animation: ledPulse 1.8s infinite ease-in-out;
+}
+
+.status-led.connecting {
+  --led-glow-color: var(--color-warning);
+  background: var(--color-warning);
+  animation: ledPulse 1.2s infinite ease-in-out;
+}
+
+.status-led.disconnected {
+  --led-glow-color: var(--color-danger);
+  background: var(--color-danger);
+  animation: ledPulse 2s infinite ease-in-out;
+}
+
+/* Custom Tooltip style for kopieer feedback */
+.copy-tooltip {
+  position: absolute;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--accent-secondary);
+  color: var(--accent-secondary);
+  font-size: 0.75rem;
+  font-weight: 600;
+  padding: 4px 8px;
+  border-radius: 6px;
+  top: -30px;
+  left: 50%;
+  transform: translateX(-50%);
+  animation: slideIn 0.2s forwards;
+  pointer-events: none;
+  box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+}
