@@ -3,3 +3,5 @@ export * from './events.js';
 export * from './auth.js';
 export * from './validation.js';
 export * from './integrity.js';
+export * from './rabbitmq.js';
+
