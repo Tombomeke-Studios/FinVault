@@ -12,9 +12,10 @@ interface SavingsProps {
   wallets: any[];
   setWallets: React.Dispatch<React.SetStateAction<any[]>>;
   setTransactions: React.Dispatch<React.SetStateAction<any[]>>;
+  token?: string | null;
 }
 
-export function ScreenSavings({ compact, fire, goals, setGoals, wallets, setWallets, setTransactions }: SavingsProps) {
+export function ScreenSavings({ compact, fire, goals, setGoals, wallets, setWallets, setTransactions, token }: SavingsProps) {
   const [add, setAdd] = useState<Goal | null>(null);
   const [addAmt, setAddAmt] = useState('');
   
@@ -29,16 +30,14 @@ export function ScreenSavings({ compact, fire, goals, setGoals, wallets, setWall
   const totalTarget = goals.reduce((s, g) => s + g.target, 0);
   const overallPct = totalTarget > 0 ? Math.round((totalSaved / totalTarget) * 100) : 0;
 
-  const doAdd = () => {
+  const doAdd = async () => {
     const v = parseFloat(addAmt || '0');
-    if (v > 0 && add) {
-      // 1. Deduct from active checking wallet (wallets[0])
+    if (!(v > 0) || !add) return;
+
+    if (!token) {
+      // offline fallback
       setWallets(prev => prev.map((w, idx) => idx === 0 ? { ...w, balance: Math.max(0, w.balance - v) } : w));
-      
-      // 2. Update goal saved amount
       setGoals(gs => gs.map(g => g.id === add.id ? { ...g, saved: Math.min(g.target, g.saved + v) } : g));
-      
-      // 3. Add to transaction history
       setTransactions(prev => [
         {
           id: 'tx-' + Date.now(),
@@ -53,29 +52,82 @@ export function ScreenSavings({ compact, fire, goals, setGoals, wallets, setWall
         },
         ...prev
       ]);
-
       fire('Added to ' + add.name, money(v) + ' moved from Everyday', 'success');
+      setAdd(null); setAddAmt('');
+      return;
+    }
+
+    try {
+      const res = await fetch(`/api/goals/${add.id}/fund`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify({ amount: v })
+      });
+      if (res.ok) {
+        const { wallet, goal, transaction } = await res.json();
+        setWallets(prev => prev.map(w => w.id === wallet.id ? wallet : w));
+        setGoals(prev => prev.map(g => g.id === goal.id ? goal : g));
+        setTransactions(prev => [transaction, ...prev]);
+        fire('Added to ' + goal.name, money(v) + ' moved from Everyday', 'success');
+      }
+    } catch (e: any) {
+      fire('Error', 'Failed to fund savings goal: ' + e.message, 'error');
     }
     setAdd(null); setAddAmt('');
   };
 
-  const handleCreateGoal = () => {
+  const handleCreateGoal = async () => {
     const tgt = parseFloat(newTarget);
     if (!newName || !tgt) return;
-    const newG = {
-      id: 'g-' + Date.now(),
-      name: newName,
-      target: tgt,
-      saved: 0,
-      hue: newHue,
-      icon: newIcon,
-      due: 'No date',
-    };
-    setGoals(prev => [...prev, newG]);
-    setNewGoalOpen(false);
-    setNewName('');
-    setNewTarget('');
-    fire('Success', `Savings vault "${newName}" created successfully!`, 'success');
+
+    if (!token) {
+      // offline fallback
+      const newG = {
+        id: 'g-' + Date.now(),
+        name: newName,
+        target: tgt,
+        saved: 0,
+        hue: newHue,
+        icon: newIcon,
+        due: 'No date',
+      };
+      setGoals(prev => [...prev, newG]);
+      setNewGoalOpen(false);
+      setNewName('');
+      setNewTarget('');
+      fire('Success', `Savings vault "${newName}" created successfully!`, 'success');
+      return;
+    }
+
+    try {
+      const res = await fetch('/api/goals', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          name: newName,
+          target: tgt,
+          hue: newHue,
+          icon: newIcon,
+          due: 'No date'
+        })
+      });
+      if (res.ok) {
+        const goal = await res.json();
+        setGoals(prev => [...prev, goal]);
+        setNewGoalOpen(false);
+        setNewName('');
+        setNewTarget('');
+        fire('Success', `Savings vault "${goal.name}" created successfully!`, 'success');
+      }
+    } catch (e: any) {
+      fire('Error', 'Failed to create savings goal: ' + e.message, 'error');
+    }
   };
 
   return (

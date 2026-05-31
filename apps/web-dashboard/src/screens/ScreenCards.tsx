@@ -56,7 +56,7 @@ function CardCarousel({ cards, sel, setSel, compact }: { cards: any[]; sel: numb
   );
 }
 
-export function ScreenCards({ compact, fire, data, cards, setCards }: { compact: boolean; fire: (t: string, b: string, type?: string) => void; data: AppData; cards: any[]; setCards: React.Dispatch<React.SetStateAction<any[]>> }) {
+export function ScreenCards({ compact, fire, data, cards, setCards, token }: { compact: boolean; fire: (t: string, b: string, type?: string) => void; data: AppData; cards: any[]; setCards: React.Dispatch<React.SetStateAction<any[]>>; token?: string | null }) {
   const [sel, setSel] = useState(0);
   const [details, setDetails] = useState(false);
   const [reveal, setReveal] = useState(false);
@@ -78,40 +78,114 @@ export function ScreenCards({ compact, fire, data, cards, setCards }: { compact:
     fire('Copied', label, 'success');
   };
 
-  const toggleFreeze = () => {
-    setCards(cs => cs.map((c, i) => i === sel ? { ...c, frozen: !c.frozen } : c));
-    fire(card.frozen ? 'Card unfrozen' : 'Card frozen', card.frozen ? 'Payments re-enabled.' : 'All payments are now blocked.', card.frozen ? 'success' : 'warn');
+  const toggleFreeze = async () => {
+    if (!token) {
+      setCards(cs => cs.map((c, i) => i === sel ? { ...c, frozen: !c.frozen } : c));
+      fire(card.frozen ? 'Card unfrozen' : 'Card frozen', card.frozen ? 'Payments re-enabled.' : 'All payments are now blocked.', card.frozen ? 'success' : 'warn');
+      return;
+    }
+    try {
+      const res = await fetch(`/api/cards/${card.id}/freeze`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify({ frozen: !card.frozen })
+      });
+      if (res.ok) {
+        const updated = await res.json();
+        setCards(cs => cs.map(c => c.id === card.id ? updated : c));
+        fire(updated.frozen ? 'Card frozen' : 'Card unfrozen', updated.frozen ? 'All payments are now blocked.' : 'Payments re-enabled.', updated.frozen ? 'warn' : 'success');
+      }
+    } catch (e: any) {
+      fire('Error', 'Failed to update card status: ' + e.message, 'error');
+    }
   };
 
-  const handleOrderCard = () => {
-    const last4 = Math.floor(1000 + Math.random() * 9000).toString();
-    const newCard = {
-      id: 'card-' + Date.now(),
-      name: newCardName,
-      kind: newCardKind,
-      network: newCardKind === 'physical' ? 'Visa' : 'Mastercard',
-      last4,
-      number: `4182 ${Math.floor(1000+Math.random()*9000)} ${Math.floor(1000+Math.random()*9000)} ${last4}`,
-      cvv: Math.floor(100 + Math.random() * 900).toString(),
-      holder: card?.holder || `${data.user.firstName} ${data.user.lastName}`,
-      exp: '12/30',
-      frozen: false,
-      scheme: newCardScheme,
-      walletId: card?.walletId || data.wallets[0]?.id || 'mock-wallet-eur',
-      monthSpend: 0,
-      limit: 2000,
-    };
-    setCards(prev => [...prev, newCard]);
-    setNewCardOpen(false);
-    setNewCardName('');
-    setSel(cards.length); // Swaps carousel index to show the newly ordered card!
-    fire('Success', `Your new ${newCardKind} card (${newCardName}) has been created!`, 'success');
+  const handleOrderCard = async () => {
+    if (!token) {
+      const last4 = Math.floor(1000 + Math.random() * 9000).toString();
+      const newCard = {
+        id: 'card-' + Date.now(),
+        name: newCardName,
+        kind: newCardKind,
+        network: newCardKind === 'physical' ? 'Visa' : 'Mastercard',
+        last4,
+        number: `4182 ${Math.floor(1000+Math.random()*9000)} ${Math.floor(1000+Math.random()*9000)} ${last4}`,
+        cvv: Math.floor(100 + Math.random() * 900).toString(),
+        holder: card?.holder || `${data.user.firstName} ${data.user.lastName}`,
+        exp: '12/30',
+        frozen: false,
+        scheme: newCardScheme,
+        walletId: card?.walletId || data.wallets[0]?.id || 'mock-wallet-eur',
+        monthSpend: 0,
+        limit: 2000,
+      };
+      setCards(prev => [...prev, newCard]);
+      setNewCardOpen(false);
+      setNewCardName('');
+      setSel(cards.length); // Swaps carousel index to show the newly ordered card!
+      fire('Success', `Your new ${newCardKind} card (${newCardName}) has been created!`, 'success');
+      return;
+    }
+
+    try {
+      const walletId = data.wallets[0]?.id;
+      const res = await fetch('/api/cards', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          name: newCardName,
+          kind: newCardKind,
+          scheme: newCardScheme,
+          walletId,
+          limit: 2000,
+          holder: `${data.user.firstName} ${data.user.lastName}`
+        })
+      });
+      if (res.ok) {
+        const created = await res.json();
+        setCards(prev => [...prev, created]);
+        setNewCardOpen(false);
+        setNewCardName('');
+        setSel(cards.length);
+        fire('Success', `Your new ${created.kind} card (${created.name}) has been ordered!`, 'success');
+      }
+    } catch (e: any) {
+      fire('Error', 'Failed to order card: ' + e.message, 'error');
+    }
   };
 
-  const handleSaveLimits = () => {
-    setCards(cs => cs.map((c, i) => i === sel ? { ...c, limit: limitVal } : c));
-    setLimitsOpen(false);
-    fire('Limits Updated', `Monthly spending cap updated to ${money(limitVal)}.`, 'success');
+  const handleSaveLimits = async () => {
+    if (!token) {
+      setCards(cs => cs.map((c, i) => i === sel ? { ...c, limit: limitVal } : c));
+      setLimitsOpen(false);
+      fire('Limits Updated', `Monthly spending cap updated to ${money(limitVal)}.`, 'success');
+      return;
+    }
+
+    try {
+      const res = await fetch(`/api/cards/${card.id}/limit`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify({ limit: limitVal })
+      });
+      if (res.ok) {
+        const updated = await res.json();
+        setCards(cs => cs.map(c => c.id === card.id ? updated : c));
+        setLimitsOpen(false);
+        fire('Limits Updated', `Monthly spending cap updated to ${money(updated.limit)}.`, 'success');
+      }
+    } catch (e: any) {
+      fire('Error', 'Failed to update limit: ' + e.message, 'error');
+    }
   };
 
   if (!card) return <div style={{ padding: 40, textAlign: 'center', color: 'var(--text-3)' }}>No cards found.</div>;

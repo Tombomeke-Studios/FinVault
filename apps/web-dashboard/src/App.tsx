@@ -360,24 +360,6 @@ export default function App() {
   }, []);
 
   // --- Fetch helpers ---
-  const fetchProfile = useCallback(async () => {
-    try {
-      const res = await fetch('/api/users/profile', { headers: { Authorization: `Bearer ${token}` } });
-      if (res.ok) {
-        const data = await res.json();
-        setRawUser(data);
-        fetchWallets();
-        fetchTransactions();
-      } else {
-        localStorage.removeItem('finvault_token');
-        setToken(null);
-      }
-    } catch {
-      // Offline fallback
-      setupMockSession();
-    }
-  }, [token]);
-
   const fetchWallets = useCallback(async () => {
     try {
       const res = await fetch('/api/wallets', { headers: { Authorization: `Bearer ${token}` } });
@@ -391,6 +373,40 @@ export default function App() {
       if (res.ok) setTransactions(await res.json());
     } catch { /* stay with current */ }
   }, [token]);
+
+  const fetchCards = useCallback(async () => {
+    try {
+      const res = await fetch('/api/cards', { headers: { Authorization: `Bearer ${token}` } });
+      if (res.ok) setCards(await res.json());
+    } catch { /* stay with current */ }
+  }, [token]);
+
+  const fetchGoals = useCallback(async () => {
+    try {
+      const res = await fetch('/api/goals', { headers: { Authorization: `Bearer ${token}` } });
+      if (res.ok) setGoals(await res.json());
+    } catch { /* stay with current */ }
+  }, [token]);
+
+  const fetchProfile = useCallback(async () => {
+    try {
+      const res = await fetch('/api/users/profile', { headers: { Authorization: `Bearer ${token}` } });
+      if (res.ok) {
+        const data = await res.json();
+        setRawUser(data);
+        fetchWallets();
+        fetchTransactions();
+        fetchCards();
+        fetchGoals();
+      } else {
+        localStorage.removeItem('finvault_token');
+        setToken(null);
+      }
+    } catch {
+      // Offline fallback
+      setupMockSession();
+    }
+  }, [token, fetchWallets, fetchTransactions, fetchCards, fetchGoals]);
 
   // Offline demo
   const setupMockSession = useCallback(() => {
@@ -438,24 +454,10 @@ export default function App() {
 
   useEffect(() => {
     if (token) fetchProfile();
-    else { setRawUser(null); setWallets([]); setTransactions([]); }
+    else { setRawUser(null); setWallets([]); setTransactions([]); setCards([]); setGoals([]); }
   }, [token]);
 
   useEffect(() => { if (rawUser && token) connectWs(); }, [rawUser, token]);
-
-  useEffect(() => {
-    if (rawUser && wallets.length > 0 && cards.length === 0) {
-      const first = rawUser.profile?.firstName || 'Tom';
-      const last = rawUser.profile?.lastName || 'Bomeke';
-      initializeCards(first, last, wallets[0].id);
-    }
-  }, [rawUser, wallets, cards, initializeCards]);
-
-  useEffect(() => {
-    if (rawUser && wallets.length > 0 && goals.length === 0) {
-      initializeGoals();
-    }
-  }, [rawUser, wallets, goals, initializeGoals]);
 
   // --- Auth handlers ---
   const handleLogin = async (email: string, password: string) => {
@@ -571,11 +573,11 @@ export default function App() {
       case 'transfer':
         return <ScreenTransfer compact={compact} navigate={setRoute} fire={fire} data={appData} onTransfer={handleTransfer} onRequest={handleRequest} />;
       case 'cards':
-        return <ScreenCards compact={compact} data={appData} fire={fire} cards={cards} setCards={setCards} />;
+        return <ScreenCards compact={compact} data={appData} fire={fire} cards={cards} setCards={setCards} token={token} />;
       case 'analytics':
         return <ScreenAnalytics compact={compact} data={appData} />;
       case 'savings':
-        return <ScreenSavings compact={compact} fire={fire} goals={goals} setGoals={setGoals} wallets={wallets} setWallets={setWallets} setTransactions={setTransactions} />;
+        return <ScreenSavings compact={compact} fire={fire} goals={goals} setGoals={setGoals} wallets={wallets} setWallets={setWallets} setTransactions={setTransactions} token={token} />;
       case 'settings':
         return (
           <ScreenSettings
