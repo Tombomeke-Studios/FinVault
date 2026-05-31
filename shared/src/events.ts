@@ -1,3 +1,5 @@
+import { createCipheriv, createDecipheriv, randomBytes, scryptSync } from 'crypto';
+
 export type FinVaultEvent =
   | { type: 'account.created'; payload: { userId: string; email: string; accountType: string } }
   | { type: 'account.updated'; payload: { userId: string; email: string } }
@@ -16,19 +18,65 @@ export interface EventEnvelope<T extends FinVaultEvent = FinVaultEvent> {
   event: T;
 }
 
+// ── AES-256-GCM payload encryption ────────────────────────────────────────────
+// When FINVAULT_MESSAGE_KEY is set, event payloads are encrypted before transit.
+// The event `type` stays readable (needed for routing); only the `payload` is
+// replaced with { encrypted: true, data: '<base64 ciphertext>' }.
+// Consuming services call decryptPayload(event.payload.data) to recover the data.
+
+const ALGORITHM = 'aes-256-gcm';
+const KDF_SALT  = 'finvault-events-v1'; // fixed public salt; entropy comes from the key
+
+function deriveKey(secret: string): Buffer {
+  return scryptSync(secret, KDF_SALT, 32);
+}
+
+export function encryptPayload(payload: Record<string, unknown>, secret: string): string {
+  const key = deriveKey(secret);
+  const iv  = randomBytes(12); // 96-bit IV — GCM standard
+  const cipher = createCipheriv(ALGORITHM, key, iv);
+  const pt = Buffer.from(JSON.stringify(payload), 'utf8');
+  const ct = Buffer.concat([cipher.update(pt), cipher.final()]);
+  const tag = cipher.getAuthTag(); // 128-bit auth tag
+  // Layout: iv(12) | tag(16) | ciphertext
+  return Buffer.concat([iv, tag, ct]).toString('base64');
+}
+
+export function decryptPayload(ciphertext: string, secret: string): Record<string, unknown> {
+  const key = deriveKey(secret);
+  const buf  = Buffer.from(ciphertext, 'base64');
+  const iv   = buf.subarray(0, 12);
+  const tag  = buf.subarray(12, 28);
+  const ct   = buf.subarray(28);
+  const decipher = createDecipheriv(ALGORITHM, key, iv);
+  decipher.setAuthTag(tag);
+  const pt = Buffer.concat([decipher.update(ct), decipher.final()]);
+  return JSON.parse(pt.toString('utf8'));
+}
+
 /**
- * Publishes an event to the API Gateway Event Hub
+ * Publishes an event to the API Gateway Event Hub.
+ *
+ * When FINVAULT_MESSAGE_KEY is set the event payload is AES-256-GCM encrypted
+ * before sending. The event type remains plain so the gateway can route it; the
+ * encrypted payload can only be read by services that hold the same key.
  */
 export async function publishEvent(
   source: string,
   event: FinVaultEvent,
   gatewayUrl = process.env.GATEWAY_URL || 'http://localhost:8000'
 ): Promise<boolean> {
+  const messageKey = process.env.FINVAULT_MESSAGE_KEY;
+
+  const securedEvent: FinVaultEvent = messageKey
+    ? { type: event.type, payload: { encrypted: true, data: encryptPayload(event.payload as Record<string, unknown>, messageKey) } } as unknown as FinVaultEvent
+    : event;
+
   const envelope: EventEnvelope = {
     eventId: Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15),
     timestamp: new Date().toISOString(),
     source,
-    event
+    event: securedEvent,
   };
 
   const serviceSecret = process.env.SERVICE_SECRET || 'finvault-internal-service-secret';
@@ -44,7 +92,7 @@ export async function publishEvent(
     });
 
     if (res.ok) {
-      console.log(`[EventClient] Successfully published ${event.type}`);
+      console.log(`[EventClient] Published ${event.type}${messageKey ? ' (encrypted)' : ''}`);
       return true;
     } else {
       console.error(`[EventClient] Failed to publish ${event.type}: ${res.statusText}`);
