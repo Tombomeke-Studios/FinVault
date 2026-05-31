@@ -37,13 +37,22 @@ interface OverviewProps {
 
 export function ScreenOverview({ compact, navigate, data, onTopup }: OverviewProps) {
   const [selWallet, setSelWallet] = useState(0);
-  const { wallets, transactions, cards, goals, spendByCat, balanceTrend } = data;
+  const [selCard, setSelCard] = useState(0);
+  const { wallets, transactions, cards, goals, spendByCat, balanceTrend, monthly } = data;
 
   const totalEUR = wallets.filter(w => w.currency === 'EUR').reduce((s, w) => s + w.balance, 0);
   const recent = transactions.slice(0, 5);
-  const card = cards[0];
+  const card = cards[Math.min(selCard, cards.length - 1)] ?? null;
   const goalsPreview = goals.slice(0, 2);
   const topCats = [...spendByCat].sort((a, b) => b.amount - a.amount).slice(0, 4);
+
+  // Live money in/out — current calendar month
+  const currentMonthFlow = monthly[monthly.length - 1] || { in: 0, out: 0 };
+
+  // Balance delta vs previous data point
+  const prevBal = balanceTrend.length >= 2 ? balanceTrend[balanceTrend.length - 2] : balanceTrend[0] ?? 0;
+  const currBal = balanceTrend[balanceTrend.length - 1] ?? totalEUR;
+  const deltaBalance = prevBal > 0 ? parseFloat(((currBal - prevBal) / prevBal * 100).toFixed(1)) : 0;
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--gap-lg)' }}>
@@ -66,13 +75,13 @@ export function ScreenOverview({ compact, navigate, data, onTopup }: OverviewPro
                 {money(totalEUR)}
               </div>
             </div>
-            <Delta value={6.4} />
+            <Delta value={deltaBalance} />
           </div>
           <div style={{ margin: '0 -6px' }}>
             <Sparkline data={balanceTrend} h={compact ? 60 : 78} />
           </div>
           <div style={{ display: 'flex', gap: 'var(--gap-lg)', flexWrap: 'wrap' }}>
-            {[['Money in', 3234.95, 'pos'] as const, ['Money out', -1879.40, 'neg'] as const].map(([l, v, k]) => (
+            {([['Money in', currentMonthFlow.in, 'pos'], ['Money out', -currentMonthFlow.out, 'neg']] as const).map(([l, v, k]) => (
               <div key={l} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                 <span style={{ width: 30, height: 30, borderRadius: 'var(--r-sm)', display: 'flex', alignItems: 'center', justifyContent: 'center', background: `color-mix(in oklab, var(--${k}) 16%, transparent)`, color: `var(--${k})` }}>
                   <Icon name={k === 'pos' ? 'arrowDownLeft' : 'arrowUpRight'} size={16} />
@@ -151,10 +160,21 @@ export function ScreenOverview({ compact, navigate, data, onTopup }: OverviewPro
         <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--gap-lg)' }}>
           {card && (
             <div className="card" style={{ padding: 'var(--pad)', display: 'flex', flexDirection: 'column', gap: 14 }}>
-              <SectionHead title="My card" onAll={() => navigate('cards')} small />
+              <SectionHead title={cards.length > 1 ? `My cards · ${cards.length}` : 'My card'} onAll={() => navigate('cards')} small />
               <div style={{ display: 'flex', justifyContent: 'center' }}>
                 <BankCard card={card} width={compact ? 280 : 250} onClick={() => navigate('cards')} />
               </div>
+              {cards.length > 1 && (
+                <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 6 }}>
+                  {cards.map((_, i) => (
+                    <button key={i} onClick={() => setSelCard(i)} style={{
+                      width: i === selCard ? 18 : 7, height: 7, borderRadius: 99, padding: 0, border: 'none',
+                      background: i === selCard ? 'var(--accent)' : 'var(--surface-hi)',
+                      cursor: 'pointer', transition: 'width .2s ease',
+                    }} />
+                  ))}
+                </div>
+              )}
             </div>
           )}
           {topCats.length > 0 && (
