@@ -325,12 +325,12 @@ app.get('/users/audit-logs', authenticateToken, async (req, res) => {
   }
 });
 
-// Seed default admin account on startup
-async function seedAdmin() {
+// Seed default accounts on startup
+async function seedAccounts() {
   try {
     const adminEmail = 'admin@finvault.com';
-    const existing = await prisma.user.findUnique({ where: { email: adminEmail } });
-    if (!existing) {
+    const existingAdmin = await prisma.user.findUnique({ where: { email: adminEmail } });
+    if (!existingAdmin) {
       const passwordHash = await bcrypt.hash('admin-secure-password-2026', 10);
       const user = await prisma.user.create({
         data: {
@@ -361,12 +361,46 @@ async function seedAdmin() {
         }
       }, process.env.GATEWAY_URL);
     }
+
+    const testEmail = 'test@finvault.com';
+    const existingTest = await prisma.user.findUnique({ where: { email: testEmail } });
+    if (!existingTest) {
+      const passwordHash = await bcrypt.hash('test-secure-password', 10);
+      const user = await prisma.user.create({
+        data: {
+          email: testEmail,
+          passwordHash,
+          accountType: 'personal',
+          status: 'active',
+          profile: {
+            create: {
+              firstName: 'Tom',
+              lastName: 'Bomeke',
+              dateOfBirth: '1995-05-15',
+              address: 'Meir 1, Antwerpen',
+              country: 'België'
+            }
+          }
+        }
+      });
+      console.log(`[Account Service] Seeded default test account: ${testEmail}`);
+
+      // Publish event
+      await publishEvent('account-service', {
+        type: 'account.created',
+        payload: {
+          userId: user.id,
+          email: user.email,
+          accountType: user.accountType
+        }
+      }, process.env.GATEWAY_URL);
+    }
   } catch (error) {
-    console.error('Failed to seed default admin user:', error);
+    console.error('Failed to seed default users:', error);
   }
 }
 
-seedAdmin().then(() => {
+seedAccounts().then(() => {
   app.listen(PORT, () => {
     console.log(`[Account Service] running on http://localhost:${PORT}`);
   });
