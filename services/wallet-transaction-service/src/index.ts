@@ -1197,6 +1197,307 @@ app.post('/wallets/:walletId/credit-line', requireAuth, async (req, res) => {
   }
 });
 
+// =============================================
+// REST Endpoints — Card & Savings Goal Support
+// =============================================
+
+app.get('/cards', requireAuth, async (req, res) => {
+  const userId = (req as any).user.userId;
+  try {
+    let cards = await prisma.card.findMany({
+      where: {
+        wallet: { userId }
+      }
+    });
+
+    if (cards.length === 0) {
+      // Find first checking wallet to link default cards
+      const checkingWallet = await prisma.wallet.findFirst({
+        where: { userId, type: 'checking', status: 'active' }
+      });
+
+      if (checkingWallet) {
+        // Auto-create default cards
+        const first = 'Tom';
+        const last = 'Bomeke';
+        cards = [
+          await prisma.card.create({
+            data: {
+              name: 'Everyday Checking',
+              kind: 'physical',
+              network: 'Visa',
+              last4: '4182',
+              number: '4182 7771 0377 4182',
+              cvv: '428',
+              holder: `${first} ${last}`,
+              exp: '05/31',
+              frozen: false,
+              scheme: 'metal',
+              walletId: checkingWallet.id,
+              monthSpend: 0,
+              limit: 2000
+            }
+          }),
+          await prisma.card.create({
+            data: {
+              name: 'Travel Multi-Currency',
+              kind: 'virtual',
+              network: 'Mastercard',
+              last4: '9912',
+              number: '5412 9900 0011 9912',
+              cvv: '831',
+              holder: `${first} ${last}`,
+              exp: '11/27',
+              frozen: false,
+              scheme: 'cyan',
+              walletId: checkingWallet.id,
+              monthSpend: 0,
+              limit: 3000
+            }
+          })
+        ];
+      }
+    }
+
+    res.status(200).json(cards);
+  } catch (error: any) {
+    res.status(500).json({ error: 'Failed to retrieve cards', message: error.message });
+  }
+});
+
+app.post('/cards', requireAuth, async (req, res) => {
+  const userId = (req as any).user.userId;
+  const { name, kind, scheme, walletId, limit, holder } = req.body;
+  try {
+    // Verify wallet belongs to user
+    const wallet = await prisma.wallet.findFirst({
+      where: { id: walletId, userId }
+    });
+    if (!wallet) {
+      return res.status(404).json({ error: 'Wallet not found' });
+    }
+
+    const last4 = Math.floor(1000 + Math.random() * 9000).toString();
+    const number = `4182 ${Math.floor(1000 + Math.random() * 9000)} ${Math.floor(1000 + Math.random() * 9000)} ${last4}`;
+    const cvv = Math.floor(100 + Math.random() * 900).toString();
+    const exp = '12/30';
+    const card = await prisma.card.create({
+      data: {
+        name,
+        kind,
+        network: kind === 'physical' ? 'Visa' : 'Mastercard',
+        last4,
+        number,
+        cvv,
+        holder: holder || 'FinVault Holder',
+        exp,
+        frozen: false,
+        scheme: scheme || 'violet',
+        walletId,
+        monthSpend: 0.0,
+        limit: limit ? parseFloat(limit) : 2000.0
+      }
+    });
+
+    res.status(201).json(card);
+  } catch (error: any) {
+    res.status(500).json({ error: 'Failed to create card', message: error.message });
+  }
+});
+
+app.put('/cards/:id/freeze', requireAuth, async (req, res) => {
+  const userId = (req as any).user.userId;
+  const { id } = req.params;
+  const { frozen } = req.body;
+  try {
+    const card = await prisma.card.findFirst({
+      where: { id, wallet: { userId } }
+    });
+    if (!card) {
+      return res.status(404).json({ error: 'Card not found' });
+    }
+
+    const updated = await prisma.card.update({
+      where: { id },
+      data: { frozen }
+    });
+    res.status(200).json(updated);
+  } catch (error: any) {
+    res.status(500).json({ error: 'Failed to freeze/unfreeze card', message: error.message });
+  }
+});
+
+app.put('/cards/:id/limit', requireAuth, async (req, res) => {
+  const userId = (req as any).user.userId;
+  const { id } = req.params;
+  const { limit } = req.body;
+  try {
+    const card = await prisma.card.findFirst({
+      where: { id, wallet: { userId } }
+    });
+    if (!card) {
+      return res.status(404).json({ error: 'Card not found' });
+    }
+
+    const updated = await prisma.card.update({
+      where: { id },
+      data: { limit: parseFloat(limit) }
+    });
+    res.status(200).json(updated);
+  } catch (error: any) {
+    res.status(500).json({ error: 'Failed to update card limit', message: error.message });
+  }
+});
+
+app.get('/goals', requireAuth, async (req, res) => {
+  const userId = (req as any).user.userId;
+  try {
+    let goals = await prisma.savingsGoal.findMany({
+      where: { userId }
+    });
+
+    if (goals.length === 0) {
+      const defaultGoals = [
+        { name: 'Japan Trip',     target: 4000,  saved: 2680, hue: 12,  icon: 'plane',  due: 'Oct 2026' },
+        { name: 'Emergency Fund', target: 10000, saved: 8200, hue: 158, icon: 'shield', due: 'No date' },
+        { name: 'New MacBook',    target: 2500,  saved: 900,  hue: 265, icon: 'laptop', due: 'Mar 2026' },
+        { name: 'Car Deposit',    target: 6000,  saved: 1500, hue: 230, icon: 'car',    due: 'Jul 2027' }
+      ];
+
+      goals = await Promise.all(
+        defaultGoals.map(g =>
+          prisma.savingsGoal.create({
+            data: {
+              userId,
+              name: g.name,
+              target: g.target,
+              saved: g.saved,
+              hue: g.hue,
+              icon: g.icon,
+              due: g.due
+            }
+          })
+        )
+      );
+    }
+    res.status(200).json(goals);
+  } catch (error: any) {
+    res.status(500).json({ error: 'Failed to retrieve goals', message: error.message });
+  }
+});
+
+app.post('/goals', requireAuth, async (req, res) => {
+  const userId = (req as any).user.userId;
+  const { name, target, hue, icon, due } = req.body;
+  try {
+    const goal = await prisma.savingsGoal.create({
+      data: {
+        userId,
+        name,
+        target: parseFloat(target),
+        saved: 0.0,
+        hue: parseInt(hue) || 12,
+        icon: icon || 'plane',
+        due: due || 'No date'
+      }
+    });
+    res.status(201).json(goal);
+  } catch (error: any) {
+    res.status(500).json({ error: 'Failed to create goal', message: error.message });
+  }
+});
+
+app.post('/goals/:id/fund', requireAuth, async (req, res) => {
+  const userId = (req as any).user.userId;
+  const { id } = req.params;
+  const { amount } = req.body;
+  const fundAmount = parseFloat(amount);
+
+  if (isNaN(fundAmount) || fundAmount <= 0) {
+    return res.status(400).json({ error: 'Invalid fund amount' });
+  }
+
+  try {
+    const goal = await prisma.savingsGoal.findFirst({
+      where: { id, userId }
+    });
+    if (!goal) {
+      return res.status(404).json({ error: 'Savings goal not found' });
+    }
+
+    const wallet = await prisma.wallet.findFirst({
+      where: { userId, type: 'checking', status: 'active' }
+    });
+    if (!wallet) {
+      return res.status(400).json({ error: 'No active checking wallet found' });
+    }
+
+    if (wallet.balance < fundAmount) {
+      return res.status(400).json({ error: 'Insufficient balance' });
+    }
+
+    const newWalletBalance = parseFloat((wallet.balance - fundAmount).toFixed(2));
+    const newGoalSaved = parseFloat((goal.saved + fundAmount).toFixed(2));
+
+    const [updatedWallet, updatedGoal, historyRecord, transaction] = await prisma.$transaction([
+      prisma.wallet.update({
+        where: { id: wallet.id },
+        data: { balance: newWalletBalance }
+      }),
+      prisma.savingsGoal.update({
+        where: { id },
+        data: { saved: newGoalSaved }
+      }),
+      prisma.balanceHistory.create({
+        data: {
+          walletId: wallet.id,
+          amount: -fundAmount,
+          balanceAfter: newWalletBalance,
+          reason: `Stashed to ${goal.name}`
+        }
+      }),
+      prisma.transaction.create({
+        data: {
+          reference: `GOAL-${Math.random().toString(36).substring(2, 9).toUpperCase()}`,
+          senderWalletId: wallet.id,
+          receiverWalletId: null,
+          amount: fundAmount,
+          currency: 'EUR',
+          status: 'confirmed',
+          type: 'transfer',
+          description: `Stashed to ${goal.name}`
+        }
+      })
+    ]);
+
+    await publishWalletEvent({
+      type: 'balance.updated',
+      payload: {
+        walletId: wallet.id,
+        userId,
+        balance: newWalletBalance,
+        currency: wallet.currency
+      }
+    });
+
+    await publishWalletEvent({
+      type: 'transaction.created',
+      payload: {
+        transactionId: transaction.id,
+        userId,
+        amount: fundAmount,
+        type: 'transfer',
+        description: transaction.description
+      }
+    });
+
+    res.status(200).json({ wallet: updatedWallet, goal: updatedGoal, transaction });
+  } catch (error: any) {
+    console.error('Goal funding error:', error);
+    res.status(500).json({ error: 'Failed to fund savings goal', message: error.message });
+  }
+});
+
 async function startRabbitConsumer() {
   try {
     const queueName = 'wallet_service_queue';
