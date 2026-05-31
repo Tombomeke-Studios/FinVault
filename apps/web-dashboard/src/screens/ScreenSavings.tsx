@@ -18,13 +18,18 @@ interface SavingsProps {
 export function ScreenSavings({ compact, fire, goals, setGoals, wallets, setWallets, setTransactions, token }: SavingsProps) {
   const [add, setAdd] = useState<Goal | null>(null);
   const [addAmt, setAddAmt] = useState('');
-  
+
   // New goal forms state
   const [newGoalOpen, setNewGoalOpen] = useState(false);
   const [newName, setNewName] = useState('');
   const [newTarget, setNewTarget] = useState('');
   const [newIcon, setNewIcon] = useState('plane');
   const [newHue, setNewHue] = useState(12);
+
+  // Auto-save state
+  const [autoSave, setAutoSave] = useState(250);
+  const [autoSaveOpen, setAutoSaveOpen] = useState(false);
+  const [autoSaveInput, setAutoSaveInput] = useState('');
 
   const totalSaved = goals.reduce((s, g) => s + g.saved, 0);
   const totalTarget = goals.reduce((s, g) => s + g.target, 0);
@@ -159,9 +164,9 @@ export function ScreenSavings({ compact, fire, goals, setGoals, wallets, setWall
             </span>
             <div style={{ flex: 1 }}>
               <div style={{ fontSize: '0.78rem', color: 'var(--text-3)', fontWeight: 600 }}>Auto-save active</div>
-              <div style={{ fontWeight: 700, fontSize: '0.92rem' }}>€250 / month — split across goals</div>
+              <div style={{ fontWeight: 700, fontSize: '0.92rem' }}>{money(autoSave)} / month — split across goals</div>
             </div>
-            <button className="btn btn-ghost" style={{ padding: '6px 12px', fontSize: '0.82rem' }} onClick={() => fire('Auto-save', 'Adjust your rules in account settings.', 'info')}>Edit</button>
+            <button className="btn btn-ghost" style={{ padding: '6px 12px', fontSize: '0.82rem' }} onClick={() => { setAutoSaveInput(String(autoSave)); setAutoSaveOpen(true); }}>Edit</button>
           </div>
         </div>
       )}
@@ -231,6 +236,30 @@ export function ScreenSavings({ compact, fire, goals, setGoals, wallets, setWall
             </button>
           </div>
         )}
+      </Sheet>
+
+      {/* Auto-save editor sheet */}
+      <Sheet open={autoSaveOpen} onClose={() => setAutoSaveOpen(false)} title="Edit Auto-Save" mobile={compact}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--gap)' }}>
+          <p style={{ color: 'var(--text-2)', fontSize: '0.92rem' }}>Set a monthly amount to automatically split across your active goals.</p>
+          <label className="label">Monthly amount (€)</label>
+          <input className="field num" autoFocus value={autoSaveInput} onChange={e => setAutoSaveInput(e.target.value.replace(/[^0-9.]/g, ''))} placeholder="0.00" style={{ fontSize: '1.1rem' }} />
+          <div style={{ display: 'flex', gap: 8 }}>
+            {[50, 100, 250, 500].map(v => (
+              <button key={v} onClick={() => setAutoSaveInput(String(v))} className="chip" style={{ flex: 1, justifyContent: 'center', cursor: 'pointer', padding: '9px 0' }}>€{v}</button>
+            ))}
+          </div>
+          <button className="btn btn-primary btn-block" disabled={!(parseFloat(autoSaveInput) > 0)} style={{ opacity: parseFloat(autoSaveInput) > 0 ? 1 : 0.5 }} onClick={() => {
+            const v = parseFloat(autoSaveInput);
+            if (v > 0) {
+              setAutoSave(v);
+              setAutoSaveOpen(false);
+              fire('Auto-save updated', `${money(v)} / month will be split across your goals.`, 'success');
+            }
+          }}>
+            Save changes
+          </button>
+        </div>
       </Sheet>
 
       {/* Create savings goal sheet */}
