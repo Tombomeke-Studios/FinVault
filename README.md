@@ -72,14 +72,19 @@ Wanneer de applicatie via Docker op een VM of Kubernetes wordt gehost, kan er ee
 
 Om het testen van FinVault zo soepel en realistisch mogelijk te maken, zijn er verschillende lokale dashboards en pre-seeded inloggegevens beschikbaar.
 
-### 🔑 Pre-Seeded Test-Account
-Er is bij de startup van de `account-service` automatisch een administrator-account gegenereerd. Dit account is direct klaar voor gebruik:
+### 🔑 Pre-Seeded Test-Accounts
+Er zijn bij de startup van de `account-service` automatisch twee accounts gegenereerd. Deze accounts zijn direct klaar voor gebruik:
 
+#### 💼 Business / Administrator Account
 - **E-mailadres:** `admin@finvault.com`
 - **Wachtwoord:** `admin-secure-password-2026`
 
+#### 👤 Personal / Consumer Account
+- **E-mailadres:** `test@finvault.com`
+- **Wachtwoord:** `test-secure-password`
+
 > [!TIP]
-> Log in met dit account in het Web Dashboard om direct toegang te krijgen tot een volledig functioneel zakelijk account met een automatisch gegenereerd IBAN-nummer en een startkrediet.
+> Log in met een van deze accounts in het Web Dashboard of de Mobiele App om direct toegang te krijgen tot een volledig functioneel account met een automatisch gegenereerd IBAN-nummer, startkrediet en real-time synchroniserende bankpassen en spaardoelen.
 
 ### 🔗 Handige Test-Links
 
