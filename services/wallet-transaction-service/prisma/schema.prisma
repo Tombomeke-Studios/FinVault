@@ -20,6 +20,7 @@ model Wallet {
   createdAt       DateTime         @default(now())
   histories       BalanceHistory[]
   creditLine      CreditLine?
+  cards           Card[]
 }
 
 model BalanceHistory {
@@ -66,5 +67,36 @@ model CreditLine {
   interestRate Float    @default(0.15)     // 15% annual interest on credit debt
   status       String   @default("inactive") // inactive, active, suspended
   createdAt    DateTime @default(now())
+}
+
+model Card {
+  id         String   @id @default(uuid())
+  name       String
+  kind       String   // physical, virtual
+  network    String   // Visa, Mastercard
+  last4      String
+  number     String
+  cvv        String
+  holder     String
+  exp        String
+  frozen     Boolean  @default(false)
+  scheme     String   // metal, cyan, etc.
+  walletId   String
+  wallet     Wallet   @relation(fields: [walletId], references: [id], onDelete: Cascade)
+  monthSpend Float    @default(0.0)
+  limit      Float    @default(2000.0)
+  createdAt  DateTime @default(now())
+}
+
+model SavingsGoal {
+  id        String   @id @default(uuid())
+  userId    String
+  name      String
+  target    Float
+  saved     Float    @default(0.0)
+  hue       Int      @default(12)
+  icon      String
+  due       String   @default("No date")
+  createdAt DateTime @default(now())
 }
 
