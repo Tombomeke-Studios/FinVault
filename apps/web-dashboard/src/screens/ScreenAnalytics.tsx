@@ -5,10 +5,22 @@ import type { AppData } from '../App';
 
 export function ScreenAnalytics({ compact, data }: { compact: boolean; data: AppData }) {
   const [range, setRange] = useState('Month');
+  const [budget, setBudget] = useState(2000);
+  const [budgetEditing, setBudgetEditing] = useState(false);
+  const [budgetInput, setBudgetInput] = useState('2000');
   const cats = [...data.spendByCat].sort((a, b) => b.amount - a.amount);
   const total = cats.reduce((s, c) => s + c.amount, 0);
-  const budget = 2000;
   const totalSaved = data.goals.reduce((s, g) => s + g.saved, 0);
+
+  // Dynamic deltas from monthly cashflow history
+  const prevMonth = data.monthly[data.monthly.length - 2] || { in: 0, out: 0 };
+  const spentDelta = prevMonth.out > 0 ? parseFloat(((total - prevMonth.out) / prevMonth.out * 100).toFixed(1)) : 0;
+  const daysElapsed = new Date().getDate();
+  const avgDay = daysElapsed > 0 ? total / daysElapsed : 0;
+  const prevAvgDay = prevMonth.out > 0 ? prevMonth.out / 30 : 0;
+  const avgDayDelta = prevAvgDay > 0 ? parseFloat(((avgDay - prevAvgDay) / prevAvgDay * 100).toFixed(1)) : 0;
+  const totalTarget = data.goals.reduce((s, g) => s + g.target, 0);
+  const savedDelta = totalTarget > 0 ? parseFloat(((totalSaved / totalTarget) * 100).toFixed(1)) : 0;
 
   // Dynamically calculate top merchants from actual transactions
   const topMerchants = useMemo(() => {
@@ -72,10 +84,10 @@ export function ScreenAnalytics({ compact, data }: { compact: boolean; data: App
       {/* stat row */}
       <div style={{ display: 'grid', gridTemplateColumns: compact ? '1fr 1fr' : 'repeat(4, 1fr)', gap: 'var(--gap)' }}>
         {[
-          { l: 'Total spent', v: money(total), d: -8, icon: 'trend' },
-          { l: 'vs budget', v: `${Math.round((total / budget) * 100)}%`, sub: `of ${money(budget).replace('.00','')}`, icon: 'target' },
-          { l: 'Avg / day', v: money(total / 31).replace('.00', '.0'), d: -3, icon: 'clock' },
-          { l: 'Saved', v: money(totalSaved), d: 12, icon: 'flame' },
+          { l: 'Total spent',  v: money(total),                                        d: spentDelta,   icon: 'trend'   },
+          { l: 'vs budget',    v: `${Math.round((total / budget) * 100)}%`,            sub: `of ${money(budget).replace('.00','')}`, icon: 'target' },
+          { l: 'Avg / day',    v: money(avgDay).replace('.00', '.0'),                  d: avgDayDelta,  icon: 'clock'   },
+          { l: 'Saved',        v: money(totalSaved),                                   sub: `${savedDelta}% of goals`,              icon: 'flame'   },
         ].map(s => (
           <div key={s.l} className="card" style={{ padding: 'var(--pad)' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -135,13 +147,25 @@ export function ScreenAnalytics({ compact, data }: { compact: boolean; data: App
           <div className="card" style={{ padding: 'var(--pad-lg)' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 12 }}>
               <h2 className="display" style={{ fontSize: '1.1rem', fontWeight: 700 }}>Monthly budget</h2>
-              <span className="num" style={{ color: 'var(--text-2)', fontSize: '0.9rem' }}>{money(total).replace('.00','')} / {money(budget).replace('.00','')}</span>
+              {budgetEditing ? (
+                <form onSubmit={e => { e.preventDefault(); const v = parseFloat(budgetInput); if (v > 0) setBudget(v); setBudgetEditing(false); }} style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                  <input autoFocus className="field num" value={budgetInput} onChange={e => setBudgetInput(e.target.value.replace(/[^0-9.]/g, ''))} style={{ width: 100, padding: '4px 8px', fontSize: '0.88rem' }} />
+                  <button type="submit" className="btn btn-primary" style={{ padding: '4px 10px', fontSize: '0.82rem' }}>Save</button>
+                </form>
+              ) : (
+                <button className="btn btn-quiet" style={{ fontSize: '0.84rem', color: 'var(--text-2)', padding: '4px 8px' }} onClick={() => { setBudgetInput(String(budget)); setBudgetEditing(true); }}>
+                  {money(total).replace('.00','')} / {money(budget).replace('.00','')} <Icon name="edit" size={13} style={{ marginLeft: 4 }} />
+                </button>
+              )}
             </div>
             <div style={{ height: 14, borderRadius: 99, background: 'var(--surface-2)', overflow: 'hidden', position: 'relative' }}>
-              <div style={{ width: `${(total / budget) * 100}%`, height: '100%', borderRadius: 99, background: 'linear-gradient(90deg, var(--accent), var(--accent-hi))', transition: 'width .6s ease' }} />
+              <div style={{ width: `${Math.min(100, (total / budget) * 100)}%`, height: '100%', borderRadius: 99, background: total > budget ? 'var(--neg)' : 'linear-gradient(90deg, var(--accent), var(--accent-hi))', transition: 'width .6s ease' }} />
             </div>
             <p style={{ marginTop: 12, color: 'var(--text-2)', fontSize: '0.9rem' }}>
-              You're <strong style={{ color: 'var(--pos)' }}>{money(budget - total).replace('.00','')} under budget</strong> with {31 - new Date().getDate()} days left.
+              {total > budget
+                ? <><strong style={{ color: 'var(--neg)' }}>{money(total - budget).replace('.00','')} over budget</strong> this month.</>
+                : <>You're <strong style={{ color: 'var(--pos)' }}>{money(budget - total).replace('.00','')} under budget</strong> with {31 - new Date().getDate()} days left.</>
+              }
             </p>
           </div>
 
