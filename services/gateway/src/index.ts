@@ -71,6 +71,8 @@ app.use('/api/auth', proxyTo(ACCOUNT_SERVICE_URL));
 app.use('/api/users', proxyTo(ACCOUNT_SERVICE_URL));
 app.use('/api/wallets', proxyTo(WALLET_SERVICE_URL));
 app.use('/api/transactions', proxyTo(WALLET_SERVICE_URL));
+app.use('/api/cards', proxyTo(WALLET_SERVICE_URL));
+app.use('/api/goals', proxyTo(WALLET_SERVICE_URL));
 app.use('/api/invoices', proxyTo(INVOICE_SERVICE_URL, '/invoices'));
 
 // Simple Webhook Registration for Microservices
