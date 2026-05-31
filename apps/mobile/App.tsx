@@ -265,28 +265,6 @@ export default function App() {
 
   const API_URL = 'http://192.168.0.6:8000';
 
-  const fetchProfile = useCallback(async () => {
-    if (!token || token === 'mock-token') {
-      setupMockSession();
-      return;
-    }
-    try {
-      const res = await fetch(`${API_URL}/api/users/profile`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      if (res.ok) {
-        const data = await res.json();
-        setRawUser(data);
-        fetchWallets();
-        fetchTransactions();
-      } else {
-        setToken(null);
-      }
-    } catch {
-      setupMockSession();
-    }
-  }, [token]);
-
   const fetchWallets = useCallback(async () => {
     if (!token || token === 'mock-token') return;
     try {
@@ -307,25 +285,55 @@ export default function App() {
     } catch {}
   }, [token]);
 
+  const fetchCards = useCallback(async () => {
+    if (!token || token === 'mock-token') return;
+    try {
+      const res = await fetch(`${API_URL}/api/cards`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (res.ok) setCards(await res.json());
+    } catch {}
+  }, [token]);
+
+  const fetchGoals = useCallback(async () => {
+    if (!token || token === 'mock-token') return;
+    try {
+      const res = await fetch(`${API_URL}/api/goals`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (res.ok) setGoals(await res.json());
+    } catch {}
+  }, [token]);
+
+  const fetchProfile = useCallback(async () => {
+    if (!token || token === 'mock-token') {
+      setupMockSession();
+      return;
+    }
+    try {
+      const res = await fetch(`${API_URL}/api/users/profile`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setRawUser(data);
+        fetchWallets();
+        fetchTransactions();
+        fetchCards();
+        fetchGoals();
+      } else {
+        setToken(null);
+      }
+    } catch {
+      setupMockSession();
+    }
+  }, [token, fetchWallets, fetchTransactions, fetchCards, fetchGoals]);
+
   useEffect(() => {
     if (token) {
       fetchProfile();
     }
   }, [token, fetchProfile]);
-
-  useEffect(() => {
-    if (rawUser && wallets.length > 0 && cards.length === 0) {
-      const first = rawUser.profile?.firstName || rawUser.firstName || 'Tom';
-      const last = rawUser.profile?.lastName || rawUser.lastName || 'Bomeke';
-      initializeCards(first, last, wallets[0].id);
-    }
-  }, [rawUser, wallets, cards, initializeCards]);
-
-  useEffect(() => {
-    if (rawUser && wallets.length > 0 && goals.length === 0) {
-      initializeGoals();
-    }
-  }, [rawUser, wallets, goals, initializeGoals]);
 
   const handleLogin = async (email: string, pw: string) => {
     setAuthError('');
@@ -501,9 +509,9 @@ export default function App() {
       case 'transfer':
         return <ScreenTransfer data={appData} onTransfer={handleTransfer} onRequest={handleRequest} />;
       case 'cards':
-        return <ScreenCards data={appData} fire={fire} cards={cards} setCards={setCards} />;
+        return <ScreenCards data={appData} fire={fire} cards={cards} setCards={setCards} token={token} apiUrl={API_URL} />;
       case 'savings':
-        return <ScreenSavings data={appData} fire={fire} goals={goals} setGoals={setGoals} wallets={wallets} setWallets={setWallets} setTransactions={setTransactions} />;
+        return <ScreenSavings data={appData} fire={fire} goals={goals} setGoals={setGoals} wallets={wallets} setWallets={setWallets} setTransactions={setTransactions} token={token} apiUrl={API_URL} />;
       case 'settings':
         return <ScreenSettings data={appData} theme={theme} setTheme={setTheme} onLogout={handleLogout} fire={fire} />;
       default:

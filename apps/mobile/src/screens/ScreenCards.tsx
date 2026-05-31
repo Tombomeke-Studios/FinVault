@@ -12,9 +12,11 @@ interface CardsProps {
   fire: (t: string, b: string, type?: string) => void;
   cards: any[];
   setCards: React.Dispatch<React.SetStateAction<any[]>>;
+  token?: string | null;
+  apiUrl?: string;
 }
 
-export function ScreenCards({ data, fire, cards, setCards }: CardsProps) {
+export function ScreenCards({ data, fire, cards, setCards, token, apiUrl }: CardsProps) {
   const [selCardIdx, setSelCardIdx] = useState(0);
   const [detailsOpen, setDetailsOpen] = useState(false);
   const [limitsOpen, setLimitsOpen] = useState(false);
@@ -27,44 +29,118 @@ export function ScreenCards({ data, fire, cards, setCards }: CardsProps) {
 
   const activeCard = cards[selCardIdx] || cards[0];
 
-  const toggleFreeze = (id: string) => {
-    setCards((prev: any[]) => prev.map((c: any) => {
-      if (c.id === id) {
-        const frozen = !c.frozen;
-        fire(frozen ? 'Card frozen' : 'Card unfrozen', frozen ? 'Payments temporarily locked.' : 'Payments re-enabled.', 'success');
-        return { ...c, frozen };
+  const toggleFreeze = async (id: string) => {
+    if (!token || token === 'mock-token') {
+      setCards((prev: any[]) => prev.map((c: any) => {
+        if (c.id === id) {
+          const frozen = !c.frozen;
+          fire(frozen ? 'Card frozen' : 'Card unfrozen', frozen ? 'Payments temporarily locked.' : 'Payments re-enabled.', 'success');
+          return { ...c, frozen };
+        }
+        return c;
+      }));
+      return;
+    }
+
+    try {
+      const res = await fetch(`${apiUrl}/api/cards/${id}/freeze`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify({ frozen: !activeCard.frozen })
+      });
+      if (res.ok) {
+        const updated = await res.json();
+        setCards(prev => prev.map(c => c.id === id ? updated : c));
+        fire(updated.frozen ? 'Card frozen' : 'Card unfrozen', updated.frozen ? 'Payments temporarily locked.' : 'Payments re-enabled.', 'success');
       }
-      return c;
-    }));
+    } catch (e: any) {
+      fire('Error', 'Failed to toggle card lock: ' + e.message, 'error');
+    }
   };
 
-  const handleOrderCard = () => {
-    const last4 = Math.floor(1000 + Math.random() * 9000).toString();
-    const newCard = {
-      id: 'card-' + Date.now(),
-      name: newCardName,
-      kind: newCardKind,
-      network: newCardKind === 'physical' ? 'Visa' : 'Mastercard',
-      last4,
-      number: `4182 ${Math.floor(1000 + Math.random() * 9000)} ${Math.floor(1000 + Math.random() * 9000)} ${last4}`,
-      cvv: Math.floor(100 + Math.random() * 900).toString(),
-      holder: activeCard?.holder || `${data.user.firstName} ${data.user.lastName}`,
-      exp: '12/30',
-      frozen: false,
-      scheme: newCardScheme,
-      walletId: activeCard?.walletId || data.wallets[0]?.id || 'mock-wallet-eur',
-      monthSpend: 0,
-      limit: 2000,
-    };
-    setCards(prev => [...prev, newCard]);
-    setNewCardOpen(false);
-    setNewCardName('');
-    setSelCardIdx(cards.length); // Switch select to the new card
-    fire('Success', `Your new ${newCardKind} card (${newCardName}) has been created!`, 'success');
+  const handleOrderCard = async () => {
+    if (!token || token === 'mock-token') {
+      const last4 = Math.floor(1000 + Math.random() * 9000).toString();
+      const newCard = {
+        id: 'card-' + Date.now(),
+        name: newCardName,
+        kind: newCardKind,
+        network: newCardKind === 'physical' ? 'Visa' : 'Mastercard',
+        last4,
+        number: `4182 ${Math.floor(1000 + Math.random() * 9000)} ${Math.floor(1000 + Math.random() * 9000)} ${last4}`,
+        cvv: Math.floor(100 + Math.random() * 900).toString(),
+        holder: activeCard?.holder || `${data.user.firstName} ${data.user.lastName}`,
+        exp: '12/30',
+        frozen: false,
+        scheme: newCardScheme,
+        walletId: activeCard?.walletId || data.wallets[0]?.id || 'mock-wallet-eur',
+        monthSpend: 0,
+        limit: 2000,
+      };
+      setCards(prev => [...prev, newCard]);
+      setNewCardOpen(false);
+      setNewCardName('');
+      setSelCardIdx(cards.length); // Switch select to the new card
+      fire('Success', `Your new ${newCardKind} card (${newCardName}) has been created!`, 'success');
+      return;
+    }
+
+    try {
+      const walletId = data.wallets[0]?.id;
+      const res = await fetch(`${apiUrl}/api/cards`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          name: newCardName,
+          kind: newCardKind,
+          scheme: newCardScheme,
+          walletId,
+          limit: 2000,
+          holder: `${data.user.firstName} ${data.user.lastName}`
+        })
+      });
+      if (res.ok) {
+        const created = await res.json();
+        setCards(prev => [...prev, created]);
+        setNewCardOpen(false);
+        setNewCardName('');
+        setSelCardIdx(cards.length);
+        fire('Success', `Your new ${created.kind} card (${created.name}) has been ordered!`, 'success');
+      }
+    } catch (e: any) {
+      fire('Error', 'Failed to order card: ' + e.message, 'error');
+    }
   };
 
-  const handleSaveLimits = (newLimit: number) => {
-    setCards(cs => cs.map((c, i) => i === selCardIdx ? { ...c, limit: newLimit } : c));
+  const handleSaveLimits = async (newLimit: number) => {
+    if (!token || token === 'mock-token') {
+      setCards(cs => cs.map((c, i) => i === selCardIdx ? { ...c, limit: newLimit } : c));
+      return;
+    }
+
+    try {
+      const res = await fetch(`${apiUrl}/api/cards/${activeCard.id}/limit`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify({ limit: newLimit })
+      });
+      if (res.ok) {
+        const updated = await res.json();
+        setCards(prev => prev.map(c => c.id === activeCard.id ? updated : c));
+        fire('Success', `Cap limit updated to ${money(updated.limit)}.`, 'success');
+      }
+    } catch (e: any) {
+      fire('Error', 'Failed to save limits: ' + e.message, 'error');
+    }
   };
 
   if (!activeCard) {

@@ -16,9 +16,11 @@ interface SavingsProps {
   wallets: any[];
   setWallets: React.Dispatch<React.SetStateAction<any[]>>;
   setTransactions: React.Dispatch<React.SetStateAction<any[]>>;
+  token?: string | null;
+  apiUrl?: string;
 }
 
-export function ScreenSavings({ data, fire, goals, setGoals, wallets, setWallets, setTransactions }: SavingsProps) {
+export function ScreenSavings({ data, fire, goals, setGoals, wallets, setWallets, setTransactions, token, apiUrl }: SavingsProps) {
   const [activeGoalId, setActiveGoalId] = useState<string | null>(null);
   const [addAmt, setAddAmt] = useState('');
   const [loading, setLoading] = useState(false);
@@ -32,64 +34,126 @@ export function ScreenSavings({ data, fire, goals, setGoals, wallets, setWallets
 
   const activeGoal = goals.find((g: any) => g.id === activeGoalId);
 
-  const handleAddSavings = () => {
+  const handleAddSavings = async () => {
     const val = parseFloat(addAmt);
     if (!val || val <= 0) { Alert.alert('Error', 'Please enter a valid amount.'); return; }
 
     setLoading(true);
-    setTimeout(() => {
-      // 1. Deduct from checking wallet
-      setWallets(prev => prev.map((w, idx) => idx === 0 ? { ...w, balance: Math.max(0, w.balance - val) } : w));
 
-      // 2. Update goals state
-      setGoals((prev: any[]) => prev.map((g: any) => {
-        if (g.id === activeGoalId) {
-          const saved = Math.min(g.target, g.saved + val);
-          fire('Savings updated', `${money(val)} added to ${g.name}!`, 'success');
-          return { ...g, saved };
-        }
-        return g;
-      }));
+    if (!token || token === 'mock-token') {
+      setTimeout(() => {
+        // 1. Deduct from checking wallet
+        setWallets(prev => prev.map((w, idx) => idx === 0 ? { ...w, balance: Math.max(0, w.balance - val) } : w));
 
-      // 3. Inject transaction record
-      setTransactions((prev: any[]) => [
-        {
-          id: 'tx-' + Date.now(),
-          senderWalletId: wallets[0]?.id || 'mock-wallet-eur',
-          receiverWalletId: null,
-          amount: val,
-          currency: 'EUR',
-          status: 'confirmed',
-          type: 'transfer',
-          description: `Stashed to ${activeGoal?.name || 'Savings'}`,
-          createdAt: new Date().toISOString()
+        // 2. Update goals state
+        setGoals((prev: any[]) => prev.map((g: any) => {
+          if (g.id === activeGoalId) {
+            const saved = Math.min(g.target, g.saved + val);
+            fire('Savings updated', `${money(val)} added to ${g.name}!`, 'success');
+            return { ...g, saved };
+          }
+          return g;
+        }));
+
+        // 3. Inject transaction record
+        setTransactions((prev: any[]) => [
+          {
+            id: 'tx-' + Date.now(),
+            senderWalletId: wallets[0]?.id || 'mock-wallet-eur',
+            receiverWalletId: null,
+            amount: val,
+            currency: 'EUR',
+            status: 'confirmed',
+            type: 'transfer',
+            description: `Stashed to ${activeGoal?.name || 'Savings'}`,
+            createdAt: new Date().toISOString()
+          },
+          ...prev
+        ]);
+
+        setLoading(false);
+        setAddAmt('');
+        setActiveGoalId(null);
+      }, 800);
+      return;
+    }
+
+    try {
+      const res = await fetch(`${apiUrl}/api/goals/${activeGoalId}/fund`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
         },
-        ...prev
-      ]);
-
+        body: JSON.stringify({ amount: val })
+      });
+      if (res.ok) {
+        const { wallet, goal, transaction } = await res.json();
+        setWallets(prev => prev.map(w => w.id === wallet.id ? wallet : w));
+        setGoals(prev => prev.map(g => g.id === goal.id ? goal : g));
+        setTransactions(prev => [transaction, ...prev]);
+        fire('Savings updated', `${money(val)} added to ${goal.name}!`, 'success');
+      } else {
+        const err = await res.json();
+        Alert.alert('Funding failed', err.message || 'Could not stash funds.');
+      }
+    } catch (e: any) {
+      Alert.alert('Error', 'Failed to fund savings goal: ' + e.message);
+    } finally {
       setLoading(false);
       setAddAmt('');
       setActiveGoalId(null);
-    }, 800);
+    }
   };
 
-  const handleCreateGoal = () => {
+  const handleCreateGoal = async () => {
     const tgt = parseFloat(newTarget);
     if (!newName || !tgt) return;
-    const newG = {
-      id: 'g-' + Date.now(),
-      name: newName,
-      target: tgt,
-      saved: 0,
-      hue: newHue,
-      icon: newIcon,
-      due: 'No date',
-    };
-    setGoals(prev => [...prev, newG]);
-    setNewGoalOpen(false);
-    setNewName('');
-    setNewTarget('');
-    fire('Success', `Savings vault "${newName}" created successfully!`, 'success');
+
+    if (!token || token === 'mock-token') {
+      const newG = {
+        id: 'g-' + Date.now(),
+        name: newName,
+        target: tgt,
+        saved: 0,
+        hue: newHue,
+        icon: newIcon,
+        due: 'No date',
+      };
+      setGoals(prev => [...prev, newG]);
+      setNewGoalOpen(false);
+      setNewName('');
+      setNewTarget('');
+      fire('Success', `Savings vault "${newName}" created successfully!`, 'success');
+      return;
+    }
+
+    try {
+      const res = await fetch(`${apiUrl}/api/goals`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          name: newName,
+          target: tgt,
+          hue: newHue,
+          icon: newIcon,
+          due: 'No date'
+        })
+      });
+      if (res.ok) {
+        const goal = await res.json();
+        setGoals(prev => [...prev, goal]);
+        setNewGoalOpen(false);
+        setNewName('');
+        setNewTarget('');
+        fire('Success', `Savings vault "${goal.name}" created successfully!`, 'success');
+      }
+    } catch (e: any) {
+      Alert.alert('Error', 'Failed to create goal: ' + e.message);
+    }
   };
 
   return (
