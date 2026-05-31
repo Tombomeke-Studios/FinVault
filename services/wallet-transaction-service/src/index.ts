@@ -2,7 +2,7 @@ import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import { PrismaClient } from '@prisma/client';
-import { publishEvent, requireAuth, extractTokenFromRequest, computeTransactionHash } from 'shared';
+import { publishEvent, requireAuth, extractTokenFromRequest, computeTransactionHash, consumeRabbitQueue } from 'shared';
 import { validateSEPAXML } from './sepa-validator.js';
 
 const prisma = new PrismaClient();
@@ -1197,6 +1197,78 @@ app.post('/wallets/:walletId/credit-line', requireAuth, async (req, res) => {
   }
 });
 
+async function startRabbitConsumer() {
+  try {
+    const queueName = 'wallet_service_queue';
+    const topics = ['events.account.created', 'events.account.frozen'];
+    
+    await consumeRabbitQueue(queueName, topics, async (envelope) => {
+      console.log(`[Wallet Service RabbitMQ] Processing dynamic queue message: ${envelope.event.type}`);
+      
+      const { type, payload } = envelope.event;
+      
+      if (type === 'account.created') {
+        const { userId } = payload as any;
+        
+        // Prevent duplicate wallet creation
+        const existing = await prisma.wallet.findFirst({ where: { userId } });
+        if (existing) {
+          console.log(`[Wallet Service RabbitMQ] Wallet already exists for user ${userId}, skipping.`);
+          return;
+        }
+
+        // Generate structurally valid unique Belgian-like IBAN
+        const randomDigits = Math.floor(1000000000 + Math.random() * 9000000000);
+        const iban = `BE8937700771${randomDigits}`;
+
+        // Create a default wallet for new user in EUR
+        const wallet = await prisma.wallet.create({
+          data: {
+            userId,
+            iban,
+            currency: 'EUR',
+            balance: 250.00, // €250,00 Welcome Bonus! Premium UX
+            reservedBalance: 0.0,
+            status: 'active'
+          }
+        });
+
+        console.log(`[Wallet Service RabbitMQ] Default wallet created for user ${userId}. IBAN: ${iban}`);
+
+        await prisma.balanceHistory.create({
+          data: {
+            walletId: wallet.id,
+            amount: 250.00,
+            balanceAfter: 250.00,
+            reason: 'Welcome Bonus'
+          }
+        });
+
+        // Publish balance update event
+        await publishWalletEvent({
+          type: 'balance.updated',
+          payload: {
+            walletId: wallet.id,
+            userId,
+            balance: 250.00,
+            currency: 'EUR'
+          }
+        });
+      } else if (type === 'account.frozen') {
+        const { userId } = payload as any;
+        await prisma.wallet.updateMany({
+          where: { userId },
+          data: { status: 'frozen' }
+        });
+        console.log(`[Wallet Service RabbitMQ] Frozen all wallets for user ${userId}`);
+      }
+    });
+  } catch (error: any) {
+    console.error('[Wallet Service RabbitMQ] Failed to start RabbitMQ consumer:', error.message);
+  }
+}
+
 app.listen(PORT, () => {
   console.log(`[Wallet & Transaction Service] running on http://localhost:${PORT}`);
+  startRabbitConsumer();
 });
