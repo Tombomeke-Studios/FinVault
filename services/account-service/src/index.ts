@@ -273,11 +273,41 @@ app.get('/users/profile', authenticateToken, async (req, res) => {
       email: user.email,
       accountType: user.accountType,
       status: user.status,
+      plan: user.plan,
       profile: user.profile,
       createdAt: user.createdAt
     });
   } catch (error: any) {
     res.status(500).json({ error: 'Failed to retrieve profile', message: error.message });
+  }
+});
+
+app.put('/users/plan', authenticateToken, async (req, res) => {
+  const tokenUser = (req as any).user;
+  const { plan } = req.body;
+
+  if (!plan || !['Standard', 'Metal', 'Metal+'].includes(plan)) {
+    return res.status(400).json({ error: 'Invalid plan selected' });
+  }
+
+  try {
+    const user = await prisma.user.update({
+      where: { id: tokenUser.userId },
+      data: { plan },
+      include: { profile: true }
+    });
+
+    res.status(200).json({
+      id: user.id,
+      email: user.email,
+      accountType: user.accountType,
+      status: user.status,
+      plan: user.plan,
+      profile: user.profile,
+      createdAt: user.createdAt
+    });
+  } catch (error: any) {
+    res.status(500).json({ error: 'Failed to update plan', message: error.message });
   }
 });
 
@@ -331,13 +361,14 @@ async function seedAccounts() {
     const adminEmail = 'admin@finvault.com';
     const existingAdmin = await prisma.user.findUnique({ where: { email: adminEmail } });
     if (!existingAdmin) {
-      const passwordHash = await bcrypt.hash('admin-secure-password-2026', 10);
+      const passwordHash = await bcrypt.hash('admin123', 10);
       const user = await prisma.user.create({
         data: {
           email: adminEmail,
           passwordHash,
           accountType: 'business',
           status: 'active',
+          plan: 'Metal',
           profile: {
             create: {
               firstName: 'FinVault',
@@ -365,13 +396,14 @@ async function seedAccounts() {
     const testEmail = 'test@finvault.com';
     const existingTest = await prisma.user.findUnique({ where: { email: testEmail } });
     if (!existingTest) {
-      const passwordHash = await bcrypt.hash('test-secure-password', 10);
+      const passwordHash = await bcrypt.hash('test123', 10);
       const user = await prisma.user.create({
         data: {
           email: testEmail,
           passwordHash,
           accountType: 'personal',
           status: 'active',
+          plan: 'Metal',
           profile: {
             create: {
               firstName: 'Tom',
