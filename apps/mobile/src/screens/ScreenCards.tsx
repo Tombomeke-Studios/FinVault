@@ -73,7 +73,7 @@ export function ScreenCards({ data, fire, cards, setCards, token, apiUrl }: Card
         number: `4182 ${Math.floor(1000 + Math.random() * 9000)} ${Math.floor(1000 + Math.random() * 9000)} ${last4}`,
         cvv: Math.floor(100 + Math.random() * 900).toString(),
         holder: activeCard?.holder || `${data.user.firstName} ${data.user.lastName}`,
-        exp: '12/30',
+        exp: (() => { const d = new Date(); d.setFullYear(d.getFullYear() + 5); return `${String(d.getMonth() + 1).padStart(2, '0')}/${String(d.getFullYear()).slice(2)}`; })(),
         frozen: false,
         scheme: newCardScheme,
         walletId: activeCard?.walletId || data.wallets[0]?.id || 'mock-wallet-eur',
