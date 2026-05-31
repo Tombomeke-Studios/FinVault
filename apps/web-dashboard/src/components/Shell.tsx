@@ -55,18 +55,20 @@ function Notifs({ open, onClose, items }: { open: boolean; onClose: () => void; 
 }
 
 // ---- Upgrade Sheet ----
-const PLANS = [
-  { name: 'Standard', price: '€0',    tag: 'Free forever', feats: ['1 free card', '€200/mo fee-free ATM', 'Instant P2P transfers', 'Basic insights'], cur: false },
-  { name: 'Metal',    price: '€9.99', tag: 'Your plan',    feats: ['3 metal & virtual cards', '€2,000/mo fee-free ATM', 'Priority support', 'Full analytics & budgets'], cur: true },
-  { name: 'Metal+',   price: '€16.99',tag: 'Best value',   feats: ['Unlimited virtual cards', 'Unlimited fee-free ATM', 'Worldwide travel insurance', '3% savings interest', 'Airport lounge access'], cur: false, hot: true },
-];
+function UpgradeSheet({ open, onClose, compact, fire, currentPlan, onUpgrade }: { open: boolean; onClose: () => void; compact: boolean; fire: (t: string, b: string, type?: string) => void; currentPlan?: string; onUpgrade?: (p: string) => void }) {
+  const currentPlanClean = (currentPlan || '').replace('FinVault ', '');
+  const [sel, setSel] = useState(currentPlanClean || 'Metal');
 
-function UpgradeSheet({ open, onClose, compact, fire }: { open: boolean; onClose: () => void; compact: boolean; fire: (t: string, b: string, type?: string) => void }) {
-  const [sel, setSel] = useState('Metal+');
+  const plans = [
+    { name: 'Standard', price: '€0',    tag: 'Free forever', feats: ['1 free card', '€200/mo fee-free ATM', 'Instant P2P transfers', 'Basic insights'], cur: currentPlanClean === 'Standard' },
+    { name: 'Metal',    price: '€9.99', tag: 'Popular plan', feats: ['3 metal & virtual cards', '€2,000/mo fee-free ATM', 'Priority support', 'Full analytics & budgets'], cur: currentPlanClean === 'Metal' },
+    { name: 'Metal+',   price: '€16.99',tag: 'Best value',   feats: ['Unlimited virtual cards', 'Unlimited fee-free ATM', 'Worldwide travel insurance', '3% savings interest', 'Airport lounge access'], cur: currentPlanClean === 'Metal+', hot: true },
+  ];
+
   return (
     <Sheet open={open} onClose={onClose} mobile={compact} title="Choose your plan">
       <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--gap)' }}>
-        {PLANS.map(p => {
+        {plans.map(p => {
           const active = sel === p.name;
           return (
             <div key={p.name} onClick={() => setSel(p.name)} className="card" style={{
@@ -79,7 +81,7 @@ function UpgradeSheet({ open, onClose, compact, fire }: { open: boolean; onClose
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                   <span className="display" style={{ fontWeight: 700, fontSize: '1.05rem' }}>{p.name}</span>
                   {p.hot && <span className="chip chip-accent" style={{ padding: '2px 8px', fontSize: '0.7rem' }}>{p.tag}</span>}
-                  {p.cur && <span className="chip" style={{ padding: '2px 8px', fontSize: '0.7rem' }}>Current</span>}
+                  {p.cur && <span className="chip" style={{ padding: '2px 8px', fontSize: '0.7rem' }}>Current Plan</span>}
                 </div>
                 <div className="num" style={{ fontWeight: 700 }}>{p.price}<span style={{ fontSize: '0.72rem', color: 'var(--text-3)', fontWeight: 500 }}>/mo</span></div>
               </div>
@@ -89,8 +91,15 @@ function UpgradeSheet({ open, onClose, compact, fire }: { open: boolean; onClose
             </div>
           );
         })}
-        <button className="btn btn-primary btn-block" onClick={() => { onClose(); fire(sel === 'Metal' ? 'Already on Metal' : `Welcome to FinVault ${sel}`, sel === 'Metal' ? 'This is your current plan.' : 'Your new perks are live.', sel === 'Metal' ? 'info' : 'success'); }}>
-          {sel === 'Metal' ? 'Keep current plan' : `Switch to ${sel}`}
+        <button className="btn btn-primary btn-block" onClick={() => {
+          onClose();
+          if (onUpgrade && sel !== currentPlanClean) {
+            onUpgrade(sel);
+          } else {
+            fire(sel === currentPlanClean ? 'Already on plan' : `Welcome to FinVault ${sel}`, sel === currentPlanClean ? `You are already subscribed to ${sel}.` : 'Your new perks are live.', 'info');
+          }
+        }}>
+          {sel === currentPlanClean ? 'Keep current plan' : `Switch to ${sel}`}
         </button>
       </div>
     </Sheet>
@@ -112,9 +121,10 @@ export interface ShellProps {
   user: { firstName: string; lastName: string; initials: string; plan: string } | null;
   notifications: NotifItem[];
   embedded?: boolean;
+  onUpgrade?: (plan: string) => void;
 }
 
-export function Shell({ route, setRoute, compact, children, onLogout, fire, toast, upgradeOpen, openUpgrade, closeUpgrade, user, notifications, embedded }: ShellProps) {
+export function Shell({ route, setRoute, compact, children, onLogout, fire, toast, upgradeOpen, openUpgrade, closeUpgrade, user, notifications, embedded, onUpgrade }: ShellProps) {
   const [notif, setNotif] = useState(false);
   const prevRoute = useRef(route);
   const [transDir, setTransDir] = useState<'forward' | 'back'>('forward');
@@ -161,7 +171,7 @@ export function Shell({ route, setRoute, compact, children, onLogout, fire, toas
   const overlays = (
     <>
       <Notifs open={notif} onClose={() => setNotif(false)} items={notifications} />
-      <UpgradeSheet open={upgradeOpen} onClose={closeUpgrade} compact={compact} fire={fire} />
+      <UpgradeSheet open={upgradeOpen} onClose={closeUpgrade} compact={compact} fire={fire} currentPlan={user?.plan} onUpgrade={onUpgrade} />
       <Toast toast={toast} />
     </>
   );
