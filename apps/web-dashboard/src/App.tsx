@@ -116,7 +116,7 @@ export default function App() {
   // Connect WebSockets
   useEffect(() => {
     if (user && token) {
-      connectWebSocket(user.id);
+      connectWebSocket();
     }
     return () => {
       if (wsRef.current) wsRef.current.close();
@@ -138,12 +138,12 @@ export default function App() {
     setTimeout(() => setIsBalanceUpdated(false), 2000);
   };
 
-  const connectWebSocket = (userId: string) => {
+  const connectWebSocket = () => {
     setWsStatus('connecting');
     // For local docker or standard workspace we connect to gateway port
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
     const host = window.location.port === '3000' ? 'localhost:8000' : window.location.host;
-    const wsUrl = `${protocol}//${host}?userId=${userId}`;
+    const wsUrl = `${protocol}//${host}?token=${token}`;
 
     try {
       const ws = new WebSocket(wsUrl);
