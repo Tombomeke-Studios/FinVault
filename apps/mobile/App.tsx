@@ -102,7 +102,7 @@ interface MonthlyBar {
   out: number;
 }
 
-function buildMockData(firstName: string, lastName: string, email: string, wallets: Wallet[], transactions: Transaction[], cards: CardItem[], goals: Goal[]): AppData {
+function buildMockData(firstName: string, lastName: string, email: string, wallets: Wallet[], transactions: Transaction[], cards: CardItem[], goals: Goal[], plan = 'Metal'): AppData {
   const initials = `${firstName[0]}${lastName[0]}`.toUpperCase();
 
   // 1. Calculate active wallets IDs
@@ -192,10 +192,85 @@ function buildMockData(firstName: string, lastName: string, email: string, walle
   // Elevated goals state passed down
 
   return {
-    user: { firstName, lastName, email, initials, plan: 'FinVault Metal', memberSince: '2024' },
+    user: { firstName, lastName, email, initials, plan: `FinVault ${plan}`, memberSince: '2024' },
     wallets, transactions, cards, goals, spendByCat, monthly, balanceTrend,
   };
 }
+
+// ---- Plan upgrade bottom sheet ----
+const PLANS = [
+  { name: 'Standard', price: '€0',     tag: 'Gratis',       feats: ['1 kaart', '€200/mo gratis ATM', 'P2P transfers'] },
+  { name: 'Metal',    price: '€9,99',  tag: 'Populair',     feats: ['3 kaarten', '€2.000/mo gratis ATM', 'Prioriteit support'] },
+  { name: 'Metal+',   price: '€16,99', tag: 'Beste waarde', feats: ['Onbeperkte kaarten', 'Onbeperkt ATM', 'Reisverzekerering', '3% spaarrente'] },
+];
+
+function UpgradePlanSheet({ open, onClose, currentPlan, onUpgrade }: { open: boolean; onClose: () => void; currentPlan: string; onUpgrade: (p: string) => void }) {
+  const [sel, setSel] = React.useState(currentPlan);
+
+  React.useEffect(() => { if (open) setSel(currentPlan); }, [open, currentPlan]);
+
+  return (
+    <MobileSheet open={open} onClose={onClose} title="Kies jouw abonnement">
+      <View style={{ gap: 10 }}>
+        {PLANS.map(p => {
+          const active = sel === p.name;
+          const isCurrent = p.name === currentPlan;
+          return (
+            <TouchableOpacity
+              key={p.name}
+              onPress={() => setSel(p.name)}
+              style={[upgStyles.planCard, active ? upgStyles.planCardActive : null]}
+              activeOpacity={0.8}
+            >
+              <View style={upgStyles.planHeader}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                  <Text style={[upgStyles.planName, active ? upgStyles.planNameActive : null]}>{p.name}</Text>
+                  {isCurrent && <View style={upgStyles.chip}><Text style={upgStyles.chipTxt}>Huidig</Text></View>}
+                </View>
+                <Text style={[upgStyles.planPrice, active ? upgStyles.planNameActive : null]}>{p.price}<Text style={upgStyles.planPer}>/mo</Text></Text>
+              </View>
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 8 }}>
+                {p.feats.map(f => <Text key={f} style={upgStyles.feat}>✓ {f}</Text>)}
+              </View>
+            </TouchableOpacity>
+          );
+        })}
+        <TouchableOpacity
+          style={[upgStyles.confirmBtn, sel === currentPlan ? upgStyles.confirmBtnMuted : null]}
+          onPress={() => sel !== currentPlan ? onUpgrade(sel) : onClose()}
+          activeOpacity={0.85}
+        >
+          <Text style={upgStyles.confirmTxt}>{sel === currentPlan ? 'Huidig abonnement' : `Overstappen naar ${sel}`}</Text>
+        </TouchableOpacity>
+      </View>
+    </MobileSheet>
+  );
+}
+
+const upgStyles = StyleSheet.create({
+  planCard: {
+    backgroundColor: THEME.colors.surface2,
+    borderWidth: 1,
+    borderColor: THEME.colors.line,
+    borderRadius: 14,
+    padding: 14,
+  },
+  planCardActive: {
+    borderColor: THEME.colors.accentLine,
+    backgroundColor: THEME.colors.accentSoft,
+  },
+  planHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  planName: { fontSize: 16, fontWeight: 'bold', color: THEME.colors.text2 },
+  planNameActive: { color: THEME.colors.accent },
+  planPrice: { fontSize: 16, fontWeight: 'bold', color: THEME.colors.text2 },
+  planPer: { fontSize: 11, fontWeight: '400', color: THEME.colors.text3 },
+  feat: { fontSize: 12, color: THEME.colors.text3 },
+  chip: { backgroundColor: THEME.colors.surface, borderWidth: 1, borderColor: THEME.colors.line, borderRadius: 99, paddingHorizontal: 8, paddingVertical: 2 },
+  chipTxt: { fontSize: 11, color: THEME.colors.text3, fontWeight: '600' },
+  confirmBtn: { backgroundColor: THEME.colors.accent, borderRadius: 12, paddingVertical: 14, alignItems: 'center', marginTop: 4 },
+  confirmBtnMuted: { backgroundColor: THEME.colors.surface2, borderWidth: 1, borderColor: THEME.colors.line },
+  confirmTxt: { fontSize: 15, fontWeight: 'bold', color: '#fff' },
+});
 
 export default function App() {
   // --- Auth State ---
@@ -207,6 +282,7 @@ export default function App() {
   const [goals, setGoals] = useState<Goal[]>([]);
   const [authError, setAuthError] = useState('');
   const [authSuccess, setAuthSuccess] = useState('');
+  const [upgradeOpen, setUpgradeOpen] = useState(false);
 
   const initializeGoals = useCallback(() => {
     setGoals([
@@ -398,6 +474,28 @@ export default function App() {
     setGoals([]);
   };
 
+  const handleUpgradePlan = async (newPlan: string) => {
+    if (!token || token === 'mock-token') {
+      setRawUser((prev: any) => prev ? { ...prev, plan: newPlan } : null);
+      fire('Gelukt', `Welkom bij FinVault ${newPlan}!`, 'success');
+      return;
+    }
+    try {
+      const res = await fetch(`${API_URL}/api/users/plan`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ plan: newPlan })
+      });
+      if (res.ok) {
+        const updated = await res.json();
+        setRawUser(updated);
+        fire('Gelukt', `Welkom bij FinVault ${newPlan}!`, 'success');
+      }
+    } catch {
+      fire('Fout', 'Abonnement wijzigen mislukt.', 'warn');
+    }
+  };
+
   const handleTransfer = async (email: string, amount: number, desc: string, walletId: string) => {
     const wallet = wallets.find(w => w.id === walletId) || wallets[0];
     if (!wallet) return;
@@ -498,7 +596,7 @@ export default function App() {
   const firstName = rawUser?.profile?.firstName || rawUser?.firstName || 'Tom';
   const lastName  = rawUser?.profile?.lastName  || rawUser?.lastName  || 'Bomeke';
   const email     = rawUser?.email || 'tom@finvault.com';
-  const appData   = buildMockData(firstName, lastName, email, wallets, transactions, cards, goals);
+  const appData   = buildMockData(firstName, lastName, email, wallets, transactions, cards, goals, rawUser?.plan || 'Metal');
 
   const renderScreen = () => {
     switch (route) {
@@ -513,7 +611,7 @@ export default function App() {
       case 'savings':
         return <ScreenSavings data={appData} fire={fire} goals={goals} setGoals={setGoals} wallets={wallets} setWallets={setWallets} setTransactions={setTransactions} token={token} apiUrl={API_URL} />;
       case 'settings':
-        return <ScreenSettings data={appData} theme={theme} setTheme={setTheme} onLogout={handleLogout} fire={fire} />;
+        return <ScreenSettings data={appData} theme={theme} setTheme={setTheme} onLogout={handleLogout} fire={fire} openUpgrade={() => setUpgradeOpen(true)} />;
       default:
         return <ScreenOverview navigate={setRoute} data={appData} onTopup={() => setDepositOpen(true)} />;
     }
@@ -537,6 +635,14 @@ export default function App() {
           {renderScreen()}
         </Shell>
       )}
+
+      {/* Plan upgrade sheet */}
+      <UpgradePlanSheet
+        open={upgradeOpen}
+        onClose={() => setUpgradeOpen(false)}
+        currentPlan={rawUser?.plan || 'Metal'}
+        onUpgrade={(p) => { setUpgradeOpen(false); handleUpgradePlan(p); }}
+      />
 
       {/* Dynamic topup modal sheet */}
       <MobileSheet open={depositOpen} onClose={() => setDepositOpen(false)} title="Top up Everyday Account">

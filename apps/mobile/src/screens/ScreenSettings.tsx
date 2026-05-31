@@ -11,6 +11,7 @@ interface SettingsProps {
   setTheme: (t: ThemeConfig) => void;
   onLogout: () => void;
   fire: (t: string, b: string, type?: string) => void;
+  openUpgrade?: () => void;
 }
 
 const PRESETS: Record<string, ThemeConfig> = {
@@ -21,7 +22,7 @@ const PRESETS: Record<string, ThemeConfig> = {
   Sand:     { mode: 'light', accent: 'amber',   font: 'editorial', radius: 'round', density: 'comfy',   card: 'elevated' },
 };
 
-export function ScreenSettings({ data, theme, setTheme, onLogout, fire }: SettingsProps) {
+export function ScreenSettings({ data, theme, setTheme, onLogout, fire, openUpgrade }: SettingsProps) {
   const selectPreset = (name: string, p: ThemeConfig) => {
     setTheme(p);
     fire('Theme updated', `Theme preset changed to ${name}!`, 'success');
@@ -44,6 +45,18 @@ export function ScreenSettings({ data, theme, setTheme, onLogout, fire }: Settin
           <Text style={styles.profilePlan}>{data.user.plan} · Since {data.user.memberSince}</Text>
         </View>
       </View>
+
+      {/* Membership Upgrade Card */}
+      <TouchableOpacity style={[styles.card, styles.upgradeCard]} onPress={openUpgrade} activeOpacity={0.85}>
+        <View style={styles.upgradeLeft}>
+          <Icon name="shield" size={20} color={THEME.colors.accent} />
+          <View>
+            <Text style={styles.upgradePlan}>{data.user.plan}</Text>
+            <Text style={styles.upgradeHint}>Tap to view or change your plan</Text>
+          </View>
+        </View>
+        <Icon name="chevRight" size={16} color={THEME.colors.accent} />
+      </TouchableOpacity>
 
       {/* Theme Presets */}
       <View style={[styles.card, styles.sectionCard]}>
@@ -245,5 +258,28 @@ const styles = StyleSheet.create({
     color: THEME.colors.neg,
     fontSize: 15,
     fontWeight: 'bold',
+  },
+  upgradeCard: {
+    padding: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    borderColor: THEME.colors.accentLine,
+    backgroundColor: THEME.colors.accentSoft,
+  },
+  upgradeLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  upgradePlan: {
+    fontSize: 15,
+    fontWeight: 'bold',
+    color: THEME.colors.text,
+  },
+  upgradeHint: {
+    fontSize: 12,
+    color: THEME.colors.text3,
+    marginTop: 2,
   },
 });
