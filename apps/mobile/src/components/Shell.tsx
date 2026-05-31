@@ -15,7 +15,7 @@ const BOTTOM_NAV = [
   { id: 'overview',     label: 'Home',     icon: 'home'       },
   { id: 'transactions', label: 'Activity', icon: 'list'       },
   { id: 'transfer',     label: 'Money',    icon: 'send'       },
-  { id: 'cards',        label: 'Cards',    icon: 'card'       },
+  { id: 'analytics',   label: 'Insights', icon: 'chart'      },
   { id: 'savings',      label: 'Goals',    icon: 'targetRing' },
 ];
 

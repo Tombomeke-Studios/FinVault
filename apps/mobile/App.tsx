@@ -6,6 +6,7 @@ import { ScreenTransactions } from './src/screens/ScreenTransactions';
 import { ScreenTransfer } from './src/screens/ScreenTransfer';
 import { ScreenCards } from './src/screens/ScreenCards';
 import { ScreenSavings } from './src/screens/ScreenSavings';
+import { ScreenAnalytics } from './src/screens/ScreenAnalytics';
 import { ScreenSettings } from './src/screens/ScreenSettings';
 import { Shell } from './src/components/Shell';
 import { money } from './src/components/UI';
@@ -609,6 +610,8 @@ export default function App() {
         return <ScreenTransfer data={appData} onTransfer={handleTransfer} onRequest={handleRequest} />;
       case 'cards':
         return <ScreenCards data={appData} fire={fire} cards={cards} setCards={setCards} token={token} apiUrl={API_URL} />;
+      case 'analytics':
+        return <ScreenAnalytics data={appData} />;
       case 'savings':
         return <ScreenSavings data={appData} fire={fire} goals={goals} setGoals={setGoals} wallets={wallets} setWallets={setWallets} setTransactions={setTransactions} token={token} apiUrl={API_URL} />;
       case 'settings':

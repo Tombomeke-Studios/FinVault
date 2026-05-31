@@ -170,6 +170,28 @@ export function Sparkline({ data, h = 60 }: { data: number[]; h?: number }) {
   );
 }
 
+// ---- Cash Flow Bar Chart ----
+export function Bars({ data, h = 140 }: { data: { m: string; in: number; out: number }[]; h?: number }) {
+  if (!data || data.length === 0) return null;
+  const maxVal = Math.max(...data.flatMap(d => [d.in, d.out]), 1);
+  const barW = 10;
+  const gap = 4;
+  const groupW = barW * 2 + gap + 14;
+  return (
+    <View style={{ height: h + 20, flexDirection: 'row', alignItems: 'flex-end', gap: 2 }}>
+      {data.map((d, i) => (
+        <View key={i} style={{ flex: 1, alignItems: 'center', gap: 4 }}>
+          <View style={{ flexDirection: 'row', alignItems: 'flex-end', gap: 2, height: h }}>
+            <View style={{ width: barW, height: Math.max(4, (d.in / maxVal) * h), backgroundColor: THEME.colors.accent, borderRadius: 3 }} />
+            <View style={{ width: barW, height: Math.max(4, (d.out / maxVal) * h), backgroundColor: THEME.colors.line2 || '#444', borderRadius: 3 }} />
+          </View>
+          <Text style={{ fontSize: 9, color: THEME.colors.text3, fontWeight: 'bold' }}>{d.m}</Text>
+        </View>
+      ))}
+    </View>
+  );
+}
+
 // ---- Avatar ----
 export function Avatar({ initials, size = 38 }: { initials: string; size?: number }) {
   return (
