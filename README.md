@@ -77,11 +77,11 @@ Er zijn bij de startup van de `account-service` automatisch twee accounts gegene
 
 #### 💼 Business / Administrator Account
 - **E-mailadres:** `admin@finvault.com`
-- **Wachtwoord:** `admin-secure-password-2026`
+- **Wachtwoord:** `admin123`
 
 #### 👤 Personal / Consumer Account
 - **E-mailadres:** `test@finvault.com`
-- **Wachtwoord:** `test-secure-password`
+- **Wachtwoord:** `test123`
 
 > [!TIP]
 > Log in met een van deze accounts in het Web Dashboard of de Mobiele App om direct toegang te krijgen tot een volledig functioneel account met een automatisch gegenereerd IBAN-nummer, startkrediet en real-time synchroniserende bankpassen en spaardoelen.

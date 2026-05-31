@@ -164,7 +164,7 @@ function applyTheme(t: ThemeConfig) {
 // ============================================================
 // Mock data generators
 // ============================================================
-function buildMockData(firstName: string, lastName: string, email: string, wallets: Wallet[], transactions: Transaction[], cards: CardItem[], goals: Goal[]): AppData {
+function buildMockData(firstName: string, lastName: string, email: string, wallets: Wallet[], transactions: Transaction[], cards: CardItem[], goals: Goal[], plan: string): AppData {
   const initials = `${firstName[0]}${lastName[0]}`.toUpperCase();
 
   // 1. Calculate active wallets IDs
@@ -254,7 +254,7 @@ function buildMockData(firstName: string, lastName: string, email: string, walle
 
 
   return {
-    user: { firstName, lastName, email, initials, plan: 'FinVault Metal', memberSince: '2024' },
+    user: { firstName, lastName, email, initials, plan: plan.startsWith('FinVault') ? plan : `FinVault ${plan}`, memberSince: '2024' },
     wallets, transactions, cards, goals, spendByCat, monthly, balanceTrend,
   };
 }
@@ -555,11 +555,37 @@ export default function App() {
     }
   };
 
+  const handleUpgradePlan = async (newPlan: string) => {
+    if (!token || token === 'mock-token') {
+      setRawUser((prev: any) => prev ? { ...prev, plan: newPlan } : null);
+      fire('Success', `Welcome to FinVault ${newPlan}! Your new perks are live.`, 'success');
+      return;
+    }
+
+    try {
+      const res = await fetch('/api/users/plan', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify({ plan: newPlan })
+      });
+      if (res.ok) {
+        const updatedUser = await res.json();
+        setRawUser(updatedUser);
+        fire('Success', `Welcome to FinVault ${newPlan}! Your new perks are live.`, 'success');
+      }
+    } catch (e: any) {
+      fire('Error', 'Failed to upgrade plan: ' + e.message, 'error');
+    }
+  };
+
   // Build derived data
   const firstName = rawUser?.profile?.firstName || rawUser?.firstName || 'Tom';
   const lastName  = rawUser?.profile?.lastName  || rawUser?.lastName  || 'Bomeke';
   const email     = rawUser?.email || 'tom@finvault.com';
-  const appData   = buildMockData(firstName, lastName, email, wallets, transactions, cards, goals);
+  const appData   = buildMockData(firstName, lastName, email, wallets, transactions, cards, goals, rawUser?.plan || 'Metal');
 
 
 
@@ -644,9 +670,10 @@ export default function App() {
       upgradeOpen={upgradeOpen}
       openUpgrade={() => setUpgradeOpen(true)}
       closeUpgrade={() => setUpgradeOpen(false)}
-      user={{ firstName, lastName, initials: `${firstName[0]}${lastName[0]}`.toUpperCase(), plan: 'FinVault Metal' }}
+      user={{ firstName, lastName, initials: `${firstName[0]}${lastName[0]}`.toUpperCase(), plan: `FinVault ${rawUser?.plan || 'Metal'}` }}
       notifications={notifications as any}
       embedded={isMobileMode}
+      onUpgrade={handleUpgradePlan}
     >
       {renderScreen()}
     </Shell>
