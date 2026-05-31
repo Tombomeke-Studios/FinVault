@@ -181,12 +181,13 @@ function buildMockData(firstName: string, lastName: string, email: string, walle
     .sort((a, b) => a[1].sortKey - b[1].sortKey)
     .map(([m, val]) => ({ m, in: Math.round(val.in), out: Math.round(val.out) }));
 
-  // 4. Balance Trend
-  let runningBalance = wallets.reduce((sum, w) => sum + w.balance, 0);
-  const balanceTrend: number[] = [];
-  for (let i = 0; i < 12; i++) {
-    balanceTrend.unshift(Math.max(100, Math.round(runningBalance)));
-    runningBalance -= (Math.random() - 0.45) * 300;
+  // 4. Balance Trend — deterministic, reconstructed from monthly cashflow
+  const currentBalance = wallets.reduce((sum, w) => sum + w.balance, 0);
+  const balanceTrend: number[] = [Math.max(0, Math.round(currentBalance))];
+  let runBal = currentBalance;
+  for (let i = monthly.length - 1; i >= 0; i--) {
+    runBal -= monthly[i].in - monthly[i].out;
+    balanceTrend.unshift(Math.max(0, Math.round(runBal)));
   }
 
   // Elevated goals state passed down
@@ -422,11 +423,11 @@ export default function App() {
       });
       if (res.ok) {
         const data = await res.json();
-        setToken(data.token);
+        setToken(data.accessToken);
         setAuthSuccess('Welcome back!');
       } else {
         const errorData = await res.json();
-        setAuthError(errorData.message || 'Invalid credentials.');
+        setAuthError(errorData.error || errorData.message || 'Invalid credentials.');
       }
     } catch {
       // Offline fallback

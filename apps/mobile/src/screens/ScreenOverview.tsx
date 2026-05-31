@@ -14,13 +14,21 @@ interface OverviewProps {
 
 export function ScreenOverview({ navigate, data, onTopup }: OverviewProps) {
   const [selWallet, setSelWallet] = useState(0);
-  const { wallets, transactions, cards, goals, spendByCat, balanceTrend } = data;
+  const { wallets, transactions, cards, goals, spendByCat, balanceTrend, monthly } = data;
 
   const totalEUR = wallets.filter((w: any) => w.currency === 'EUR').reduce((s: number, w: any) => s + w.balance, 0);
   const recent = transactions.slice(0, 5);
   const card = cards[0];
   const goalsPreview = goals.slice(0, 2);
   const topCats = [...spendByCat].sort((a, b) => b.amount - a.amount).slice(0, 4);
+
+  // Live money in/out for current month
+  const currentMonthFlow = monthly[monthly.length - 1] || { in: 0, out: 0 };
+
+  // Balance delta vs previous data point
+  const prevBal = balanceTrend.length >= 2 ? balanceTrend[balanceTrend.length - 2] : balanceTrend[0] ?? 0;
+  const currBal = balanceTrend[balanceTrend.length - 1] ?? totalEUR;
+  const deltaBalance = prevBal > 0 ? parseFloat(((currBal - prevBal) / prevBal * 100).toFixed(1)) : 0;
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
@@ -34,7 +42,7 @@ export function ScreenOverview({ navigate, data, onTopup }: OverviewProps) {
         </View>
         <View style={styles.planBadge}>
           <Icon name="sparkle" size={11} color={THEME.colors.accent} />
-          <Text style={styles.planText}>Metal</Text>
+          <Text style={styles.planText}>{data.user.plan.replace('FinVault ', '')}</Text>
         </View>
       </View>
 
@@ -45,7 +53,7 @@ export function ScreenOverview({ navigate, data, onTopup }: OverviewProps) {
             <Text style={styles.heroEyebrow}>Total balance · EUR</Text>
             <Text style={styles.balanceText}>{money(totalEUR)}</Text>
           </View>
-          <Delta value={6.4} />
+          <Delta value={deltaBalance} />
         </View>
 
         {/* Sparkline chart */}
@@ -61,7 +69,7 @@ export function ScreenOverview({ navigate, data, onTopup }: OverviewProps) {
             </View>
             <View>
               <Text style={styles.flowLabel}>Money in</Text>
-              <Text style={styles.flowValue}>{money(3234.95, 'EUR', { signed: true })}</Text>
+              <Text style={styles.flowValue}>{money(currentMonthFlow.in, 'EUR', { signed: true })}</Text>
             </View>
           </View>
 
@@ -71,7 +79,7 @@ export function ScreenOverview({ navigate, data, onTopup }: OverviewProps) {
             </View>
             <View>
               <Text style={styles.flowLabel}>Money out</Text>
-              <Text style={styles.flowValue}>{money(-1879.40, 'EUR', { signed: true })}</Text>
+              <Text style={styles.flowValue}>{money(-currentMonthFlow.out, 'EUR', { signed: true })}</Text>
             </View>
           </View>
         </View>
