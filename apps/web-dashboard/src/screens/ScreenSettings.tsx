@@ -69,7 +69,7 @@ interface SettingsProps {
 }
 
 export function ScreenSettings({ compact, theme, setTheme, fire, openUpgrade, onLogout, data }: SettingsProps) {
-  const [sec, setSec] = useState({ twoFA: true, bio: true, push: true, email: false, marketing: false });
+  const [sec, setSec] = useState({ twoFA: true, push: true, email: false, marketing: false });
   const tg = (k: keyof typeof sec) => setSec(s => ({ ...s, [k]: !s[k] }));
 
   const applyPreset = (name: string) => setTheme(PRESETS[name] as any);
@@ -134,10 +134,7 @@ export function ScreenSettings({ compact, theme, setTheme, fire, openUpgrade, on
 
       {/* Security */}
       <SCard title="Security">
-        <SettingRow icon="shield" label="Two-factor authentication" desc="Extra layer for sign-in & payments" right={<Toggle on={sec.twoFA} onChange={() => tg('twoFA')} />} />
-        <SettingRow icon="lock" label="Biometric login" desc="Face ID / fingerprint" right={<Toggle on={sec.bio} onChange={() => tg('bio')} />} />
-        <SettingRow icon="repeat" label="Change password" onClick={() => fire('Change password', "We'd email you a secure link.", 'info')} right={<Icon name="chevRight" size={18} style={{ color: 'var(--text-3)' }} />} />
-        <SettingRow icon="card" label="Trusted devices" desc="2 devices" onClick={() => fire('Trusted devices', 'iPhone 15 Pro · MacBook Air', 'info')} right={<Icon name="chevRight" size={18} style={{ color: 'var(--text-3)' }} />} last />
+        <SettingRow icon="shield" label="Two-factor authentication" desc="Extra layer for sign-in & payments" right={<Toggle on={sec.twoFA} onChange={() => tg('twoFA')} />} last />
       </SCard>
 
       {/* Notifications */}
@@ -149,14 +146,22 @@ export function ScreenSettings({ compact, theme, setTheme, fire, openUpgrade, on
 
       {/* Plan */}
       <SCard title="Plan & billing">
-        <div style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '6px 4px' }}>
-          <span style={{ width: 44, height: 44, borderRadius: 'var(--r)', background: 'var(--accent-soft)', color: 'var(--accent)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Icon name="sparkle" size={20} /></span>
-          <div style={{ flex: 1 }}>
-            <div style={{ fontWeight: 700 }}>{data.user.plan}</div>
-            <div style={{ color: 'var(--text-3)', fontSize: '0.82rem' }}>€9.99 / month · renews 1 Jun</div>
-          </div>
-          <button className="btn btn-primary" onClick={openUpgrade}>Upgrade</button>
-        </div>
+        {(() => {
+          const planKey = (data.user.plan || '').replace('FinVault ', '');
+          const PRICES: Record<string, string> = { 'Standard': 'Free forever', 'Metal': '€9.99 / month', 'Metal+': '€16.99 / month' };
+          const planDesc = PRICES[planKey] ?? '€9.99 / month';
+          const isUpgradeable = planKey !== 'Metal+';
+          return (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '6px 4px' }}>
+              <span style={{ width: 44, height: 44, borderRadius: 'var(--r)', background: 'var(--accent-soft)', color: 'var(--accent)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Icon name="sparkle" size={20} /></span>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontWeight: 700 }}>{data.user.plan}</div>
+                <div style={{ color: 'var(--text-3)', fontSize: '0.82rem' }}>{planDesc}</div>
+              </div>
+              <button className="btn btn-primary" onClick={openUpgrade}>{isUpgradeable ? 'Upgrade' : 'Manage plan'}</button>
+            </div>
+          );
+        })()}
       </SCard>
 
       <button onClick={onLogout} className="btn btn-ghost btn-block" style={{ color: 'var(--neg)', borderColor: 'var(--line)' }}><Icon name="logout" size={18} /> Sign out</button>
