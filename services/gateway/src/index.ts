@@ -19,12 +19,12 @@ app.use(helmet());
 app.use(cors());
 app.use(express.json());
 
-// Global Gateway Rate Limiter (Max 100 requests per minute per IP)
+// Global Gateway Rate Limiter (Max 500 requests per minute per IP for local/Docker testing compatibility)
 const apiAttempts = new Map<string, { count: number; resetAt: number }>();
 app.use((req, res, next) => {
   const ip = req.ip || '127.0.0.1';
   const now = Date.now();
-  const limit = 100;
+  const limit = 500;
   const windowMs = 60 * 1000;
 
   const record = apiAttempts.get(ip);
@@ -42,8 +42,12 @@ app.use((req, res, next) => {
 });
 
 // Proxy helper function
-const proxyTo = (targetUrl: string) => async (req: express.Request, res: express.Response) => {
-  const url = `${targetUrl}${req.originalUrl.replace('/api', '')}`;
+const proxyTo = (targetUrl: string, stripPrefix?: string) => async (req: express.Request, res: express.Response) => {
+  let path = req.originalUrl.replace('/api', '');
+  if (stripPrefix) {
+    path = path.replace(stripPrefix, '');
+  }
+  const url = `${targetUrl}${path}`;
   try {
     const response = await fetch(url, {
       method: req.method,
@@ -67,7 +71,7 @@ app.use('/api/auth', proxyTo(ACCOUNT_SERVICE_URL));
 app.use('/api/users', proxyTo(ACCOUNT_SERVICE_URL));
 app.use('/api/wallets', proxyTo(WALLET_SERVICE_URL));
 app.use('/api/transactions', proxyTo(WALLET_SERVICE_URL));
-app.use('/api/invoices', proxyTo(INVOICE_SERVICE_URL));
+app.use('/api/invoices', proxyTo(INVOICE_SERVICE_URL, '/invoices'));
 
 // Simple Webhook Registration for Microservices
 interface WebhookSubscription {
