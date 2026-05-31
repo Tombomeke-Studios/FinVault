@@ -50,6 +50,7 @@ services:
       - PORT=8002
       - GATEWAY_URL=http://gateway:8000
       - ACCOUNT_SERVICE_URL=http://account-service:8001
+      - INVOICE_SERVICE_URL=http://invoice-service:8003
     depends_on:
       - gateway
       - account-service

@@ -31,11 +31,14 @@ export async function publishEvent(
     event
   };
 
+  const serviceSecret = process.env.SERVICE_SECRET || 'finvault-internal-service-secret';
+
   try {
     const res = await fetch(`${gatewayUrl}/api/events/publish`, {
       method: 'POST',
       headers: {
-        'Content-Type': 'application/json'
+        'Content-Type': 'application/json',
+        'X-Service-Secret': serviceSecret
       },
       body: JSON.stringify(envelope)
     });
