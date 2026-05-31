@@ -4,7 +4,7 @@ import helmet from 'helmet';
 import { createServer } from 'http';
 import { WebSocketServer, WebSocket } from 'ws';
 import dotenv from 'dotenv';
-import { EventEnvelope, verifyToken } from 'shared';
+import { EventEnvelope, verifyToken, publishRabbitEvent } from 'shared';
 
 dotenv.config();
 
@@ -114,6 +114,11 @@ app.post('/api/events/publish', async (req, res) => {
 
   // 2. Broadcast to connected WebSocket clients (dashboard)
   broadcastToWebSockets(envelope);
+
+  // 3. Publish to RabbitMQ Topic Exchange with DLQ
+  publishRabbitEvent('events.' + envelope.event.type, envelope).catch(err => {
+    console.error(`[Event Hub RabbitMQ] Failed to publish event:`, err.message);
+  });
 
   res.status(200).json({ status: 'published', eventId: envelope.eventId });
 });
