@@ -36,6 +36,7 @@ services:
     environment:
       - PORT=8001
       - GATEWAY_URL=http://gateway:8000
+      - FINVAULT_MESSAGE_KEY=${FINVAULT_MESSAGE_KEY}
     depends_on:
       - gateway
 
@@ -51,6 +52,7 @@ services:
       - GATEWAY_URL=http://gateway:8000
       - ACCOUNT_SERVICE_URL=http://account-service:8001
       - INVOICE_SERVICE_URL=http://invoice-service:8003
+      - FINVAULT_MESSAGE_KEY=${FINVAULT_MESSAGE_KEY}
     depends_on:
       - gateway
       - account-service
@@ -67,6 +69,7 @@ services:
       - GATEWAY_URL=http://gateway:8000
       - WALLET_SERVICE_URL=http://wallet-transaction-service:8002
       - ACCOUNT_SERVICE_URL=http://account-service:8001
+      - FINVAULT_MESSAGE_KEY=${FINVAULT_MESSAGE_KEY}
     depends_on:
       - gateway
       - wallet-transaction-service
