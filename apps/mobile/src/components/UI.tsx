@@ -220,11 +220,11 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
   },
   avatar: {
-    backgroundColor: '#8b5cf6', // Indigo background for users
+    backgroundColor: 'rgba(139, 92, 246, 0.9)',
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 1.5,
-    borderColor: THEME.colors.line2,
+    borderColor: 'rgba(139, 92, 246, 0.35)',
   },
   avatarText: {
     color: '#fff',
