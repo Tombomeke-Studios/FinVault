@@ -1,7 +1,8 @@
 import * as amqp from 'amqplib';
 import { EventEnvelope } from './events.js';
 
-const RABBITMQ_URL = process.env.RABBITMQ_URL || 'amqp://guest:guest@rabbitmq:5672';
+const RABBITMQ_URL = process.env.RABBITMQ_URL;
+const RABBITMQ_URL_WITH_DEFAULT = RABBITMQ_URL || 'amqp://guest:guest@rabbitmq:5672';
 
 let connection: any = null;
 let channel: any = null;
@@ -11,12 +12,18 @@ export async function connectRabbitMQ(retryCount = 8, delayMs = 3000): Promise<{
     return { connection, channel };
   }
 
+  // Skip retry loop in local dev when RABBITMQ_URL is not explicitly configured
+  if (!RABBITMQ_URL) {
+    console.warn('[RabbitMQ] RABBITMQ_URL not set — skipping connection (async events disabled). Set RABBITMQ_URL to enable.');
+    throw new Error('RABBITMQ_URL not configured');
+  }
+
   for (let i = 1; i <= retryCount; i++) {
     try {
-      console.log(`[RabbitMQ] Connecting to ${RABBITMQ_URL} (Attempt ${i}/${retryCount})...`);
-      const conn = await amqp.connect(RABBITMQ_URL);
+      console.log(`[RabbitMQ] Connecting to ${RABBITMQ_URL_WITH_DEFAULT} (Attempt ${i}/${retryCount})...`);
+      const conn = await amqp.connect(RABBITMQ_URL_WITH_DEFAULT);
       const ch = await conn.createChannel();
-      
+
       // Setup Dead Letter Exchange and Queue
       const dlx = 'finvault.events.dlx';
       const dlq = 'finvault.events.dlq';
