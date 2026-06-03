@@ -308,7 +308,7 @@ const styles = StyleSheet.create({
   content: {
     padding: 16,
     gap: 16,
-    paddingBottom: 32,
+    paddingBottom: 88,
   },
   headerRow: {
     flexDirection: 'row',

@@ -191,7 +191,7 @@ export function ScreenAnalytics({ data }: AnalyticsProps) {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: THEME.colors.bg },
-  content: { padding: 16, gap: 16, paddingBottom: 40 },
+  content: { padding: 16, gap: 16, paddingBottom: 88 },
   header: { paddingBottom: 4 },
   title: { fontSize: 24, fontWeight: 'bold', color: THEME.colors.text },
   subtitle: { fontSize: 13, color: THEME.colors.text3, marginTop: 2 },

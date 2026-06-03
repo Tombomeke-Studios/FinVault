@@ -223,7 +223,7 @@ const styles = StyleSheet.create({
   list: {
     paddingHorizontal: 16,
     gap: 8,
-    paddingBottom: 32,
+    paddingBottom: 88,
   },
   txCard: {
     flexDirection: 'row',
