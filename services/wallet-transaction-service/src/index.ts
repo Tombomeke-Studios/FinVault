@@ -7,7 +7,7 @@ dotenv.config({ path: path.resolve(__dirname, '../../../.env') });
 import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient } from '../generated/prisma/index.js';
 import { publishEvent, requireAuth, extractTokenFromRequest, computeTransactionHash, consumeRabbitQueue } from 'shared';
 import { validateSEPAXML } from './sepa-validator.js';
 
