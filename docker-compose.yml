@@ -23,6 +23,7 @@ services:
       - ACCOUNT_SERVICE_URL=http://account-service:8001
       - WALLET_SERVICE_URL=http://wallet-transaction-service:8002
       - INVOICE_SERVICE_URL=http://invoice-service:8003
+      - RABBITMQ_URL=amqp://guest:guest@rabbitmq:5672
     depends_on:
       - rabbitmq
 
@@ -53,6 +54,7 @@ services:
       - ACCOUNT_SERVICE_URL=http://account-service:8001
       - INVOICE_SERVICE_URL=http://invoice-service:8003
       - FINVAULT_MESSAGE_KEY=${FINVAULT_MESSAGE_KEY}
+      - RABBITMQ_URL=amqp://guest:guest@rabbitmq:5672
     depends_on:
       - gateway
       - account-service
