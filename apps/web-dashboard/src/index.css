@@ -101,7 +101,7 @@ html, body {
 }
 
 body {
-  min-height: 100vh;
+  min-height: 100dvh;
   background:
     radial-gradient(120% 80% at 100% 0%, var(--accent-soft) 0%, transparent 42%),
     linear-gradient(180deg, var(--bg) 0%, var(--bg-grad) 100%);
@@ -150,6 +150,9 @@ body {
   -webkit-tap-highlight-color: transparent;
 }
 .btn:active { transform: translateY(1px) scale(0.99); }
+.btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.field:focus-visible { outline: none; }
+a:focus-visible, button:focus-visible, [tabindex]:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: var(--r-sm); }
 .btn-primary { background: var(--accent); color: var(--on-accent); box-shadow: 0 6px 18px -8px var(--accent-line); }
 .btn-primary:hover { background: var(--accent-hi); box-shadow: 0 10px 26px -10px var(--accent-line); }
 .btn-ghost { background: var(--surface-2); color: var(--text); border-color: var(--line); }

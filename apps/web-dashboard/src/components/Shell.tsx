@@ -144,13 +144,13 @@ export function Shell({ route, setRoute, compact, children, onLogout, fire, toas
       {!compact && (
         <div style={{ position: 'relative', flex: '0 1 380px' }}>
           <Icon name="search" size={18} style={{ position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-3)' }} />
-          <input className="field" placeholder="Search anything…" style={{ paddingLeft: 42, background: 'var(--surface)' }} />
+          <input className="field" placeholder="Search anything…" aria-label="Search transactions, accounts and contacts" style={{ paddingLeft: 42, background: 'var(--surface)' }} />
         </div>
       )}
       <div style={{ flex: 1 }} />
-      <button className="btn btn-ghost" style={{ padding: 11, borderRadius: 'var(--r-pill)', position: 'relative' }} onClick={() => setNotif(true)} aria-label="Notifications">
+      <button className="btn btn-ghost" style={{ padding: 11, borderRadius: 'var(--r-pill)', position: 'relative' }} onClick={() => setNotif(true)} aria-label={unread ? 'Notifications — unread alerts' : 'Notifications'}>
         <Icon name="bell" size={19} />
-        {unread && <span style={{ position: 'absolute', top: 8, right: 9, width: 8, height: 8, borderRadius: '50%', background: 'var(--accent)', border: '2px solid var(--surface-2)' }} />}
+        {unread && <span aria-hidden="true" style={{ position: 'absolute', top: 8, right: 9, width: 8, height: 8, borderRadius: '50%', background: 'var(--accent)', border: '2px solid var(--surface-2)' }} />}
       </button>
       {!compact ? (
         <button onClick={() => setRoute('settings')} className="btn btn-ghost" style={{ padding: '7px 7px 7px 12px', borderRadius: 'var(--r-pill)', gap: 10, borderColor: route === 'settings' ? 'var(--accent-line)' : 'var(--line)' }}>
@@ -188,7 +188,7 @@ export function Shell({ route, setRoute, compact, children, onLogout, fire, toas
             const n = NAV.find(x => x.id === id)!;
             const active = route === id;
             if (id === 'transfer') return (
-              <button key={id} onClick={() => setRoute(id)} style={{ border: 'none', cursor: 'pointer', width: 54, height: 54, borderRadius: 'var(--r-pill)', background: 'var(--accent)', color: 'var(--on-accent)', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 8px 20px -6px var(--accent-line)', transform: 'translateY(-10px)' }} aria-label="Send">
+              <button key={id} onClick={() => setRoute(id)} style={{ border: 'none', cursor: 'pointer', width: 54, height: 54, borderRadius: 'var(--r-pill)', background: 'var(--accent)', color: 'var(--on-accent)', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 8px 20px -6px var(--accent-line)', transform: 'translateY(-10px)' }} aria-label="Send money">
                 <Icon name="send" size={24} />
               </button>
             );
@@ -209,7 +209,7 @@ export function Shell({ route, setRoute, compact, children, onLogout, fire, toas
   const navBtn = (id: string, label: string, icon: string) => {
     const active = route === id;
     return (
-      <button key={id} onClick={() => setRoute(id)} style={{
+      <button key={id} onClick={() => setRoute(id)} role="menuitem" aria-current={active ? 'page' : undefined} style={{
         display: 'flex', alignItems: 'center', gap: 13, padding: '11px 14px', borderRadius: 'var(--r)', cursor: 'pointer', border: 'none', textAlign: 'left',
         fontFamily: 'var(--font-body)', fontSize: '0.95rem', fontWeight: 600,
         background: active ? 'var(--accent-soft)' : 'transparent', color: active ? 'var(--accent)' : 'var(--text-2)', transition: 'all .16s ease', width: '100%',
@@ -225,7 +225,9 @@ export function Shell({ route, setRoute, compact, children, onLogout, fire, toas
     <div style={{ display: 'grid', gridTemplateColumns: '244px 1fr', minHeight: '100%', position: 'relative' }}>
       <aside style={{ borderRight: '1px solid var(--line)', padding: '24px 16px', display: 'flex', flexDirection: 'column', gap: 6, position: 'sticky', top: 0, height: '100vh', background: 'var(--bg)', overflowY: 'auto' }}>
         <div style={{ padding: '4px 10px 22px' }}><FVLogo size={28} /></div>
-        {NAV.map(n => navBtn(n.id, n.label, n.icon))}
+        <nav role="menu" aria-label="Main navigation" style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+          {NAV.map(n => navBtn(n.id, n.label, n.icon))}
+        </nav>
         <div style={{ marginTop: 'auto', display: 'flex', flexDirection: 'column', gap: 6 }}>
           <div className="card" style={{ padding: 'var(--pad)', background: 'var(--surface-2)', display: 'flex', flexDirection: 'column', gap: 8 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontWeight: 700, fontSize: '0.86rem' }}><Icon name="sparkle" size={16} style={{ color: 'var(--accent)' }} /> Go Metal+</div>
