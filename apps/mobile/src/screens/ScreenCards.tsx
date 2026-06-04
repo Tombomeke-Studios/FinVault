@@ -14,9 +14,10 @@ interface CardsProps {
   setCards: React.Dispatch<React.SetStateAction<any[]>>;
   token?: string | null;
   apiUrl?: string;
+  navigate?: (r: string) => void;
 }
 
-export function ScreenCards({ data, fire, cards, setCards, token, apiUrl }: CardsProps) {
+export function ScreenCards({ data, fire, cards, setCards, token, apiUrl, navigate }: CardsProps) {
   const [selCardIdx, setSelCardIdx] = useState(0);
   const [detailsOpen, setDetailsOpen] = useState(false);
   const [limitsOpen, setLimitsOpen] = useState(false);
@@ -239,6 +240,24 @@ export function ScreenCards({ data, fire, cards, setCards, token, apiUrl }: Card
             </View>
             <Icon name="chevRight" size={18} color={THEME.colors.text3} />
           </TouchableOpacity>
+
+          {activeCard.walletId && navigate && (
+            <TouchableOpacity
+              style={[styles.controlRow, { borderTopWidth: 1, borderTopColor: THEME.colors.line, borderBottomWidth: 0 }]}
+              onPress={() => navigate(`account:${activeCard.walletId}`)}
+            >
+              <View style={styles.controlLabelCol}>
+                <View style={[styles.controlCircle, { backgroundColor: 'rgba(52,211,153,0.14)' }]}>
+                  <Icon name="card" size={16} color={THEME.colors.accent} />
+                </View>
+                <View>
+                  <Text style={styles.controlTitle}>View Linked Account</Text>
+                  <Text style={styles.controlDesc}>Balance, activity & add money</Text>
+                </View>
+              </View>
+              <Icon name="chevRight" size={18} color={THEME.colors.text3} />
+            </TouchableOpacity>
+          )}
         </View>
       </ScrollView>
 

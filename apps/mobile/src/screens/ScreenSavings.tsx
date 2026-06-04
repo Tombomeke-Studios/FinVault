@@ -50,23 +50,82 @@ export function ScreenSavings({ data, fire, goals, setGoals, wallets, setWallets
     setEditHue(g.hue);
   };
 
-  const handleEditGoal = () => {
+  const handleEditGoal = async () => {
     const tgt = parseFloat(editTarget);
     if (!editGoalId || !editName || !tgt) return;
-    setGoals((prev: any[]) => prev.map((g: any) => g.id === editGoalId ? {
-      ...g, name: editName, target: tgt, icon: editIcon, hue: editHue,
-      due: editDue || 'No date',
-    } : g));
-    fire('Goal updated', `"${editName}" has been saved.`, 'success');
-    setEditGoalId(null);
+
+    if (!token || token === 'mock-token') {
+      setGoals((prev: any[]) => prev.map((g: any) => g.id === editGoalId ? {
+        ...g, name: editName, target: tgt, icon: editIcon, hue: editHue,
+        due: editDue || 'No date',
+      } : g));
+      fire('Goal updated', `"${editName}" has been saved.`, 'success');
+      setEditGoalId(null);
+      return;
+    }
+
+    try {
+      const res = await fetch(`${apiUrl}/api/goals/${editGoalId}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          name: editName,
+          target: tgt,
+          hue: editHue,
+          icon: editIcon,
+          due: editDue || 'No date'
+        })
+      });
+      if (res.ok) {
+        const updated = await res.json();
+        setGoals((prev: any[]) => prev.map((g: any) => g.id === editGoalId ? updated : g));
+        fire('Goal updated', `"${editName}" has been saved.`, 'success');
+        setEditGoalId(null);
+      } else {
+        const err = await res.json();
+        Alert.alert('Error', err.error || 'Failed to update goal');
+      }
+    } catch (e: any) {
+      Alert.alert('Error', 'Failed to update goal: ' + e.message);
+    }
   };
 
   const handleDeleteGoal = (g: any) => {
     Alert.alert('Delete goal', `Remove "${g.name}"? This cannot be undone.`, [
       { text: 'Cancel', style: 'cancel' },
-      { text: 'Delete', style: 'destructive', onPress: () => {
-        setGoals((prev: any[]) => prev.filter((x: any) => x.id !== g.id));
-        fire('Goal removed', `"${g.name}" has been deleted.`, 'info');
+      { text: 'Delete', style: 'destructive', onPress: async () => {
+        if (!token || token === 'mock-token') {
+          setGoals((prev: any[]) => prev.filter((x: any) => x.id !== g.id));
+          fire('Goal removed', `"${g.name}" has been deleted.`, 'info');
+          return;
+        }
+
+        try {
+          const res = await fetch(`${apiUrl}/api/goals/${g.id}`, {
+            method: 'DELETE',
+            headers: {
+              Authorization: `Bearer ${token}`
+            }
+          });
+          if (res.ok) {
+            setGoals((prev: any[]) => prev.filter((x: any) => x.id !== g.id));
+            const walletsRes = await fetch(`${apiUrl}/api/wallets`, {
+              headers: { Authorization: `Bearer ${token}` }
+            });
+            if (walletsRes.ok) {
+              setWallets(await walletsRes.json());
+            }
+            fire('Goal removed', `"${g.name}" has been deleted.`, 'info');
+          } else {
+            const err = await res.json();
+            Alert.alert('Error', err.error || 'Failed to delete goal');
+          }
+        } catch (e: any) {
+          Alert.alert('Error', 'Failed to delete goal: ' + e.message);
+        }
       }},
     ]);
   };
