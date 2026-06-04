@@ -1575,13 +1575,27 @@ async function startRabbitConsumer() {
   }
 }
 
-const server = app.listen(PORT, () => {
-  console.log(`[Wallet & Transaction Service] running on http://localhost:${PORT}`);
-  startRabbitConsumer();
-});
-const shutdown = () => {
-  server.close(() => process.exit(0));
-  setTimeout(() => process.exit(0), 500).unref();
+let walletRetries = 8;
+const startWallet = () => {
+  const srv = app.listen(PORT, () => {
+    console.log(`[Wallet & Transaction Service] running on http://localhost:${PORT}`);
+    startRabbitConsumer();
+  });
+  srv.once('error', (e: any) => {
+    srv.close();
+    if (e.code === 'EADDRINUSE' && walletRetries-- > 0) {
+      console.log(`[Wallet Service] port ${PORT} busy, retrying in 600ms...`);
+      setTimeout(startWallet, 600);
+    } else { console.error(e); process.exit(1); }
+  });
+  const shutdown = () => {
+    (srv as any).closeAllConnections?.();
+    srv.close(() => process.exit(0));
+    setTimeout(() => process.exit(0), 500);
+  };
+  process.removeAllListeners('SIGTERM');
+  process.removeAllListeners('SIGINT');
+  process.on('SIGTERM', shutdown);
+  process.on('SIGINT',  shutdown);
 };
-process.on('SIGTERM', shutdown);
-process.on('SIGINT',  shutdown);
+startWallet();

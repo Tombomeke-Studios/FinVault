@@ -189,13 +189,22 @@ function broadcastToWebSockets(envelope: EventEnvelope) {
   }
 }
 
-server.listen(PORT, () => {
-  console.log(`[API Gateway] running on http://localhost:${PORT}`);
-});
+let gatewayRetries = 8;
+const startGateway = () => {
+  server.once('error', (err: any) => {
+    if (err.code === 'EADDRINUSE' && gatewayRetries-- > 0) {
+      console.log(`[API Gateway] port ${PORT} busy, retrying in 600ms...`);
+      server.close(() => setTimeout(startGateway, 600));
+    } else { console.error(err); process.exit(1); }
+  });
+  server.listen(PORT, () => console.log(`[API Gateway] running on http://localhost:${PORT}`));
+};
+startGateway();
 
 const shutdown = () => {
+  (server as any).closeAllConnections?.();
   server.close(() => process.exit(0));
-  setTimeout(() => process.exit(0), 500).unref();
+  setTimeout(() => process.exit(0), 500); // no .unref() — must fire even if server is waiting
 };
 process.on('SIGTERM', shutdown);
 process.on('SIGINT',  shutdown);

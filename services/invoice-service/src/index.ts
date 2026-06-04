@@ -512,12 +512,24 @@ app.post('/mandates/process-charges', requireInternalAuth, async (req, res) => {
   }
 });
 
-const server = app.listen(PORT, () => {
-  console.log(`[Invoice Service] running on http://localhost:${PORT}`);
-});
-const shutdown = () => {
-  server.close(() => process.exit(0));
-  setTimeout(() => process.exit(0), 500).unref();
+let invoiceRetries = 8;
+const startInvoice = () => {
+  const srv = app.listen(PORT, () => console.log(`[Invoice Service] running on http://localhost:${PORT}`));
+  srv.once('error', (e: any) => {
+    srv.close();
+    if (e.code === 'EADDRINUSE' && invoiceRetries-- > 0) {
+      console.log(`[Invoice Service] port ${PORT} busy, retrying in 600ms...`);
+      setTimeout(startInvoice, 600);
+    } else { console.error(e); process.exit(1); }
+  });
+  const shutdown = () => {
+    (srv as any).closeAllConnections?.();
+    srv.close(() => process.exit(0));
+    setTimeout(() => process.exit(0), 500);
+  };
+  process.removeAllListeners('SIGTERM');
+  process.removeAllListeners('SIGINT');
+  process.on('SIGTERM', shutdown);
+  process.on('SIGINT',  shutdown);
 };
-process.on('SIGTERM', shutdown);
-process.on('SIGINT',  shutdown);
+startInvoice();
