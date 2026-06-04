@@ -8,6 +8,7 @@ import { ScreenCards } from './src/screens/ScreenCards';
 import { ScreenSavings } from './src/screens/ScreenSavings';
 import { ScreenAnalytics } from './src/screens/ScreenAnalytics';
 import { ScreenSettings } from './src/screens/ScreenSettings';
+import { ScreenAccountDashboard } from './src/screens/ScreenAccountDashboard';
 import { Shell } from './src/components/Shell';
 import { money } from './src/components/UI';
 import { MobileSheet } from './src/components/MobileExtras';
@@ -314,6 +315,7 @@ export default function App() {
   // --- Navigation & Overlays ---
   const [route, setRoute] = useState('overview');
   const [depositOpen, setDepositOpen] = useState(false);
+  const [depositWalletId, setDepositWalletId] = useState('');
   const [depositAmt, setDepositAmt] = useState('');
   const [depositLoading, setDepositLoading] = useState(false);
   const [theme, setTheme] = useState<ThemeConfig>({
@@ -545,18 +547,21 @@ export default function App() {
     if (!val || val <= 0) return;
 
     setDepositLoading(true);
+    const selectedId = depositWalletId || wallets[0]?.id;
+    const wallet = wallets.find(w => w.id === selectedId) || wallets[0];
 
     if (token && token !== 'mock-token') {
-      fetch(`${API_URL}/api/transactions/deposit`, {
+      fetch(`${API_URL}/api/wallets/deposit`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`
         },
-        body: JSON.stringify({ amount: val, description: 'Cash deposit', receiverWalletId: wallets[0]?.id })
+        body: JSON.stringify({ amount: val, walletId: wallet.id })
       }).then(res => {
         if (res.ok) {
-          fire('Deposit added', `${money(val)} deposited into your checking account.`, 'success');
+          const wName = wallet.name || (wallet.type === 'savings' ? 'Savings Vault' : wallet.type === 'travel' ? 'Travel Multi-Currency' : 'Everyday Checking');
+          fire('Deposit added', `${money(val, wallet.currency)} deposited into your ${wName} account.`, 'success');
           fetchWallets();
           fetchTransactions();
           setDepositLoading(false);
@@ -567,32 +572,82 @@ export default function App() {
         }
       }).catch(() => {
         // Fallback
-        setWallets(prev => prev.map((w, i) => i === 0 ? { ...w, balance: w.balance + val } : w));
+        setWallets(prev => prev.map(w => w.id === wallet.id ? { ...w, balance: w.balance + val } : w));
         setTransactions(prev => [{
-          id: Math.random().toString(), senderWalletId: null, receiverWalletId: wallets[0].id,
-          amount: val, currency: 'EUR', status: 'confirmed', type: 'deposit',
+          id: Math.random().toString(), senderWalletId: null, receiverWalletId: wallet.id,
+          amount: val, currency: wallet.currency || 'EUR', status: 'confirmed', type: 'deposit',
           description: 'Cash deposit', createdAt: new Date().toISOString()
         } as any, ...prev]);
         setDepositLoading(false);
         setDepositAmt('');
         setDepositOpen(false);
-        fire('Deposit added (Demo)', `${money(val)} deposited into your checking account.`, 'success');
+        const wName = wallet.name || (wallet.type === 'savings' ? 'Savings Vault' : wallet.type === 'travel' ? 'Travel Multi-Currency' : 'Everyday Checking');
+        fire('Deposit added (Demo)', `${money(val, wallet.currency)} deposited into your ${wName} account.`, 'success');
       });
       return;
     }
 
     setTimeout(() => {
-      setWallets(prev => prev.map((w, i) => i === 0 ? { ...w, balance: w.balance + val } : w));
+      setWallets(prev => prev.map(w => w.id === wallet.id ? { ...w, balance: w.balance + val } : w));
       setTransactions(prev => [{
-        id: Math.random().toString(), senderWalletId: null, receiverWalletId: wallets[0].id,
-        amount: val, currency: 'EUR', status: 'confirmed', type: 'deposit',
+        id: Math.random().toString(), senderWalletId: null, receiverWalletId: wallet.id,
+        amount: val, currency: wallet.currency || 'EUR', status: 'confirmed', type: 'deposit',
         description: 'Cash deposit', createdAt: new Date().toISOString()
       } as any, ...prev]);
       setDepositLoading(false);
       setDepositAmt('');
       setDepositOpen(false);
-      fire('Deposit added (Demo)', `${money(val)} deposited into your checking account.`, 'success');
+      const wName = wallet.name || (wallet.type === 'savings' ? 'Savings Vault' : wallet.type === 'travel' ? 'Travel Multi-Currency' : 'Everyday Checking');
+      fire('Deposit added (Demo)', `${money(val, wallet.currency)} deposited into your ${wName} account.`, 'success');
     }, 800);
+  };
+
+  const handleOwnTransfer = async (fromWalletId: string, toWalletId: string, amount: number, description: string): Promise<void> => {
+    const fromWallet = wallets.find(w => w.id === fromWalletId);
+    const toWallet   = wallets.find(w => w.id === toWalletId);
+    if (!fromWallet || !toWallet) { Alert.alert('Error', 'Account not found.'); return; }
+
+    if (token && token !== 'mock-token') {
+      try {
+        const res = await fetch(`${API_URL}/api/transactions/own-transfer`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+          body: JSON.stringify({ fromWalletId, toWalletId, amount, description })
+        });
+        if (res.ok) {
+          const result = await res.json();
+          setWallets(prev => prev.map(w => {
+            if (w.id === fromWalletId) return { ...w, balance: result.fromBalance };
+            if (w.id === toWalletId)   return { ...w, balance: result.toBalance };
+            return w;
+          }));
+          setTransactions(prev => [result.transaction, ...prev]);
+          fire('Transfer complete', `${money(amount)} moved to ${toWallet.name || toWallet.type}.`, 'success');
+          return;
+        } else {
+          const err = await res.json();
+          Alert.alert('Transfer failed', err.error || err.message || 'Could not complete transfer.');
+          return;
+        }
+      } catch { /* fall through to local simulation */ }
+    }
+
+    // Local demo fallback
+    setWallets(prev => prev.map(w => {
+      if (w.id === fromWalletId) return { ...w, balance: w.balance - amount };
+      if (w.id === toWalletId)   return { ...w, balance: w.balance + amount };
+      return w;
+    }));
+    setTransactions(prev => [{
+      id: `own-${Date.now()}`,
+      senderWalletId: fromWalletId,
+      receiverWalletId: toWalletId,
+      amount, currency: fromWallet.currency,
+      status: 'confirmed', type: 'transfer',
+      description: description || `Transfer: ${fromWallet.name} → ${toWallet.name}`,
+      createdAt: new Date().toISOString()
+    } as Transaction, ...prev]);
+    fire('Transfer complete (Demo)', `${money(amount)} moved to ${toWallet.name || toWallet.type}.`, 'success');
   };
 
   const firstName = rawUser?.profile?.firstName || rawUser?.firstName || 'Tom';
@@ -601,6 +656,18 @@ export default function App() {
   const appData   = buildMockData(firstName, lastName, email, wallets, transactions, cards, goals, rawUser?.plan || 'Metal');
 
   const renderScreen = () => {
+    // Account dashboard routing: 'account:walletId'
+    if (route.startsWith('account:')) {
+      const walletId = route.replace('account:', '');
+      return (
+        <ScreenAccountDashboard
+          walletId={walletId}
+          data={appData}
+          navigate={setRoute}
+          onOwnTransfer={handleOwnTransfer}
+        />
+      );
+    }
     switch (route) {
       case 'overview':
         return <ScreenOverview navigate={setRoute} data={appData} onTopup={() => setDepositOpen(true)} />;
@@ -609,7 +676,7 @@ export default function App() {
       case 'transfer':
         return <ScreenTransfer data={appData} onTransfer={handleTransfer} onRequest={handleRequest} />;
       case 'cards':
-        return <ScreenCards data={appData} fire={fire} cards={cards} setCards={setCards} token={token} apiUrl={API_URL} />;
+        return <ScreenCards data={appData} fire={fire} cards={cards} setCards={setCards} token={token} apiUrl={API_URL} navigate={setRoute} />;
       case 'analytics':
         return <ScreenAnalytics data={appData} />;
       case 'savings':
@@ -649,9 +716,41 @@ export default function App() {
       />
 
       {/* Dynamic topup modal sheet */}
-      <MobileSheet open={depositOpen} onClose={() => setDepositOpen(false)} title="Top up Everyday Account">
+      <MobileSheet open={depositOpen} onClose={() => setDepositOpen(false)} title="Top up account">
         <View style={styles.sheetForm}>
-          <Text style={styles.sheetDesc}>Top up your Everyday checking account balance instantly.</Text>
+          <Text style={styles.sheetDesc}>Top up your account balance instantly.</Text>
+          
+          <Text style={styles.label}>Destination Account</Text>
+          <View style={{ gap: 6, marginBottom: 12 }}>
+            {wallets.map(w => {
+              const selected = (depositWalletId || wallets[0]?.id) === w.id;
+              return (
+                <TouchableOpacity 
+                  key={w.id} 
+                  onPress={() => setDepositWalletId(w.id)}
+                  style={{
+                    padding: 10,
+                    borderRadius: THEME.radius.sm,
+                    backgroundColor: THEME.colors.surface2,
+                    borderWidth: selected ? 1.5 : 1,
+                    borderColor: selected ? THEME.colors.accent : THEME.colors.line,
+                    flexDirection: 'row',
+                    justifyContent: 'space-between',
+                    alignItems: 'center'
+                  }}
+                  activeOpacity={0.7}
+                >
+                  <Text style={{ color: THEME.colors.text, fontWeight: '700', fontSize: 13 }}>
+                    {w.name || (w.type === 'savings' ? 'Savings Vault' : w.type === 'travel' ? 'Travel Multi-Currency' : 'Everyday Checking')}
+                  </Text>
+                  <Text style={{ color: THEME.colors.text3, fontSize: 11 }}>
+                    {w.iban ? `${w.iban.substring(w.iban.length - 4)}` : ''}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+
           <Text style={styles.label}>Amount to deposit</Text>
           <TextInput
             style={styles.amountInput}
