@@ -50,7 +50,7 @@ export function Shell({ route, setRoute, user, children }: ShellProps) {
       {/* Bottom sticky navigation row */}
       <View style={styles.navBar}>
         {BOTTOM_NAV.map(nav => {
-          const active = route === nav.id;
+          const active = route === nav.id || (nav.id === 'overview' && route.startsWith('account:'));
 
           if (nav.id === 'transfer') {
             return (
