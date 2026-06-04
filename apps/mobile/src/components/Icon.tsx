@@ -38,6 +38,8 @@ const MAPPING: Record<string, keyof typeof Feather.glyphMap> = {
   lock: 'lock',
   copy: 'copy',
   logout: 'log-out',
+  edit: 'edit-2',
+  trash: 'trash-2',
   repeat: 'repeat',
   heart: 'heart',
   cart: 'shopping-cart',

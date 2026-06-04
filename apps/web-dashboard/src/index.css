@@ -252,16 +252,42 @@ a:focus-visible, button:focus-visible, [tabindex]:focus-visible { outline: 2px s
 .nav-item:not(.active):hover { background: var(--surface-2); color: var(--text); }
 .nav-item:not(.active) { background: transparent; color: var(--text-2); }
 
-@keyframes fvRise { from { transform: translateY(12px); opacity: 0; } to { transform: none; opacity: 1; } }
-@keyframes fvFade { from { opacity: 0.35; } to { opacity: 1; } }
-@keyframes fvPop { 0% { transform: scale(0.92); opacity: 0; } 60% { transform: scale(1.02); } 100% { transform: scale(1); opacity: 1; } }
+@keyframes fvRise  { from { transform: translateY(14px); opacity: 0; } to { transform: none; opacity: 1; } }
+@keyframes fvFade  { from { opacity: 0.35; } to { opacity: 1; } }
+@keyframes fvPop   { 0% { transform: scale(0.92); opacity: 0; } 60% { transform: scale(1.02); } 100% { transform: scale(1); opacity: 1; } }
 @keyframes fvSlideRight { from { transform: translateX(100%); } to { transform: none; } }
 @keyframes fvSlideLeft  { from { transform: translateX(-40%); } to { transform: none; } }
-@keyframes fvSheetUp   { from { transform: translateY(100%); } to { transform: none; } }
-.rise { animation: fvRise .45s cubic-bezier(.22,.9,.3,1); }
-.fade { animation: fvFade .4s ease; }
+@keyframes fvSheetUp    { from { transform: translateY(100%); } to { transform: none; } }
+@keyframes fvShimmer    { from { background-position: -200% center; } to { background-position: 200% center; } }
+@keyframes fvNumFlash   { 0%,100% { color: inherit; } 40% { color: var(--pos); } }
+@keyframes fvScaleIn    { from { transform: scale(0.94); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+
+.rise        { animation: fvRise .45s cubic-bezier(.22,.9,.3,1) both; }
+.rise-d1     { animation-delay: 60ms; }
+.rise-d2     { animation-delay: 120ms; }
+.rise-d3     { animation-delay: 180ms; }
+.rise-d4     { animation-delay: 240ms; }
+.rise-d5     { animation-delay: 300ms; }
+.rise-d6     { animation-delay: 360ms; }
+.fade        { animation: fvFade .4s ease; }
+.scale-in    { animation: fvScaleIn .3s cubic-bezier(.22,.9,.3,1) both; }
 .slide-right { animation: fvSlideRight .32s cubic-bezier(.22,.9,.3,1); }
 .slide-left  { animation: fvSlideLeft  .32s cubic-bezier(.22,.9,.3,1); }
+
+/* Card hover lift — Revolut / N26 style */
+.card-lift { transition: transform .22s cubic-bezier(.22,.9,.3,1), box-shadow .22s ease; }
+.card-lift:hover { transform: translateY(-3px); box-shadow: var(--shadow); }
+
+/* Shimmer skeleton */
+.shimmer {
+  background: linear-gradient(90deg, var(--surface) 25%, var(--surface-hi) 50%, var(--surface) 75%);
+  background-size: 200% 100%;
+  animation: fvShimmer 1.6s ease-in-out infinite;
+  border-radius: inherit;
+}
+
+/* Number count-up flash */
+.num-flash { animation: fvNumFlash .7s ease forwards; }
 
 @media (prefers-reduced-motion: reduce) {
   * { animation-duration: .001ms !important; transition-duration: .04ms !important; }
