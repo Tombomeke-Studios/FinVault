@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Dimensions } from 'react-native';
+import React, { useState, useRef, useEffect } from 'react';
+import { View, Text, StyleSheet, ScrollView, Pressable, Animated, Dimensions } from 'react-native';
 import { Icon } from '../components/Icon';
 import { money, Sparkline, relTime, CategoryIcon, Ring, catColor, Delta } from '../components/UI';
 import { BankCard } from '../components/BankCard';
@@ -21,6 +21,19 @@ const QUICK_ACTIONS = [
   { icon: 'bolt', label: 'Bills',   primary: false, route: 'transfer' },
 ];
 
+function SpringBtn({ onPress, style, iconStyle, children }: { onPress: () => void; style?: any; iconStyle?: any; children: React.ReactNode }) {
+  const scale = useRef(new Animated.Value(1)).current;
+  const onIn  = () => Animated.spring(scale, { toValue: 0.91, useNativeDriver: true, speed: 50, bounciness: 4 }).start();
+  const onOut = () => Animated.spring(scale, { toValue: 1,    useNativeDriver: true, speed: 50, bounciness: 6 }).start();
+  return (
+    <Pressable onPress={onPress} onPressIn={onIn} onPressOut={onOut} style={style}>
+      <Animated.View style={[iconStyle, { transform: [{ scale }] }]}>
+        {children}
+      </Animated.View>
+    </Pressable>
+  );
+}
+
 export function ScreenOverview({ navigate, data, onTopup }: OverviewProps) {
   const [selWallet, setSelWallet] = useState(0);
   const { wallets, transactions, cards, goals, spendByCat, balanceTrend, monthly } = data;
@@ -40,6 +53,11 @@ export function ScreenOverview({ navigate, data, onTopup }: OverviewProps) {
   const hour = new Date().getHours();
   const greeting = hour < 12 ? 'Good morning' : hour < 18 ? 'Good afternoon' : 'Good evening';
 
+  const heroEntrance = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    Animated.spring(heroEntrance, { toValue: 1, tension: 60, friction: 9, useNativeDriver: true }).start();
+  }, []);
+
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
 
@@ -56,7 +74,7 @@ export function ScreenOverview({ navigate, data, onTopup }: OverviewProps) {
       </View>
 
       {/* ── Hero balance card ── */}
-      <View style={styles.heroCard}>
+      <Animated.View style={[styles.heroCard, { opacity: heroEntrance, transform: [{ translateY: heroEntrance.interpolate({ inputRange: [0, 1], outputRange: [20, 0] }) }] }]}>
         {/* Glow overlay at top-right */}
         <View style={styles.heroGlow} />
 
@@ -98,24 +116,21 @@ export function ScreenOverview({ navigate, data, onTopup }: OverviewProps) {
         <View style={styles.sparkWrap}>
           <Sparkline data={balanceTrend} h={72} />
         </View>
-      </View>
+      </Animated.View>
 
       {/* ── Quick actions ── */}
       <View style={styles.quickRow}>
         {QUICK_ACTIONS.map(a => (
-          <TouchableOpacity
+          <SpringBtn
             key={a.label}
-            style={styles.qaction}
-            activeOpacity={0.7}
             onPress={a.route ? () => navigate(a.route) : onTopup}
-            accessibilityLabel={a.label}
-            accessibilityRole="button"
+            style={styles.qaction}
           >
             <View style={[styles.qactionIcon, a.primary ? styles.qactionIconPrimary : styles.qactionIconGhost]}>
               <Icon name={a.icon} size={21} color={a.primary ? THEME.colors.onAccent : THEME.colors.text} />
             </View>
             <Text style={styles.qactionLabel}>{a.label}</Text>
-          </TouchableOpacity>
+          </SpringBtn>
         ))}
       </View>
 
