@@ -19,6 +19,39 @@ export function ScreenSavings({ compact, fire, goals, setGoals, wallets, setWall
   const [add, setAdd] = useState<Goal | null>(null);
   const [addAmt, setAddAmt] = useState('');
 
+  // Edit goal state
+  const [editGoal, setEditGoal] = useState<Goal | null>(null);
+  const [editName, setEditName] = useState('');
+  const [editTarget, setEditTarget] = useState('');
+  const [editDue, setEditDue] = useState('');
+  const [editIcon, setEditIcon] = useState('plane');
+  const [editHue, setEditHue] = useState(12);
+
+  const openEdit = (g: Goal) => {
+    setEditGoal(g);
+    setEditName(g.name);
+    setEditTarget(String(g.target));
+    setEditDue(g.due === 'No date' ? '' : g.due);
+    setEditIcon(g.icon);
+    setEditHue(g.hue);
+  };
+
+  const handleEditGoal = () => {
+    const tgt = parseFloat(editTarget);
+    if (!editGoal || !editName || !tgt) return;
+    setGoals(gs => gs.map(g => g.id === editGoal.id ? {
+      ...g, name: editName, target: tgt, icon: editIcon, hue: editHue,
+      due: editDue || 'No date',
+    } : g));
+    fire('Goal updated', `"${editName}" has been saved.`, 'success');
+    setEditGoal(null);
+  };
+
+  const handleDeleteGoal = (g: Goal) => {
+    setGoals(gs => gs.filter(x => x.id !== g.id));
+    fire('Goal removed', `"${g.name}" has been deleted.`, 'info');
+  };
+
   // New goal forms state
   const [newGoalOpen, setNewGoalOpen] = useState(false);
   const [newName, setNewName] = useState('');
@@ -201,10 +234,13 @@ export function ScreenSavings({ compact, fire, goals, setGoals, wallets, setWall
               </div>
               <div style={{ display: 'flex', gap: 8 }}>
                 <button className="btn btn-ghost btn-block" onClick={() => setAdd(g)} disabled={done} style={{ opacity: done ? 0.45 : 1, gap: 7, fontSize: '0.88rem' }}>
-                  <Icon name="plus" size={16} /> Add money
+                  <Icon name="plus" size={16} /> Add funds
                 </button>
-                <button className="btn btn-quiet" style={{ flexShrink: 0, padding: '0 12px' }} onClick={() => fire(g.name, `${pct}% reached — ${money(g.target - g.saved).replace('.00','')} remaining.`, 'info')}>
-                  <Icon name="more" size={18} />
+                <button className="btn btn-ghost" style={{ flexShrink: 0, padding: '0 12px' }} title="Edit goal" onClick={() => openEdit(g)}>
+                  <Icon name="edit" size={16} />
+                </button>
+                <button className="btn btn-quiet" style={{ flexShrink: 0, padding: '0 10px', color: 'var(--neg)' }} title="Delete goal" onClick={() => handleDeleteGoal(g)}>
+                  <Icon name="trash" size={16} />
                 </button>
               </div>
             </div>
@@ -259,6 +295,35 @@ export function ScreenSavings({ compact, fire, goals, setGoals, wallets, setWall
           }}>
             Save changes
           </button>
+        </div>
+      </Sheet>
+
+      {/* Edit goal sheet */}
+      <Sheet open={!!editGoal} onClose={() => setEditGoal(null)} title="Edit Goal" mobile={compact}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--gap)' }}>
+          <label className="label">Goal name</label>
+          <input className="field" value={editName} onChange={e => setEditName(e.target.value)} placeholder="e.g. Japan Trip" autoFocus />
+          <label className="label">Target amount (€)</label>
+          <input className="field num" value={editTarget} onChange={e => setEditTarget(e.target.value.replace(/[^0-9.]/g, ''))} placeholder="0.00" />
+          <label className="label">Due date</label>
+          <input className="field" value={editDue} onChange={e => setEditDue(e.target.value)} placeholder="e.g. Dec 2025, No date" />
+          <label className="label">Icon</label>
+          <div style={{ display: 'flex', gap: 6 }}>
+            {['plane', 'shield', 'laptop', 'car', 'heart', 'gift', 'globe', 'flame'].map(ic => (
+              <button key={ic} onClick={() => setEditIcon(ic)} className="chip" style={{ flex: 1, justifyContent: 'center', cursor: 'pointer', border: editIcon === ic ? '1.5px solid var(--accent)' : '1px solid var(--line)', background: editIcon === ic ? 'var(--accent-soft)' : 'var(--surface-2)', color: editIcon === ic ? 'var(--accent)' : 'var(--text-2)', padding: '8px 0' }}>
+                <Icon name={ic} size={15} />
+              </button>
+            ))}
+          </div>
+          <label className="label">Color</label>
+          <div style={{ display: 'flex', gap: 8 }}>
+            {[12, 158, 195, 230, 265, 300, 320].map(h => (
+              <button key={h} onClick={() => setEditHue(h)} style={{ width: 28, height: 28, borderRadius: '50%', border: editHue === h ? '2.5px solid var(--text)' : '2px solid transparent', background: `hsl(${h}, 70%, 55%)`, cursor: 'pointer', flexShrink: 0, outline: editHue === h ? '2px solid var(--accent)' : 'none', outlineOffset: 2 }} />
+            ))}
+          </div>
+          <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
+            <button className="btn btn-primary btn-block" disabled={!editName || !parseFloat(editTarget)} style={{ opacity: editName && parseFloat(editTarget) ? 1 : 0.5 }} onClick={handleEditGoal}>Save changes</button>
+          </div>
         </div>
       </Sheet>
 

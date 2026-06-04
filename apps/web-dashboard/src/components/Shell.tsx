@@ -225,19 +225,21 @@ export function Shell({ route, setRoute, compact, children, onLogout, fire, toas
           {NAV.map(n => navBtn(n.id, n.label, n.icon))}
         </nav>
         <div style={{ marginTop: 'auto', display: 'flex', flexDirection: 'column', gap: 6 }}>
-          <div style={{ padding: '14px 16px', borderRadius: 'var(--r-lg)', background: 'linear-gradient(145deg, var(--accent-soft), color-mix(in oklab, var(--surface-2) 70%, var(--accent-soft)))', border: '1px solid var(--accent-line)', display: 'flex', flexDirection: 'column', gap: 10 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <div style={{ width: 28, height: 28, borderRadius: 'var(--r-sm)', background: 'var(--accent)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                <Icon name="sparkle" size={14} style={{ color: 'var(--on-accent)' }} />
+          {(!user?.plan || user.plan === 'FinVault Standard') && (
+            <div style={{ padding: '14px 16px', borderRadius: 'var(--r-lg)', background: 'linear-gradient(145deg, var(--accent-soft), color-mix(in oklab, var(--surface-2) 70%, var(--accent-soft)))', border: '1px solid var(--accent-line)', display: 'flex', flexDirection: 'column', gap: 10 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <div style={{ width: 28, height: 28, borderRadius: 'var(--r-sm)', background: 'var(--accent)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                  <Icon name="sparkle" size={14} style={{ color: 'var(--on-accent)' }} />
+                </div>
+                <div>
+                  <div style={{ fontWeight: 700, fontSize: '0.88rem' }}>Go Metal+</div>
+                  <div style={{ fontSize: '0.72rem', color: 'var(--text-3)' }}>€16.99 / month</div>
+                </div>
               </div>
-              <div>
-                <div style={{ fontWeight: 700, fontSize: '0.88rem' }}>Go Metal+</div>
-                <div style={{ fontSize: '0.72rem', color: 'var(--text-3)' }}>€16.99 / month</div>
-              </div>
+              <p style={{ fontSize: '0.76rem', color: 'var(--text-2)', lineHeight: 1.5 }}>Unlimited cards · Lounge access · 3% savings rate</p>
+              <button className="btn btn-primary" style={{ padding: '8px', fontSize: '0.82rem' }} onClick={openUpgrade}>Upgrade plan</button>
             </div>
-            <p style={{ fontSize: '0.76rem', color: 'var(--text-2)', lineHeight: 1.5 }}>Unlimited cards · Lounge access · 3% savings rate</p>
-            <button className="btn btn-primary" style={{ padding: '8px', fontSize: '0.82rem' }} onClick={openUpgrade}>Upgrade plan</button>
-          </div>
+          )}
           {navBtn('settings', 'Settings', 'settings')}
           <button onClick={onLogout} className="nav-item" style={{ color: 'var(--text-3)', justifyContent: 'flex-start', fontFamily: 'var(--font-body)', fontSize: '0.95rem', fontWeight: 600, width: '100%' }}>
             <Icon name="logout" size={20} /> Sign out
