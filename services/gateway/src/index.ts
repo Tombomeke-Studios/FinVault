@@ -192,3 +192,10 @@ function broadcastToWebSockets(envelope: EventEnvelope) {
 server.listen(PORT, () => {
   console.log(`[API Gateway] running on http://localhost:${PORT}`);
 });
+
+const shutdown = () => {
+  server.close(() => process.exit(0));
+  setTimeout(() => process.exit(0), 500).unref();
+};
+process.on('SIGTERM', shutdown);
+process.on('SIGINT',  shutdown);

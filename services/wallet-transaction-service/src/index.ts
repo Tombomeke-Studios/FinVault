@@ -1575,7 +1575,13 @@ async function startRabbitConsumer() {
   }
 }
 
-app.listen(PORT, () => {
+const server = app.listen(PORT, () => {
   console.log(`[Wallet & Transaction Service] running on http://localhost:${PORT}`);
   startRabbitConsumer();
 });
+const shutdown = () => {
+  server.close(() => process.exit(0));
+  setTimeout(() => process.exit(0), 500).unref();
+};
+process.on('SIGTERM', shutdown);
+process.on('SIGINT',  shutdown);

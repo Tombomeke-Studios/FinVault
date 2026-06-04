@@ -512,6 +512,12 @@ app.post('/mandates/process-charges', requireInternalAuth, async (req, res) => {
   }
 });
 
-app.listen(PORT, () => {
+const server = app.listen(PORT, () => {
   console.log(`[Invoice Service] running on http://localhost:${PORT}`);
 });
+const shutdown = () => {
+  server.close(() => process.exit(0));
+  setTimeout(() => process.exit(0), 500).unref();
+};
+process.on('SIGTERM', shutdown);
+process.on('SIGINT',  shutdown);
