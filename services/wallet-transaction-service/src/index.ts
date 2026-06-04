@@ -188,36 +188,30 @@ async function creditWallet(
 }
 
 // =============================================
-// Webhook listener for Gateway events (e.g. account.created)
+// Helper: Create default wallets & cards for new user (Checking, Savings, Travel + Visa/Mastercard)
 // =============================================
-app.post('/webhooks/events', async (req, res) => {
-  const { event } = req.body;
-  console.log(`[Wallet Service Webhook] Received event: ${event.type}`);
-
-  if (event.type === 'account.created') {
-    const { userId } = event.payload;
-    try {
-      // Generate structurally valid unique Belgian-like IBAN
+async function createDefaultWalletsAndCardsForUser(userId: string, email: string): Promise<void> {
+  try {
+    let checkingWallet = await prisma.wallet.findFirst({ where: { userId, type: 'checking' } });
+    if (!checkingWallet) {
       const randomDigits = Math.floor(1000000000 + Math.random() * 9000000000);
       const iban = `BE8937700771${randomDigits}`;
-
-      // Create a default wallet for new user in EUR
-      const wallet = await prisma.wallet.create({
+      checkingWallet = await prisma.wallet.create({
         data: {
           userId,
           iban,
           currency: 'EUR',
+          type: 'checking',
           balance: 250.00, // €250,00 Welcome Bonus! Premium UX
           reservedBalance: 0.0,
           status: 'active'
         }
       });
-
-      console.log(`[Wallet Service] Default wallet created for user ${userId} with welcome bonus. IBAN: ${iban}`);
+      console.log(`[Wallet Service] Default checking wallet created for user ${userId}. IBAN: ${iban}`);
 
       await prisma.balanceHistory.create({
         data: {
-          walletId: wallet.id,
+          walletId: checkingWallet.id,
           amount: 250.00,
           balanceAfter: 250.00,
           reason: 'Welcome Bonus'
@@ -225,16 +219,157 @@ app.post('/webhooks/events', async (req, res) => {
       });
 
       // Publish balance update event
-      await publishEvent('wallet-transaction-service', {
+      await publishWalletEvent({
         type: 'balance.updated',
         payload: {
-          walletId: wallet.id,
+          walletId: checkingWallet.id,
           userId,
-          balance: wallet.balance,
-          currency: wallet.currency
+          balance: checkingWallet.balance,
+          currency: checkingWallet.currency
+        }
+      });
+    }
+
+    let savingsWallet = await prisma.wallet.findFirst({ where: { userId, type: 'savings' } });
+    if (!savingsWallet) {
+      const randomDigitsSav = Math.floor(1000000000 + Math.random() * 9000000000);
+      const ibanSav = `BE1234567890${randomDigitsSav}`;
+      savingsWallet = await prisma.wallet.create({
+        data: {
+          userId,
+          iban: ibanSav,
+          currency: 'EUR',
+          type: 'savings',
+          interestRate: 0.025,
+          balance: 0.00,
+          reservedBalance: 0.0,
+          status: 'active'
+        }
+      });
+      console.log(`[Wallet Service] Default savings wallet created for user ${userId}. IBAN: ${ibanSav}`);
+    }
+
+    let travelWallet = await prisma.wallet.findFirst({ where: { userId, type: 'travel' } });
+    if (!travelWallet) {
+      const randomDigitsTrav = Math.floor(1000000000 + Math.random() * 9000000000);
+      const ibanTrav = `BE5537700771${randomDigitsTrav}`;
+      travelWallet = await prisma.wallet.create({
+        data: {
+          userId,
+          iban: ibanTrav,
+          currency: 'EUR',
+          type: 'travel',
+          balance: 0.00,
+          reservedBalance: 0.0,
+          status: 'active'
+        }
+      });
+      console.log(`[Wallet Service] Default travel wallet created for user ${userId}. IBAN: ${ibanTrav}`);
+    }
+
+    // Auto-create default cards if none exist
+    const cardsCount = await prisma.card.count({
+      where: { wallet: { userId } }
+    });
+
+    if (cardsCount === 0) {
+      let holder = 'FinVault Holder';
+      if (email === 'test@finvault.com') {
+        holder = 'Tom Bomeke';
+      } else if (email === 'admin@finvault.com') {
+        holder = 'FinVault Administrator';
+      } else {
+        try {
+          const profileRes = await fetch(`${ACCOUNT_SERVICE_URL}/users/profile-by-email?email=${encodeURIComponent(email)}`);
+          if (profileRes.ok) {
+            const profileData = await profileRes.json();
+            if (profileData.profile) {
+              holder = `${profileData.profile.firstName} ${profileData.profile.lastName}`;
+            }
+          }
+        } catch (err: any) {
+          console.error('[Wallet Service] Failed to fetch profile from account-service:', err.message);
+        }
+      }
+
+      const card1 = await prisma.card.create({
+        data: {
+          name: 'Everyday Checking',
+          kind: 'physical',
+          network: 'Visa',
+          last4: '4182',
+          number: '4182 7771 0377 4182',
+          cvv: '428',
+          holder,
+          exp: '05/31',
+          frozen: false,
+          scheme: 'metal',
+          walletId: checkingWallet.id,
+          monthSpend: 0,
+          limit: 2000
         }
       });
 
+      const card2 = await prisma.card.create({
+        data: {
+          name: 'Travel Multi-Currency',
+          kind: 'virtual',
+          network: 'Mastercard',
+          last4: '9912',
+          number: '5412 9900 0011 9912',
+          cvv: '831',
+          holder,
+          exp: '11/27',
+          frozen: false,
+          scheme: 'cyan',
+          walletId: travelWallet.id,
+          monthSpend: 0,
+          limit: 3000
+        }
+      });
+
+      console.log(`[Wallet Service] Default cards created for user ${userId} and linked to wallets.`);
+
+      // Publish card.created events for RabbitMQ and other services
+      await publishWalletEvent({
+        type: 'card.created',
+        payload: {
+          cardId: card1.id,
+          userId,
+          walletId: card1.walletId,
+          name: card1.name,
+          last4: card1.last4
+        }
+      });
+
+      await publishWalletEvent({
+        type: 'card.created',
+        payload: {
+          cardId: card2.id,
+          userId,
+          walletId: card2.walletId,
+          name: card2.name,
+          last4: card2.last4
+        }
+      });
+    }
+  } catch (error: any) {
+    console.error(`[Wallet Service] Failed to create default wallets/cards for user ${userId}:`, error.message);
+    throw error;
+  }
+}
+
+// =============================================
+// Webhook listener for Gateway events (e.g. account.created)
+// =============================================
+app.post('/webhooks/events', async (req, res) => {
+  const { event } = req.body;
+  console.log(`[Wallet Service Webhook] Received event: ${event.type}`);
+
+  if (event.type === 'account.created') {
+    const { userId, email } = event.payload;
+    try {
+      await createDefaultWalletsAndCardsForUser(userId, email);
     } catch (error) {
       console.error('[Wallet Service Webhook] Failed to process account.created:', error);
     }
@@ -256,17 +391,23 @@ app.get('/wallets', requireAuth, async (req, res) => {
       include: { creditLine: true }
     });
 
-    // Self-healing logic: Automatically generate a default EUR wallet if none exists
-    if (wallets.length === 0) {
-      console.log(`[Wallet Service] No wallet found for user ${userId}. Automatically generating default wallet.`);
+    // Self-healing logic: Automatically generate default checking, savings, and travel wallets if missing
+    let checkingWallet = wallets.find(w => w.type === 'checking');
+    let savingsWallet = wallets.find(w => w.type === 'savings');
+    let travelWallet = wallets.find(w => w.type === 'travel');
+    let healed = false;
+
+    if (!checkingWallet) {
+      console.log(`[Wallet Service] No checking wallet found for user ${userId}. Automatically generating default checking wallet.`);
       const randomDigits = Math.floor(1000000000 + Math.random() * 9000000000);
       const iban = `BE8937700771${randomDigits}`;
 
-      const wallet = await prisma.wallet.create({
+      checkingWallet = await prisma.wallet.create({
         data: {
           userId,
           iban,
           currency: 'EUR',
+          type: 'checking',
           balance: 250.00,
           reservedBalance: 0.0,
           status: 'active'
@@ -276,7 +417,7 @@ app.get('/wallets', requireAuth, async (req, res) => {
 
       await prisma.balanceHistory.create({
         data: {
-          walletId: wallet.id,
+          walletId: checkingWallet.id,
           amount: 250.00,
           balanceAfter: 250.00,
           reason: 'Welcome Bonus (Auto-Generated)'
@@ -286,14 +427,92 @@ app.get('/wallets', requireAuth, async (req, res) => {
       await publishEvent('wallet-transaction-service', {
         type: 'balance.updated',
         payload: {
-          walletId: wallet.id,
+          walletId: checkingWallet.id,
           userId,
-          balance: wallet.balance,
-          currency: wallet.currency
+          balance: checkingWallet.balance,
+          currency: checkingWallet.currency
         }
       });
+      healed = true;
+    }
 
-      wallets = [wallet];
+    if (!savingsWallet) {
+      console.log(`[Wallet Service] No savings wallet found for user ${userId}. Automatically generating default savings wallet.`);
+      const randomDigitsSav = Math.floor(1000000000 + Math.random() * 9000000000);
+      const ibanSav = `BE1234567890${randomDigitsSav}`;
+
+      savingsWallet = await prisma.wallet.create({
+        data: {
+          userId,
+          iban: ibanSav,
+          currency: 'EUR',
+          type: 'savings',
+          interestRate: 0.025,
+          balance: 0.00,
+          reservedBalance: 0.0,
+          status: 'active'
+        },
+        include: { creditLine: true }
+      });
+      healed = true;
+    }
+
+    if (!travelWallet) {
+      console.log(`[Wallet Service] No travel wallet found for user ${userId}. Automatically generating default travel wallet.`);
+      const randomDigitsTrav = Math.floor(1000000000 + Math.random() * 9000000000);
+      const ibanTrav = `BE5537700771${randomDigitsTrav}`;
+
+      travelWallet = await prisma.wallet.create({
+        data: {
+          userId,
+          iban: ibanTrav,
+          currency: 'EUR',
+          type: 'travel',
+          balance: 0.00,
+          reservedBalance: 0.0,
+          status: 'active'
+        },
+        include: { creditLine: true }
+      });
+      healed = true;
+    }
+
+    if (healed) {
+      wallets = await prisma.wallet.findMany({
+        where: { userId },
+        include: { creditLine: true }
+      });
+    }
+
+    // Synchronize savings wallet balance to match total goals saved
+    const currentSavingsWallet = wallets.find(w => w.type === 'savings');
+    if (currentSavingsWallet) {
+      const goalsSum = await prisma.savingsGoal.aggregate({
+        where: { userId },
+        _sum: { saved: true }
+      });
+      const expectedBalance = goalsSum._sum.saved || 0.0;
+      if (currentSavingsWallet.balance !== expectedBalance) {
+        console.log(`[Wallet Service] Self-healing Savings Vault balance mismatch. Expected: ${expectedBalance}, Current: ${currentSavingsWallet.balance}`);
+        await prisma.wallet.update({
+          where: { id: currentSavingsWallet.id },
+          data: { balance: expectedBalance }
+        });
+        currentSavingsWallet.balance = expectedBalance;
+      }
+    }
+
+    // Heal cards linkage inside /wallets too
+    const travelCard = await prisma.card.findFirst({
+      where: { name: 'Travel Multi-Currency', wallet: { userId } }
+    });
+    const healedTravelWallet = wallets.find(w => w.type === 'travel');
+    if (travelCard && healedTravelWallet && travelCard.walletId !== healedTravelWallet.id) {
+      console.log(`[Wallet Service /wallets] Self-healing card linkage to travel wallet.`);
+      await prisma.card.update({
+        where: { id: travelCard.id },
+        data: { walletId: healedTravelWallet.id }
+      });
     }
 
     res.status(200).json(wallets);
@@ -384,8 +603,10 @@ app.post('/wallets/simulate-time', requireAuth, async (req, res) => {
         if (interestAmount > 0) {
           const newBalance = parseFloat((wallet.balance + interestAmount).toFixed(2));
           
-          // Update database atomically in transaction
-          await prisma.$transaction([
+          const goals = await prisma.savingsGoal.findMany({ where: { userId } });
+          const totalSaved = goals.reduce((sum, g) => sum + g.saved, 0);
+
+          const updates: any[] = [
             prisma.wallet.update({
               where: { id: wallet.id },
               data: { balance: newBalance }
@@ -410,7 +631,31 @@ app.post('/wallets/simulate-time', requireAuth, async (req, res) => {
                 description: `Simulatie: Rente-opbouw over ${simulatedMonths} maanden`
               }
             })
-          ]);
+          ];
+
+          if (totalSaved > 0) {
+            for (const goal of goals) {
+              const share = parseFloat((interestAmount * (goal.saved / totalSaved)).toFixed(2));
+              if (share > 0) {
+                updates.push(
+                  prisma.savingsGoal.update({
+                    where: { id: goal.id },
+                    data: { saved: { increment: share } }
+                  })
+                );
+              }
+            }
+          } else if (goals.length > 0) {
+            updates.push(
+              prisma.savingsGoal.update({
+                where: { id: goals[0].id },
+                data: { saved: { increment: interestAmount } }
+              })
+            );
+          }
+
+          // Update database atomically in transaction
+          await prisma.$transaction(updates);
 
           // Publish event
           await publishEvent('wallet-transaction-service', {
@@ -641,6 +886,92 @@ app.get('/transactions', requireAuth, async (req, res) => {
     res.status(200).json(transactions);
   } catch (error: any) {
     res.status(500).json({ error: 'Failed to retrieve transactions', message: error.message });
+  }
+});
+
+// Own-wallet Transfer — move money between user's own accounts (no email required)
+app.post('/transactions/own-transfer', requireAuth, async (req, res) => {
+  const { fromWalletId, toWalletId, amount, description } = req.body;
+  const userId = (req as any).user.userId;
+
+  if (!fromWalletId || !toWalletId || !amount || amount <= 0) {
+    return res.status(400).json({ error: 'fromWalletId, toWalletId and a positive amount are required' });
+  }
+
+  if (fromWalletId === toWalletId) {
+    return res.status(400).json({ error: 'Cannot transfer to the same wallet' });
+  }
+
+  try {
+    // Verify both wallets belong to the authenticated user
+    const [fromWallet, toWallet] = await Promise.all([
+      prisma.wallet.findUnique({ where: { id: fromWalletId }, include: { creditLine: true } }),
+      prisma.wallet.findUnique({ where: { id: toWalletId } }),
+    ]);
+
+    if (!fromWallet) return res.status(404).json({ error: 'Source wallet not found' });
+    if (!toWallet) return res.status(404).json({ error: 'Destination wallet not found' });
+    if (fromWallet.userId !== userId) return res.status(403).json({ error: 'Not your source wallet' });
+    if (toWallet.userId !== userId) return res.status(403).json({ error: 'Not your destination wallet' });
+
+    let availableCredit = 0.0;
+    if (fromWallet.creditLine && ['active', 'suspended'].includes(fromWallet.creditLine.status)) {
+      availableCredit = fromWallet.creditLine.creditLimit - fromWallet.creditLine.usedCredit;
+    }
+
+    if (fromWallet.balance + availableCredit < amount) {
+      return res.status(400).json({ error: 'Insufficient balance' });
+    }
+
+    const reference = `OWN-${Math.random().toString(36).substring(2, 9).toUpperCase()}`;
+    const integrityHash = computeTransactionHash({
+      senderWalletId: fromWallet.id,
+      receiverWalletId: toWallet.id,
+      amount,
+      reference,
+      currency: fromWallet.currency
+    });
+
+    const [transaction, debitRes, newReceiverBal] = await prisma.$transaction(async (prismaTx) => {
+      const debitRes = await debitWallet(fromWallet.id, amount, prismaTx);
+      const newReceiverBal = await creditWallet(toWallet.id, amount, prismaTx);
+
+      const transaction = await prismaTx.transaction.create({
+        data: {
+          reference,
+          senderWalletId: fromWallet.id,
+          receiverWalletId: toWallet.id,
+          amount,
+          currency: fromWallet.currency,
+          status: 'confirmed',
+          type: 'transfer',
+          description: description || `Transfer: ${fromWallet.name || fromWallet.type} → ${toWallet.name || toWallet.type}`,
+          integrityHash
+        }
+      });
+
+      await prismaTx.balanceHistory.create({
+        data: { walletId: fromWallet.id, amount: -amount, balanceAfter: debitRes.newBalance, reason: description || 'Own-wallet transfer (debit)' }
+      });
+      await prismaTx.balanceHistory.create({
+        data: { walletId: toWallet.id, amount, balanceAfter: newReceiverBal, reason: description || 'Own-wallet transfer (credit)' }
+      });
+
+      return [transaction, debitRes, newReceiverBal];
+    });
+
+    // Publish balance events
+    await publishWalletEvent({ type: 'balance.updated', walletId: fromWallet.id, userId, newBalance: debitRes.newBalance });
+    await publishWalletEvent({ type: 'balance.updated', walletId: toWallet.id, userId, newBalance: newReceiverBal });
+
+    res.status(200).json({
+      transaction,
+      fromBalance: debitRes.newBalance,
+      toBalance: newReceiverBal,
+    });
+  } catch (error: any) {
+    console.error('[Own Transfer] Error:', error.message);
+    res.status(500).json({ error: 'Own-wallet transfer failed', message: error.message });
   }
 });
 
@@ -1216,16 +1547,41 @@ app.get('/cards', requireAuth, async (req, res) => {
       }
     });
 
+    // Self-healing card linkage:
+    const travelCard = cards.find(c => c.name === 'Travel Multi-Currency');
+    const travelWallet = await prisma.wallet.findFirst({
+      where: { userId, type: 'travel', status: 'active' }
+    });
+
+    if (travelCard && travelWallet && travelCard.walletId !== travelWallet.id) {
+      console.log(`[Wallet Service] Self-healing Travel Multi-Currency card linkage to travel wallet.`);
+      await prisma.card.update({
+        where: { id: travelCard.id },
+        data: { walletId: travelWallet.id }
+      });
+      // Refresh cards list
+      cards = await prisma.card.findMany({
+        where: { wallet: { userId } }
+      });
+    }
+
     if (cards.length === 0) {
       // Find first checking wallet to link default cards
       const checkingWallet = await prisma.wallet.findFirst({
         where: { userId, type: 'checking', status: 'active' }
       });
 
+      // Find first travel wallet to link Travel Multi-Currency card
+      const travelWallet = await prisma.wallet.findFirst({
+        where: { userId, type: 'travel', status: 'active' }
+      });
+
       if (checkingWallet) {
         // Auto-create default cards
         const first = 'Tom';
         const last = 'Bomeke';
+        const travelWalletId = travelWallet ? travelWallet.id : checkingWallet.id;
+
         cards = [
           await prisma.card.create({
             data: {
@@ -1256,7 +1612,7 @@ app.get('/cards', requireAuth, async (req, res) => {
               exp: '11/27',
               frozen: false,
               scheme: 'cyan',
-              walletId: checkingWallet.id,
+              walletId: travelWalletId,
               monthSpend: 0,
               limit: 3000
             }
@@ -1302,6 +1658,18 @@ app.post('/cards', requireAuth, async (req, res) => {
         walletId,
         monthSpend: 0.0,
         limit: limit ? parseFloat(limit) : 2000.0
+      }
+    });
+
+    // Publish card.created event so other services are notified
+    await publishWalletEvent({
+      type: 'card.created',
+      payload: {
+        cardId: card.id,
+        userId,
+        walletId: card.walletId,
+        name: card.name,
+        last4: card.last4
       }
     });
 
@@ -1445,7 +1813,16 @@ app.post('/goals/:id/fund', requireAuth, async (req, res) => {
     const newWalletBalance = parseFloat((wallet.balance - fundAmount).toFixed(2));
     const newGoalSaved = parseFloat((goal.saved + fundAmount).toFixed(2));
 
-    const [updatedWallet, updatedGoal, historyRecord, transaction] = await prisma.$transaction([
+    const savingsWallet = await prisma.wallet.findFirst({
+      where: { userId, type: 'savings', status: 'active' }
+    });
+    if (!savingsWallet) {
+      return res.status(400).json({ error: 'No active savings wallet found' });
+    }
+
+    const newSavingsBalance = parseFloat((savingsWallet.balance + fundAmount).toFixed(2));
+
+    const [updatedWallet, updatedGoal, updatedSavingsWallet, savingsHistoryRecord, checkingHistoryRecord, transaction] = await prisma.$transaction([
       prisma.wallet.update({
         where: { id: wallet.id },
         data: { balance: newWalletBalance }
@@ -1453,6 +1830,18 @@ app.post('/goals/:id/fund', requireAuth, async (req, res) => {
       prisma.savingsGoal.update({
         where: { id },
         data: { saved: newGoalSaved }
+      }),
+      prisma.wallet.update({
+        where: { id: savingsWallet.id },
+        data: { balance: newSavingsBalance }
+      }),
+      prisma.balanceHistory.create({
+        data: {
+          walletId: savingsWallet.id,
+          amount: fundAmount,
+          balanceAfter: newSavingsBalance,
+          reason: `Stashed to ${goal.name}`
+        }
       }),
       prisma.balanceHistory.create({
         data: {
@@ -1466,7 +1855,7 @@ app.post('/goals/:id/fund', requireAuth, async (req, res) => {
         data: {
           reference: `GOAL-${Math.random().toString(36).substring(2, 9).toUpperCase()}`,
           senderWalletId: wallet.id,
-          receiverWalletId: null,
+          receiverWalletId: savingsWallet.id,
           amount: fundAmount,
           currency: 'EUR',
           status: 'confirmed',
@@ -1483,6 +1872,16 @@ app.post('/goals/:id/fund', requireAuth, async (req, res) => {
         userId,
         balance: newWalletBalance,
         currency: wallet.currency
+      }
+    });
+
+    await publishWalletEvent({
+      type: 'balance.updated',
+      payload: {
+        walletId: savingsWallet.id,
+        userId,
+        balance: newSavingsBalance,
+        currency: savingsWallet.currency
       }
     });
 
@@ -1504,6 +1903,139 @@ app.post('/goals/:id/fund', requireAuth, async (req, res) => {
   }
 });
 
+app.put('/goals/:id', requireAuth, async (req, res) => {
+  const userId = (req as any).user.userId;
+  const { id } = req.params;
+  const { name, target, hue, icon, due } = req.body;
+
+  try {
+    const existingGoal = await prisma.savingsGoal.findFirst({
+      where: { id, userId }
+    });
+    if (!existingGoal) {
+      return res.status(404).json({ error: 'Savings goal not found' });
+    }
+
+    const updatedGoal = await prisma.savingsGoal.update({
+      where: { id },
+      data: {
+        name: name !== undefined ? name : existingGoal.name,
+        target: target !== undefined ? parseFloat(target) : existingGoal.target,
+        hue: hue !== undefined ? parseInt(hue) : existingGoal.hue,
+        icon: icon !== undefined ? icon : existingGoal.icon,
+        due: due !== undefined ? due : existingGoal.due
+      }
+    });
+
+    res.status(200).json(updatedGoal);
+  } catch (error: any) {
+    res.status(500).json({ error: 'Failed to update goal', message: error.message });
+  }
+});
+
+app.delete('/goals/:id', requireAuth, async (req, res) => {
+  const userId = (req as any).user.userId;
+  const { id } = req.params;
+
+  try {
+    const existingGoal = await prisma.savingsGoal.findFirst({
+      where: { id, userId }
+    });
+    if (!existingGoal) {
+      return res.status(404).json({ error: 'Savings goal not found' });
+    }
+
+    const savedAmount = existingGoal.saved;
+    if (savedAmount > 0) {
+      const checkingWallet = await prisma.wallet.findFirst({
+        where: { userId, type: 'checking', status: 'active' }
+      });
+      const savingsWallet = await prisma.wallet.findFirst({
+        where: { userId, type: 'savings', status: 'active' }
+      });
+
+      if (checkingWallet && savingsWallet) {
+        const newCheckingBalance = parseFloat((checkingWallet.balance + savedAmount).toFixed(2));
+        const newSavingsBalance = Math.max(0, parseFloat((savingsWallet.balance - savedAmount).toFixed(2)));
+
+        await prisma.$transaction([
+          prisma.wallet.update({
+            where: { id: checkingWallet.id },
+            data: { balance: newCheckingBalance }
+          }),
+          prisma.wallet.update({
+            where: { id: savingsWallet.id },
+            data: { balance: newSavingsBalance }
+          }),
+          prisma.balanceHistory.create({
+            data: {
+              walletId: checkingWallet.id,
+              amount: savedAmount,
+              balanceAfter: newCheckingBalance,
+              reason: `Refund from deleted goal: ${existingGoal.name}`
+            }
+          }),
+          prisma.balanceHistory.create({
+            data: {
+              walletId: savingsWallet.id,
+              amount: -savedAmount,
+              balanceAfter: newSavingsBalance,
+              reason: `Goal deleted: ${existingGoal.name}`
+            }
+          }),
+          prisma.transaction.create({
+            data: {
+              reference: `REFUND-${Math.random().toString(36).substring(2, 9).toUpperCase()}`,
+              senderWalletId: savingsWallet.id,
+              receiverWalletId: checkingWallet.id,
+              amount: savedAmount,
+              currency: 'EUR',
+              status: 'confirmed',
+              type: 'transfer',
+              description: `Refund from deleted goal: ${existingGoal.name}`
+            }
+          }),
+          prisma.savingsGoal.delete({
+            where: { id }
+          })
+        ]);
+
+        await publishWalletEvent({
+          type: 'balance.updated',
+          payload: {
+            walletId: checkingWallet.id,
+            userId,
+            balance: newCheckingBalance,
+            currency: checkingWallet.currency
+          }
+        });
+
+        await publishWalletEvent({
+          type: 'balance.updated',
+          payload: {
+            walletId: savingsWallet.id,
+            userId,
+            balance: newSavingsBalance,
+            currency: savingsWallet.currency
+          }
+        });
+      } else {
+        await prisma.savingsGoal.delete({
+          where: { id }
+        });
+      }
+    } else {
+      await prisma.savingsGoal.delete({
+        where: { id }
+      });
+    }
+
+    res.status(200).json({ status: 'deleted' });
+  } catch (error: any) {
+    res.status(500).json({ error: 'Failed to delete goal', message: error.message });
+  }
+});
+
 async function startRabbitConsumer() {
   try {
     const queueName = 'wallet_service_queue';
@@ -1515,52 +2047,13 @@ async function startRabbitConsumer() {
       const { type, payload } = envelope.event;
       
       if (type === 'account.created') {
-        const { userId } = payload as any;
-        
-        // Prevent duplicate wallet creation
-        const existing = await prisma.wallet.findFirst({ where: { userId } });
-        if (existing) {
-          console.log(`[Wallet Service RabbitMQ] Wallet already exists for user ${userId}, skipping.`);
-          return;
+        const { userId, email } = payload as any;
+        try {
+          await createDefaultWalletsAndCardsForUser(userId, email);
+          console.log(`[Wallet Service RabbitMQ] Successfully handled account.created for user ${userId}`);
+        } catch (error: any) {
+          console.error(`[Wallet Service RabbitMQ] Failed to process account.created:`, error.message);
         }
-
-        // Generate structurally valid unique Belgian-like IBAN
-        const randomDigits = Math.floor(1000000000 + Math.random() * 9000000000);
-        const iban = `BE8937700771${randomDigits}`;
-
-        // Create a default wallet for new user in EUR
-        const wallet = await prisma.wallet.create({
-          data: {
-            userId,
-            iban,
-            currency: 'EUR',
-            balance: 250.00, // €250,00 Welcome Bonus! Premium UX
-            reservedBalance: 0.0,
-            status: 'active'
-          }
-        });
-
-        console.log(`[Wallet Service RabbitMQ] Default wallet created for user ${userId}. IBAN: ${iban}`);
-
-        await prisma.balanceHistory.create({
-          data: {
-            walletId: wallet.id,
-            amount: 250.00,
-            balanceAfter: 250.00,
-            reason: 'Welcome Bonus'
-          }
-        });
-
-        // Publish balance update event
-        await publishWalletEvent({
-          type: 'balance.updated',
-          payload: {
-            walletId: wallet.id,
-            userId,
-            balance: 250.00,
-            currency: 'EUR'
-          }
-        });
       } else if (type === 'account.frozen') {
         const { userId } = payload as any;
         await prisma.wallet.updateMany({
@@ -1575,11 +2068,34 @@ async function startRabbitConsumer() {
   }
 }
 
+async function healSeedAccountsWithRetry(retries = 10, delayMs = 3000) {
+  const seedEmails = ['admin@finvault.com', 'test@finvault.com'];
+  for (const email of seedEmails) {
+    for (let attempt = 1; attempt <= retries; attempt++) {
+      try {
+        const res = await fetch(`${ACCOUNT_SERVICE_URL}/users/profile-by-email?email=${encodeURIComponent(email)}`);
+        if (res.ok) {
+          const user = await res.json();
+          console.log(`[Wallet Service Startup] Reconciling seed account wallets/cards for ${email}`);
+          await createDefaultWalletsAndCardsForUser(user.id, email);
+          break;
+        } else if (res.status === 404) {
+          console.log(`[Wallet Service Startup] Seed account ${email} not found in account-service (Attempt ${attempt}/${retries})`);
+        }
+      } catch (err: any) {
+        console.error(`[Wallet Service Startup] Error connecting to account-service for ${email} (Attempt ${attempt}/${retries}):`, err.message);
+      }
+      await new Promise((resolve) => setTimeout(resolve, delayMs));
+    }
+  }
+}
+
 let walletRetries = 8;
 const startWallet = () => {
   const srv = app.listen(PORT, () => {
     console.log(`[Wallet & Transaction Service] running on http://localhost:${PORT}`);
     startRabbitConsumer();
+    healSeedAccountsWithRetry();
   });
   srv.once('error', (e: any) => {
     srv.close();
