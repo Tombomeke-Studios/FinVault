@@ -1,5 +1,5 @@
-import React, { useState, useRef, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, Pressable, Animated, Dimensions } from 'react-native';
+import React, { useRef, useEffect } from 'react';
+import { View, Text, StyleSheet, ScrollView, Pressable, Animated, Dimensions, TouchableOpacity } from 'react-native';
 import { Icon } from '../components/Icon';
 import { money, Sparkline, relTime, CategoryIcon, Ring, catColor, Delta } from '../components/UI';
 import { BankCard } from '../components/BankCard';
@@ -35,7 +35,7 @@ function SpringBtn({ onPress, style, iconStyle, children }: { onPress: () => voi
 }
 
 export function ScreenOverview({ navigate, data, onTopup }: OverviewProps) {
-  const [selWallet, setSelWallet] = useState(0);
+
   const { wallets, transactions, cards, goals, spendByCat, balanceTrend, monthly } = data;
 
   const totalEUR = wallets.filter((w: any) => w.currency === 'EUR').reduce((s: number, w: any) => s + w.balance, 0);
@@ -138,28 +138,33 @@ export function ScreenOverview({ navigate, data, onTopup }: OverviewProps) {
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Accounts</Text>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.hScroll} snapToInterval={238} decelerationRate="fast">
-          {wallets.map((wl: any, i: number) => (
-            <TouchableOpacity key={wl.id} activeOpacity={0.85} onPress={() => setSelWallet(i)}
-              style={[styles.accountCard, { borderTopColor: wl.currency === 'EUR' ? THEME.colors.accent : THEME.colors.warn }]}
-            >
-              <View style={styles.accTop}>
-                <View style={styles.accNameRow}>
-                  <Icon name={wl.type === 'savings' ? 'targetRing' : 'card'} size={14} color={THEME.colors.accent} />
-                  <Text style={styles.accName}>{wl.name || 'Account'}</Text>
-                </View>
-                <Text style={styles.accCurrency}>{wl.currency}</Text>
-              </View>
-              <Text style={styles.accBalance}>{money(wl.balance, wl.currency)}</Text>
-              <View style={styles.accBottom}>
-                <Text style={styles.accIban} numberOfLines={1}>{wl.iban}</Text>
-                {(wl.interestRate || 0) > 0 && (
-                  <View style={styles.apyBadge}>
-                    <Text style={styles.apyText}>{((wl.interestRate || 0) * 100).toFixed(1)}% APY</Text>
+          {wallets.map((wl: any) => {
+            const accentCol = wl.type === 'savings' ? '#a78bfa' : wl.type === 'travel' ? '#38bdf8' : THEME.colors.accent;
+            return (
+              <TouchableOpacity key={wl.id} activeOpacity={0.82} onPress={() => navigate(`account:${wl.id}`)}
+                style={[styles.accountCard, { borderTopColor: accentCol }]}
+              >
+                <View style={styles.accTop}>
+                  <View style={styles.accNameRow}>
+                    <Icon name={wl.type === 'savings' ? 'targetRing' : wl.type === 'travel' ? 'plane' : 'card'} size={14} color={accentCol} />
+                    <Text style={styles.accName}>{wl.name || 'Account'}</Text>
                   </View>
-                )}
-              </View>
-            </TouchableOpacity>
-          ))}
+                  <Text style={styles.accCurrency}>{wl.currency}</Text>
+                </View>
+                <Text style={[styles.accBalance, { color: accentCol }]}>{money(wl.balance, wl.currency)}</Text>
+                <View style={styles.accBottom}>
+                  <Text style={styles.accIban} numberOfLines={1}>{wl.iban}</Text>
+                  {(wl.interestRate || 0) > 0 ? (
+                    <View style={styles.apyBadge}>
+                      <Text style={styles.apyText}>{((wl.interestRate || 0) * 100).toFixed(1)}% APY</Text>
+                    </View>
+                  ) : (
+                    <Text style={styles.viewLabel}>View →</Text>
+                  )}
+                </View>
+              </TouchableOpacity>
+            );
+          })}
         </ScrollView>
       </View>
 
@@ -324,6 +329,7 @@ const styles = StyleSheet.create({
   accBalance: { fontSize: 22, fontWeight: 'bold', color: THEME.colors.text, letterSpacing: -0.5 },
   accBottom: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   accIban: { fontSize: 10, color: THEME.colors.text3, flex: 1 },
+  viewLabel: { fontSize: 10, color: THEME.colors.text3, fontWeight: '600' },
   apyBadge: { backgroundColor: THEME.colors.accentSoft, borderColor: THEME.colors.accentLine, borderWidth: 1, borderRadius: 99, paddingHorizontal: 8, paddingVertical: 2 },
   apyText: { fontSize: 10, color: THEME.colors.accent, fontWeight: 'bold' },
 
