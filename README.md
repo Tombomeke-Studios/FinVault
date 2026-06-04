@@ -130,6 +130,18 @@ De applicatie is nu bereikbaar op:
 npm test
 ```
 
+### 4. Mobiele App Starten (Expo Go)
+De mobiele applicatie is gebouwd met React Native en Expo. Je kunt deze eenvoudig lokaal starten en openen op je eigen smartphone via de Expo Go app:
+
+1. Zorg ervoor dat je de **Expo Go** app hebt geïnstalleerd op je iOS- of Android-toestel (verkrijgbaar in de App Store of Google Play Store).
+2. Start de Expo server vanuit de root van de monorepo:
+   ```bash
+   npm run dev:mobile
+   ```
+   *(Alternatief: navigeer naar `apps/mobile` en voer `npx expo start` of `npm start` uit).*
+3. Er verschijnt een QR-code in de terminal.
+4. Scan de QR-code met de camera van je iPhone of via de Expo Go app op Android om de app direct op je telefoon te openen!
+
 ---
 
 ## Docker Deployment
