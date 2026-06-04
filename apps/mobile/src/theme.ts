@@ -18,6 +18,7 @@ export const THEME = {
     neg: '#f87171',
     warn: '#fbbf24',
     glassBg: 'rgba(31, 31, 40, 0.65)',
+    surfaceHi: '#343444',
   },
   radius: {
     xs: 4,
