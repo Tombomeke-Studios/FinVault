@@ -15,8 +15,9 @@
     "dev:wallet": "npm run dev --workspace=services/wallet-transaction-service",
     "dev:invoice": "npm run dev --workspace=services/invoice-service",
     "dev:web": "npm run dev --workspace=apps/web-dashboard",
+    "predev": "npx --yes kill-port 3000 8000 8001 8002 8003 || true",
     "dev": "concurrently \"npm run dev:shared\" \"npm run dev:gateway\" \"npm run dev:account\" \"npm run dev:wallet\" \"npm run dev:invoice\" \"npm run dev:web\"",
-    "kill-ports": "npx kill-port 3000 8000 8001 8002 8003",
+    "kill-ports": "npx --yes kill-port 3000 8000 8001 8002 8003",
     "build": "npm run build --workspaces --if-present",
     "install:all": "npm install",
     "test": "vitest run"
