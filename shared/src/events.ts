@@ -4,6 +4,7 @@ export type FinVaultEvent =
   | { type: 'account.created'; payload: { userId: string; email: string; accountType: string } }
   | { type: 'account.updated'; payload: { userId: string; email: string } }
   | { type: 'account.frozen'; payload: { userId: string; reason: string } }
+  | { type: 'card.created'; payload: { cardId: string; userId: string; walletId: string; name: string; last4: string } }
   | { type: 'balance.updated'; payload: { walletId: string; userId: string; balance: number; currency: string } }
   | { type: 'balance.low'; payload: { walletId: string; userId: string; balance: number; currency: string } }
   | { type: 'payment.request'; payload: { reference: string; senderWalletId: string; receiverWalletId: string; amount: number; currency: string; description: string } }
