@@ -209,14 +209,10 @@ export function Shell({ route, setRoute, compact, children, onLogout, fire, toas
   const navBtn = (id: string, label: string, icon: string) => {
     const active = route === id;
     return (
-      <button key={id} onClick={() => setRoute(id)} role="menuitem" aria-current={active ? 'page' : undefined} style={{
-        display: 'flex', alignItems: 'center', gap: 13, padding: '11px 14px', borderRadius: 'var(--r)', cursor: 'pointer', border: 'none', textAlign: 'left',
-        fontFamily: 'var(--font-body)', fontSize: '0.95rem', fontWeight: 600,
-        background: active ? 'var(--accent-soft)' : 'transparent', color: active ? 'var(--accent)' : 'var(--text-2)', transition: 'all .16s ease', width: '100%',
-      }}
-        onMouseEnter={e => { if (!active) { (e.currentTarget as HTMLElement).style.background = 'var(--surface-2)'; (e.currentTarget as HTMLElement).style.color = 'var(--text)'; } }}
-        onMouseLeave={e => { if (!active) { (e.currentTarget as HTMLElement).style.background = 'transparent'; (e.currentTarget as HTMLElement).style.color = 'var(--text-2)'; } }}>
-        <Icon name={icon} size={20} stroke={active ? 2.3 : 2} /> {label}
+      <button key={id} onClick={() => setRoute(id)} role="menuitem" aria-current={active ? 'page' : undefined}
+        className={`nav-item${active ? ' active' : ''}`}>
+        <Icon name={icon} size={20} stroke={active ? 2.3 : 2} />
+        {label}
       </button>
     );
   };
@@ -229,13 +225,23 @@ export function Shell({ route, setRoute, compact, children, onLogout, fire, toas
           {NAV.map(n => navBtn(n.id, n.label, n.icon))}
         </nav>
         <div style={{ marginTop: 'auto', display: 'flex', flexDirection: 'column', gap: 6 }}>
-          <div className="card" style={{ padding: 'var(--pad)', background: 'var(--surface-2)', display: 'flex', flexDirection: 'column', gap: 8 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontWeight: 700, fontSize: '0.86rem' }}><Icon name="sparkle" size={16} style={{ color: 'var(--accent)' }} /> Go Metal+</div>
-            <p style={{ fontSize: '0.78rem', color: 'var(--text-3)', lineHeight: 1.4 }}>Higher limits, lounge access & travel insurance.</p>
-            <button className="btn btn-primary" style={{ padding: '9px', fontSize: '0.84rem' }} onClick={openUpgrade}>Upgrade</button>
+          <div style={{ padding: '14px 16px', borderRadius: 'var(--r-lg)', background: 'linear-gradient(145deg, var(--accent-soft), color-mix(in oklab, var(--surface-2) 70%, var(--accent-soft)))', border: '1px solid var(--accent-line)', display: 'flex', flexDirection: 'column', gap: 10 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <div style={{ width: 28, height: 28, borderRadius: 'var(--r-sm)', background: 'var(--accent)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                <Icon name="sparkle" size={14} style={{ color: 'var(--on-accent)' }} />
+              </div>
+              <div>
+                <div style={{ fontWeight: 700, fontSize: '0.88rem' }}>Go Metal+</div>
+                <div style={{ fontSize: '0.72rem', color: 'var(--text-3)' }}>€16.99 / month</div>
+              </div>
+            </div>
+            <p style={{ fontSize: '0.76rem', color: 'var(--text-2)', lineHeight: 1.5 }}>Unlimited cards · Lounge access · 3% savings rate</p>
+            <button className="btn btn-primary" style={{ padding: '8px', fontSize: '0.82rem' }} onClick={openUpgrade}>Upgrade plan</button>
           </div>
           {navBtn('settings', 'Settings', 'settings')}
-          <button onClick={onLogout} className="btn btn-quiet" style={{ justifyContent: 'flex-start', gap: 13, padding: '11px 14px', color: 'var(--text-3)' }}><Icon name="logout" size={20} /> Sign out</button>
+          <button onClick={onLogout} className="nav-item" style={{ color: 'var(--text-3)', justifyContent: 'flex-start', fontFamily: 'var(--font-body)', fontSize: '0.95rem', fontWeight: 600, width: '100%' }}>
+            <Icon name="logout" size={20} /> Sign out
+          </button>
         </div>
       </aside>
       <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>

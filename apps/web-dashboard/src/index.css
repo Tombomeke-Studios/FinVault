@@ -194,6 +194,64 @@ a:focus-visible, button:focus-visible, [tabindex]:focus-visible { outline: 2px s
 .hide-scroll { scrollbar-width: none; }
 .hide-scroll::-webkit-scrollbar { display: none; }
 
+/* ── HERO CARD ─────────────────────────────────────────────────── */
+.card-hero { position: relative; overflow: hidden; }
+.card-hero::after {
+  content: '';
+  position: absolute; inset: 0; pointer-events: none; border-radius: inherit;
+  background:
+    radial-gradient(ellipse 65% 90% at 5% 115%, var(--accent-soft) 0%, transparent 55%),
+    radial-gradient(ellipse 45% 55% at 95% -15%, oklch(0.72 0.12 250 / 0.07) 0%, transparent 60%);
+}
+
+/* ── QUICK ACTION BUTTON ───────────────────────────────────────── */
+.qaction {
+  flex: 1; display: flex; flex-direction: column; align-items: center; gap: 9px;
+  background: transparent; border: none; cursor: pointer; padding: 14px 6px;
+  border-radius: var(--r); transition: background .15s ease;
+  font-family: var(--font-body); -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+.qaction:hover { background: var(--surface-2); }
+.qaction:active { background: var(--surface-hi); transform: scale(0.97); }
+.qaction__icon {
+  width: 52px; height: 52px; border-radius: var(--r-xl); flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  transition: transform .18s cubic-bezier(.22,.9,.3,1), box-shadow .18s ease;
+}
+.qaction:hover .qaction__icon { transform: translateY(-3px); }
+.qaction__label { font-size: 0.8rem; font-weight: 600; color: var(--text-2); white-space: nowrap; }
+
+/* ── TRANSACTION ROW ───────────────────────────────────────────── */
+.tx-row {
+  display: flex; align-items: center; gap: 14px;
+  padding: 10px 8px; border-radius: var(--r);
+  transition: background .12s ease; cursor: default;
+}
+.tx-row:hover { background: var(--surface-2); }
+
+/* ── STAT TILE ─────────────────────────────────────────────────── */
+.stat-tile {
+  flex: 1; display: flex; align-items: center; gap: 12px;
+  padding: 14px 16px; border-radius: var(--r); background: var(--surface-2);
+  border: 1px solid var(--line);
+}
+
+/* ── NAV ITEM ──────────────────────────────────────────────────── */
+.nav-item {
+  display: flex; align-items: center; gap: 13px; padding: 10px 14px;
+  border-radius: var(--r); cursor: pointer; border: none; text-align: left;
+  font-family: var(--font-body); font-size: 0.95rem; font-weight: 600;
+  transition: all .16s ease; width: 100%; position: relative;
+  border-left: 3px solid transparent;
+}
+.nav-item.active {
+  background: var(--accent-soft); color: var(--accent);
+  border-left-color: var(--accent);
+}
+.nav-item:not(.active):hover { background: var(--surface-2); color: var(--text); }
+.nav-item:not(.active) { background: transparent; color: var(--text-2); }
+
 @keyframes fvRise { from { transform: translateY(12px); opacity: 0; } to { transform: none; opacity: 1; } }
 @keyframes fvFade { from { opacity: 0.35; } to { opacity: 1; } }
 @keyframes fvPop { 0% { transform: scale(0.92); opacity: 0; } 60% { transform: scale(1.02); } 100% { transform: scale(1); opacity: 1; } }
