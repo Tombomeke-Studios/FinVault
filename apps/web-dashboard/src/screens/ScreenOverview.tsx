@@ -2,25 +2,38 @@ import React, { useState, useEffect, useRef } from 'react';
 
 function useCountUp(target: number, duration = 1300) {
   const [val, setVal] = useState(0);
-  const started = useRef(false);
+  
   useEffect(() => {
-    if (started.current) return;
-    started.current = true;
-    const t0 = performance.now();
+    let startTimestamp: number | null = null;
+    const startVal = val;
+    const diff = target - startVal;
+    
+    if (diff === 0) return;
+    
+    let animationFrameId: number;
+    
     const tick = (now: number) => {
-      const p = Math.min((now - t0) / duration, 1);
+      if (!startTimestamp) startTimestamp = now;
+      const elapsed = now - startTimestamp;
+      const p = Math.min(elapsed / duration, 1);
       const eased = 1 - Math.pow(1 - p, 3);
-      setVal(target * eased);
-      if (p < 1) requestAnimationFrame(tick);
-      else setVal(target);
+      setVal(startVal + diff * eased);
+      if (p < 1) {
+        animationFrameId = requestAnimationFrame(tick);
+      } else {
+        setVal(target);
+      }
     };
-    requestAnimationFrame(tick);
-  }, [target]);
+    
+    animationFrameId = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(animationFrameId);
+  }, [target, duration]);
+  
   return val;
 }
 import { Icon } from '../components/Icon';
 import { money, Sparkline, relTime, CategoryIcon, Ring, Donut, catColor, Delta } from '../components/UI';
-import { BankCard } from '../components/BankCard';
+import { BankCard, SwipeableCards } from '../components/BankCard';
 import type { AppData } from '../App';
 
 interface OverviewProps {
@@ -47,6 +60,7 @@ export function ScreenOverview({ compact, navigate, data, onTopup }: OverviewPro
   useEffect(() => { const t = setTimeout(() => setShowBars(true), 200); return () => clearTimeout(t); }, []);
   const recent = transactions.slice(0, 6);
   const card = cards[Math.min(selCard, cards.length - 1)] ?? null;
+  const linkedWallet = card ? wallets.find(w => w.id === card.walletId) : null;
   const goalsPreview = goals.slice(0, 3);
   const topCats = [...spendByCat].sort((a, b) => b.amount - a.amount).slice(0, 5);
 
@@ -147,28 +161,29 @@ export function ScreenOverview({ compact, navigate, data, onTopup }: OverviewPro
         </div>
         <div style={{ display: 'flex', gap: 'var(--gap)', overflowX: 'auto', paddingBottom: 4 }} className="hide-scroll">
           {wallets.map((wl, i) => {
+            const acColor = wl.type === 'savings' ? 'oklch(0.68 0.17 300)' : wl.type === 'travel' ? 'oklch(0.70 0.14 220)' : 'var(--accent)';
+            const acSoft  = wl.type === 'savings' ? 'oklch(0.68 0.17 300 / 0.13)' : wl.type === 'travel' ? 'oklch(0.70 0.14 220 / 0.13)' : 'var(--accent-soft)';
             return (
-              <div key={wl.id} className={`card card-lift rise rise-d${i + 1}`} style={{
+              <div key={wl.id} onClick={() => navigate(`account:${wl.id}`)} className={`card card-lift rise rise-d${i + 1}`} style={{
                 minWidth: 220, flex: compact ? '0 0 auto' : 1, padding: 'var(--pad)',
-                cursor: 'pointer', borderTop: `3px solid ${wl.currency === 'EUR' ? 'var(--accent)' : 'var(--warn)'}`,
+                cursor: 'pointer', borderTop: `3px solid ${acColor}`,
               }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <span style={{ display: 'flex', alignItems: 'center', gap: 7, fontWeight: 600, fontSize: '0.88rem' }}>
-                    <Icon name={wl.type === 'savings' ? 'targetRing' : 'wallet'} size={16} style={{ color: 'var(--accent)' }} />
-                    {wl.name || 'Account'}
+                    <Icon name={wl.type === 'savings' ? 'targetRing' : wl.type === 'travel' ? 'globe' : 'wallet'} size={16} style={{ color: acColor }} />
+                    {wl.name || (wl.type === 'savings' ? 'Savings Vault' : wl.type === 'travel' ? 'Travel Multi-Currency' : 'Everyday Checking')}
                   </span>
                   <span style={{ fontSize: '0.72rem', color: 'var(--text-3)', fontWeight: 700 }}>{wl.currency}</span>
                 </div>
-                <div className="num display" style={{ fontSize: '1.6rem', fontWeight: 700, margin: '10px 0 6px', letterSpacing: '-0.02em' }}>
+                <div className="num display" style={{ fontSize: '1.6rem', fontWeight: 700, margin: '10px 0 6px', letterSpacing: '-0.02em', color: acColor }}>
                   {money(wl.balance, wl.currency)}
                 </div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <span className="num" style={{ fontSize: '0.72rem', color: 'var(--text-3)' }}>{wl.iban}</span>
-                  {(wl.interestRate || 0) > 0 && (
-                    <span className="chip chip-accent" style={{ padding: '2px 8px', fontSize: '0.7rem' }}>
-                      {((wl.interestRate || 0) * 100).toFixed(1)}% APY
-                    </span>
-                  )}
+                  {(wl.interestRate || 0) > 0
+                    ? <span className="chip" style={{ padding: '2px 8px', fontSize: '0.7rem', background: acSoft, color: acColor }}>{((wl.interestRate || 0) * 100).toFixed(1)}% APY</span>
+                    : <span style={{ fontSize: '0.7rem', color: 'var(--text-3)', fontWeight: 600 }}>View →</span>
+                  }
                 </div>
               </div>
             );
@@ -234,11 +249,56 @@ export function ScreenOverview({ compact, navigate, data, onTopup }: OverviewPro
                   Manage <Icon name="chevRight" size={13} />
                 </button>
               </div>
-              <div style={{ display: 'flex', justifyContent: 'center' }}>
-                <BankCard card={card} width={compact ? 300 : 260} onClick={() => navigate('cards')} />
+              <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', overflow: 'hidden', width: '100%', position: 'relative' }}>
+                {cards.length > 1 && selCard > 0 && (
+                  <button onClick={() => setSelCard(selCard - 1)} aria-label="Previous card" style={{
+                    position: 'absolute', left: 4, zIndex: 10, width: 32, height: 32, borderRadius: '50%',
+                    border: '1px solid var(--line-2)', background: 'var(--surface)', color: 'var(--text)',
+                    cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    boxShadow: 'var(--shadow-sm)',
+                  }}>
+                    <Icon name="chevLeft" size={16} />
+                  </button>
+                )}
+                <SwipeableCards
+                  cards={cards}
+                  width={compact ? 300 : 260}
+                  selCard={selCard}
+                  setSelCard={setSelCard}
+                />
+                {cards.length > 1 && selCard < cards.length - 1 && (
+                  <button onClick={() => setSelCard(selCard + 1)} aria-label="Next card" style={{
+                    position: 'absolute', right: 4, zIndex: 10, width: 32, height: 32, borderRadius: '50%',
+                    border: '1px solid var(--line-2)', background: 'var(--surface)', color: 'var(--text)',
+                    cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    boxShadow: 'var(--shadow-sm)',
+                  }}>
+                    <Icon name="chevRight" size={16} />
+                  </button>
+                )}
               </div>
+              {linkedWallet && (
+                <div style={{
+                  display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                  background: 'var(--surface-2)', padding: '10px 14px', borderRadius: 'var(--r-sm)',
+                  border: '1px solid var(--line)', marginTop: 4, cursor: 'pointer',
+                }} onClick={() => navigate(`account:${linkedWallet.id}`)}>
+                  <div style={{ minWidth: 0, flex: 1, paddingRight: 8 }}>
+                    <div style={{ fontSize: '0.72rem', color: 'var(--text-3)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Linked Account</div>
+                    <div style={{ fontWeight: 700, fontSize: '0.86rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                      {linkedWallet.name || (linkedWallet.type === 'savings' ? 'Savings Vault' : linkedWallet.type === 'travel' ? 'Travel Multi-Currency' : 'Everyday Checking')}
+                    </div>
+                  </div>
+                  <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                    <div style={{ fontSize: '0.72rem', color: 'var(--text-3)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Balance</div>
+                    <div className="num" style={{ fontWeight: 800, fontSize: '0.96rem', color: 'var(--accent)' }}>
+                      {money(linkedWallet.balance, linkedWallet.currency)}
+                    </div>
+                  </div>
+                </div>
+              )}
               {cards.length > 1 && (
-                <div style={{ display: 'flex', justifyContent: 'center', gap: 6 }}>
+                <div style={{ display: 'flex', justifyContent: 'center', gap: 6, marginTop: 4 }}>
                   {cards.map((_, i) => (
                     <button key={i} onClick={() => setSelCard(i)} style={{
                       width: i === selCard ? 20 : 7, height: 7, borderRadius: 99, padding: 0, border: 'none',
@@ -305,7 +365,7 @@ export function ScreenOverview({ compact, navigate, data, onTopup }: OverviewPro
             {goalsPreview.map((g, gi) => {
               const pct = Math.round((g.saved / g.target) * 100);
               return (
-                <div key={g.id} className={`card card-lift scale-in rise-d${gi + 1}`} style={{ padding: 'var(--pad)', background: 'var(--surface-2)', display: 'flex', flexDirection: 'column', gap: 12 }}>
+                <div key={g.id} onClick={() => navigate('savings')} className={`card card-lift scale-in rise-d${gi + 1}`} style={{ padding: 'var(--pad)', background: 'var(--surface-2)', display: 'flex', flexDirection: 'column', gap: 12, cursor: 'pointer' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                     <Ring pct={pct} size={48} thickness={5} color={catColor(g.hue)}>
                       <Icon name={g.icon} size={16} style={{ color: catColor(g.hue) }} />
