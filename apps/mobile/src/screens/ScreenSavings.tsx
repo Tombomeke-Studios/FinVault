@@ -32,6 +32,45 @@ export function ScreenSavings({ data, fire, goals, setGoals, wallets, setWallets
   const [newIcon, setNewIcon] = useState('plane');
   const [newHue, setNewHue] = useState(12);
 
+  // Edit goal state
+  const [editGoalId, setEditGoalId] = useState<string | null>(null);
+  const [editName, setEditName] = useState('');
+  const [editTarget, setEditTarget] = useState('');
+  const [editDue, setEditDue] = useState('');
+  const [editIcon, setEditIcon] = useState('plane');
+  const [editHue, setEditHue] = useState(12);
+  const editGoal = goals.find((g: any) => g.id === editGoalId);
+
+  const openEdit = (g: any) => {
+    setEditGoalId(g.id);
+    setEditName(g.name);
+    setEditTarget(String(g.target));
+    setEditDue(g.due === 'No date' ? '' : g.due);
+    setEditIcon(g.icon);
+    setEditHue(g.hue);
+  };
+
+  const handleEditGoal = () => {
+    const tgt = parseFloat(editTarget);
+    if (!editGoalId || !editName || !tgt) return;
+    setGoals((prev: any[]) => prev.map((g: any) => g.id === editGoalId ? {
+      ...g, name: editName, target: tgt, icon: editIcon, hue: editHue,
+      due: editDue || 'No date',
+    } : g));
+    fire('Goal updated', `"${editName}" has been saved.`, 'success');
+    setEditGoalId(null);
+  };
+
+  const handleDeleteGoal = (g: any) => {
+    Alert.alert('Delete goal', `Remove "${g.name}"? This cannot be undone.`, [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Delete', style: 'destructive', onPress: () => {
+        setGoals((prev: any[]) => prev.filter((x: any) => x.id !== g.id));
+        fire('Goal removed', `"${g.name}" has been deleted.`, 'info');
+      }},
+    ]);
+  };
+
   const activeGoal = goals.find((g: any) => g.id === activeGoalId);
 
   const handleAddSavings = async () => {
@@ -177,7 +216,7 @@ export function ScreenSavings({ data, fire, goals, setGoals, wallets, setWallets
             const pct = Math.min(100, Math.round((g.saved / g.target) * 100));
             const done = pct >= 100;
             return (
-              <TouchableOpacity key={g.id} activeOpacity={0.8} onPress={() => !done && setActiveGoalId(g.id)} style={[styles.card, styles.goalCard]}>
+              <View key={g.id} style={[styles.card, styles.goalCard]}>
                 <View style={styles.goalRow}>
                   <Ring pct={pct} size={54} thickness={6} color={catColor(g.hue)}>
                     <Icon name={g.icon} size={18} color={catColor(g.hue)} />
@@ -188,7 +227,7 @@ export function ScreenSavings({ data, fire, goals, setGoals, wallets, setWallets
                       {done ? (
                         <Text style={[styles.goalPct, { color: THEME.colors.pos }]}>Done</Text>
                       ) : (
-                        <Text style={styles.goalPct}>{pct}%</Text>
+                        <Text style={[styles.goalPct, { color: catColor(g.hue) }]}>{pct}%</Text>
                       )}
                     </View>
                     <Text style={styles.goalValues}>
@@ -197,7 +236,24 @@ export function ScreenSavings({ data, fire, goals, setGoals, wallets, setWallets
                     <Text style={styles.goalDate}>Due {g.due}</Text>
                   </View>
                 </View>
-              </TouchableOpacity>
+                {/* Progress bar */}
+                <View style={styles.progressBg}>
+                  <View style={[styles.progressFill, { width: `${pct}%` as any, backgroundColor: catColor(g.hue) }]} />
+                </View>
+                {/* Action buttons */}
+                <View style={styles.goalActions}>
+                  <TouchableOpacity style={[styles.goalActionBtn, styles.goalActionPrimary]} onPress={() => !done && setActiveGoalId(g.id)} disabled={done} activeOpacity={0.8}>
+                    <Icon name="plus" size={14} color={THEME.colors.onAccent} />
+                    <Text style={styles.goalActionPrimaryText}>Add funds</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity style={styles.goalActionIcon} onPress={() => openEdit(g)} activeOpacity={0.7}>
+                    <Icon name="edit" size={15} color={THEME.colors.text2} />
+                  </TouchableOpacity>
+                  <TouchableOpacity style={[styles.goalActionIcon, { borderColor: 'rgba(248,113,113,0.3)' }]} onPress={() => handleDeleteGoal(g)} activeOpacity={0.7}>
+                    <Icon name="trash" size={15} color={THEME.colors.neg} />
+                  </TouchableOpacity>
+                </View>
+              </View>
             );
           })}
           {goals.length === 0 && (
@@ -231,6 +287,35 @@ export function ScreenSavings({ data, fire, goals, setGoals, wallets, setWallets
 
           <TouchableOpacity style={styles.submitBtn} onPress={handleAddSavings} disabled={loading || !addAmt}>
             <Text style={styles.submitText}>{loading ? 'Processing…' : 'Add funds'}</Text>
+          </TouchableOpacity>
+        </View>
+      </MobileSheet>
+
+      {/* Edit goal sheet */}
+      <MobileSheet open={!!editGoalId} onClose={() => setEditGoalId(null)} title="Edit Goal">
+        <View style={styles.sheetForm}>
+          <Text style={styles.label}>Goal name</Text>
+          <TextInput style={styles.field} value={editName} onChangeText={setEditName} placeholder="e.g. Japan Trip" placeholderTextColor={THEME.colors.text3} autoFocus />
+          <Text style={styles.label}>Target amount (€)</Text>
+          <TextInput style={styles.field} value={editTarget} onChangeText={v => setEditTarget(v.replace(/[^0-9.]/g, ''))} placeholder="0.00" placeholderTextColor={THEME.colors.text3} keyboardType="decimal-pad" />
+          <Text style={styles.label}>Due date</Text>
+          <TextInput style={styles.field} value={editDue} onChangeText={setEditDue} placeholder="e.g. Dec 2025, No date" placeholderTextColor={THEME.colors.text3} />
+          <Text style={styles.label}>Icon</Text>
+          <View style={styles.quickChips}>
+            {['plane', 'shield', 'laptop', 'car', 'heart', 'gift', 'globe', 'flame'].map(ic => (
+              <TouchableOpacity key={ic} style={[styles.iconChip, editIcon === ic && styles.iconChipActive]} onPress={() => setEditIcon(ic)}>
+                <Icon name={ic} size={16} color={editIcon === ic ? THEME.colors.accent : THEME.colors.text2} />
+              </TouchableOpacity>
+            ))}
+          </View>
+          <Text style={styles.label}>Color</Text>
+          <View style={{ flexDirection: 'row', gap: 10 }}>
+            {[12, 158, 195, 230, 265, 300, 320].map(h => (
+              <TouchableOpacity key={h} onPress={() => setEditHue(h)} style={{ width: 28, height: 28, borderRadius: 14, backgroundColor: `hsl(${h}, 70%, 55%)`, borderWidth: editHue === h ? 3 : 2, borderColor: editHue === h ? THEME.colors.text : 'transparent' }} />
+            ))}
+          </View>
+          <TouchableOpacity style={[styles.submitBtn, (!editName || !parseFloat(editTarget)) && { opacity: 0.5 }]} onPress={handleEditGoal} disabled={!editName || !parseFloat(editTarget)}>
+            <Text style={styles.submitText}>Save changes</Text>
           </TouchableOpacity>
         </View>
       </MobileSheet>
@@ -351,6 +436,52 @@ const styles = StyleSheet.create({
   },
   goalCard: {
     padding: 16,
+    gap: 12,
+  },
+  progressBg: {
+    height: 5,
+    borderRadius: 99,
+    backgroundColor: THEME.colors.surfaceHi,
+    overflow: 'hidden',
+  },
+  progressFill: {
+    height: '100%',
+    borderRadius: 99,
+  },
+  goalActions: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  goalActionBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingVertical: 10,
+    borderRadius: THEME.radius.regular,
+    borderWidth: 1,
+    borderColor: THEME.colors.line,
+    backgroundColor: THEME.colors.surface2,
+  },
+  goalActionPrimary: {
+    backgroundColor: THEME.colors.accent,
+    borderColor: 'transparent',
+  },
+  goalActionPrimaryText: {
+    color: THEME.colors.onAccent,
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  goalActionIcon: {
+    width: 42,
+    height: 42,
+    borderRadius: THEME.radius.regular,
+    borderWidth: 1,
+    borderColor: THEME.colors.line,
+    backgroundColor: THEME.colors.surface2,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   goalRow: {
     flexDirection: 'row',
