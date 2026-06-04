@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Image } from 'react-native';
 import { Icon } from './Icon';
 import { Avatar } from './UI';
 import { THEME } from '../theme';
@@ -24,12 +24,12 @@ export function Shell({ route, setRoute, user, children }: ShellProps) {
     <View style={styles.container}>
       {/* Top sticky bar */}
       <View style={styles.topBar}>
-        <View style={styles.logoRow}>
-          <View style={styles.logoIcon}>
-            <Icon name="shield" size={14} color={THEME.colors.onAccent} />
-          </View>
-          <Text style={styles.logoText}>FinVault</Text>
-        </View>
+        <Image
+          source={require('../../assets/icon.png')}
+          style={styles.logoImage}
+          resizeMode="contain"
+          accessibilityLabel="FinVault"
+        />
         <View style={styles.topRight}>
           <TouchableOpacity
             style={styles.topBtn}
@@ -109,24 +109,9 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: THEME.colors.line,
   },
-  logoRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  logoIcon: {
-    width: 26,
-    height: 26,
-    borderRadius: 7,
-    backgroundColor: THEME.colors.accent,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  logoText: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: THEME.colors.text,
-    letterSpacing: -0.5,
+  logoImage: {
+    height: 32,
+    width: 120,
   },
   topRight: {
     flexDirection: 'row',
