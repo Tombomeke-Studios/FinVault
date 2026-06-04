@@ -16,6 +16,7 @@
     "dev:wallet": "npm run dev --workspace=services/wallet-transaction-service",
     "dev:invoice": "npm run dev --workspace=services/invoice-service",
     "dev:web": "npm run dev --workspace=apps/web-dashboard",
+    "dev:mobile": "npm run start --workspace=apps/mobile",
     "predev": "node scripts/kill-ports.js",
     "dev": "concurrently \"npm run dev:shared\" \"npm run dev:gateway\" \"npm run dev:account\" \"npm run dev:wallet\" \"npm run dev:invoice\" \"npm run dev:web\"",
     "kill-ports": "node scripts/kill-ports.js",
