@@ -1,16 +1,25 @@
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Dimensions } from 'react-native';
 import { Icon } from '../components/Icon';
-import { money, Sparkline, relTime, CategoryIcon, Ring, Donut, catColor, Delta, Avatar } from '../components/UI';
+import { money, Sparkline, relTime, CategoryIcon, Ring, catColor, Delta } from '../components/UI';
 import { BankCard } from '../components/BankCard';
 import { THEME } from '../theme';
 import type { AppData } from '../../App';
+
+const { width: SCREEN_W } = Dimensions.get('window');
 
 interface OverviewProps {
   navigate: (r: string) => void;
   data: AppData;
   onTopup: () => void;
 }
+
+const QUICK_ACTIONS = [
+  { icon: 'send',  label: 'Send',    primary: true,  route: 'transfer' },
+  { icon: 'qr',   label: 'Request', primary: false, route: 'transfer' },
+  { icon: 'plus', label: 'Top up',  primary: false, route: '' },
+  { icon: 'bolt', label: 'Bills',   primary: false, route: 'transfer' },
+];
 
 export function ScreenOverview({ navigate, data, onTopup }: OverviewProps) {
   const [selWallet, setSelWallet] = useState(0);
@@ -21,24 +30,24 @@ export function ScreenOverview({ navigate, data, onTopup }: OverviewProps) {
   const card = cards[0];
   const goalsPreview = goals.slice(0, 2);
   const topCats = [...spendByCat].sort((a, b) => b.amount - a.amount).slice(0, 4);
+  const totalSpend = topCats.reduce((s, c) => s + c.amount, 0);
 
-  // Live money in/out for current month
   const currentMonthFlow = monthly[monthly.length - 1] || { in: 0, out: 0 };
-
-  // Balance delta vs previous data point
   const prevBal = balanceTrend.length >= 2 ? balanceTrend[balanceTrend.length - 2] : balanceTrend[0] ?? 0;
   const currBal = balanceTrend[balanceTrend.length - 1] ?? totalEUR;
   const deltaBalance = prevBal > 0 ? parseFloat(((currBal - prevBal) / prevBal * 100).toFixed(1)) : 0;
 
+  const hour = new Date().getHours();
+  const greeting = hour < 12 ? 'Good morning' : hour < 18 ? 'Good afternoon' : 'Good evening';
+
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-      {/* Greeting row */}
-      <View style={styles.header}>
+
+      {/* ── Greeting ── */}
+      <View style={styles.greeting}>
         <View>
-          <Text style={styles.eyebrow}>
-            {new Date().toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' })}
-          </Text>
-          <Text style={styles.title}>Hi {data.user.firstName} 👋</Text>
+          <Text style={styles.greetingLabel}>{greeting}</Text>
+          <Text style={styles.greetingName}>{data.user.firstName}</Text>
         </View>
         <View style={styles.planBadge}>
           <Icon name="sparkle" size={11} color={THEME.colors.accent} />
@@ -46,86 +55,88 @@ export function ScreenOverview({ navigate, data, onTopup }: OverviewProps) {
         </View>
       </View>
 
-      {/* Hero balance card */}
-      <View style={[styles.card, styles.heroCard]}>
-        <View style={styles.balanceHeader}>
+      {/* ── Hero balance card ── */}
+      <View style={styles.heroCard}>
+        {/* Glow overlay at top-right */}
+        <View style={styles.heroGlow} />
+
+        <View style={styles.heroTop}>
           <View>
-            <Text style={styles.heroEyebrow}>Total balance · EUR</Text>
-            <Text style={styles.balanceText}>{money(totalEUR)}</Text>
+            <Text style={styles.heroLabel}>Total balance</Text>
+            <Text style={styles.heroBalance}>{money(totalEUR)}</Text>
+            <View style={{ marginTop: 8 }}>
+              <Delta value={deltaBalance} />
+            </View>
           </View>
-          <Delta value={deltaBalance} />
+          <View style={styles.heroFlowCol}>
+            <View style={styles.heroFlowItem}>
+              <View style={[styles.heroFlowIcon, { backgroundColor: 'rgba(52,211,153,0.18)' }]}>
+                <Icon name="arrowDownLeft" size={14} color={THEME.colors.pos} />
+              </View>
+              <View>
+                <Text style={styles.heroFlowLabel}>In</Text>
+                <Text style={[styles.heroFlowValue, { color: THEME.colors.pos }]}>
+                  {money(currentMonthFlow.in, 'EUR', { signed: true })}
+                </Text>
+              </View>
+            </View>
+            <View style={styles.heroFlowItem}>
+              <View style={[styles.heroFlowIcon, { backgroundColor: 'rgba(248,113,113,0.18)' }]}>
+                <Icon name="arrowUpRight" size={14} color={THEME.colors.neg} />
+              </View>
+              <View>
+                <Text style={styles.heroFlowLabel}>Out</Text>
+                <Text style={styles.heroFlowValue}>
+                  {money(currentMonthFlow.out, 'EUR')}
+                </Text>
+              </View>
+            </View>
+          </View>
         </View>
 
-        {/* Sparkline chart */}
-        <View style={styles.chartWrapper}>
-          <Sparkline data={balanceTrend} h={70} />
-        </View>
-
-        {/* Flow details row */}
-        <View style={styles.flowRow}>
-          <View style={styles.flowCol}>
-            <View style={[styles.flowCircle, { backgroundColor: 'rgba(52, 211, 153, 0.16)' }]}>
-              <Icon name="arrowDownLeft" size={13} color={THEME.colors.pos} />
-            </View>
-            <View>
-              <Text style={styles.flowLabel}>Money in</Text>
-              <Text style={styles.flowValue}>{money(currentMonthFlow.in, 'EUR', { signed: true })}</Text>
-            </View>
-          </View>
-
-          <View style={styles.flowCol}>
-            <View style={[styles.flowCircle, { backgroundColor: 'rgba(248, 113, 113, 0.16)' }]}>
-              <Icon name="arrowUpRight" size={13} color={THEME.colors.neg} />
-            </View>
-            <View>
-              <Text style={styles.flowLabel}>Money out</Text>
-              <Text style={styles.flowValue}>{money(-currentMonthFlow.out, 'EUR', { signed: true })}</Text>
-            </View>
-          </View>
+        {/* Sparkline */}
+        <View style={styles.sparkWrap}>
+          <Sparkline data={balanceTrend} h={72} />
         </View>
       </View>
 
-      {/* Quick Action buttons */}
-      <View style={styles.quickActions}>
-        <TouchableOpacity style={[styles.actionBtn, styles.actionPrimary]} onPress={() => navigate('transfer')}>
-          <Icon name="send" size={20} color={THEME.colors.onAccent} />
-          <Text style={[styles.actionText, styles.actionTextPrimary]}>Send</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.actionBtn} onPress={() => navigate('transfer')}>
-          <Icon name="qr" size={20} color={THEME.colors.text} />
-          <Text style={styles.actionText}>Request</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.actionBtn} onPress={onTopup}>
-          <Icon name="plus" size={20} color={THEME.colors.text} />
-          <Text style={styles.actionText}>Top up</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.actionBtn} onPress={() => navigate('transfer')}>
-          <Icon name="bolt" size={20} color={THEME.colors.text} />
-          <Text style={styles.actionText}>Pay bill</Text>
-        </TouchableOpacity>
+      {/* ── Quick actions ── */}
+      <View style={styles.quickRow}>
+        {QUICK_ACTIONS.map(a => (
+          <TouchableOpacity
+            key={a.label}
+            style={styles.qaction}
+            activeOpacity={0.7}
+            onPress={a.route ? () => navigate(a.route) : onTopup}
+            accessibilityLabel={a.label}
+            accessibilityRole="button"
+          >
+            <View style={[styles.qactionIcon, a.primary ? styles.qactionIconPrimary : styles.qactionIconGhost]}>
+              <Icon name={a.icon} size={21} color={a.primary ? THEME.colors.onAccent : THEME.colors.text} />
+            </View>
+            <Text style={styles.qactionLabel}>{a.label}</Text>
+          </TouchableOpacity>
+        ))}
       </View>
 
-      {/* Accounts slider */}
+      {/* ── Accounts horizontal scroll ── */}
       <View style={styles.section}>
-        <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>Your accounts</Text>
-        </View>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.horizScroll} snapToInterval={246} decelerationRate="fast">
+        <Text style={styles.sectionTitle}>Accounts</Text>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.hScroll} snapToInterval={238} decelerationRate="fast">
           {wallets.map((wl: any, i: number) => (
-            <TouchableOpacity key={wl.id} activeOpacity={0.8} onPress={() => setSelWallet(i)} style={[
-              styles.accountCard,
-              { borderColor: i === selWallet ? THEME.colors.accentLine : THEME.colors.line }
-            ]}>
-              <View style={styles.accHeader}>
-                <View style={styles.accIconName}>
-                  <Icon name={wl.type === 'savings' ? 'targetRing' : 'card'} size={15} color={THEME.colors.accent} />
+            <TouchableOpacity key={wl.id} activeOpacity={0.85} onPress={() => setSelWallet(i)}
+              style={[styles.accountCard, { borderTopColor: wl.currency === 'EUR' ? THEME.colors.accent : THEME.colors.warn }]}
+            >
+              <View style={styles.accTop}>
+                <View style={styles.accNameRow}>
+                  <Icon name={wl.type === 'savings' ? 'targetRing' : 'card'} size={14} color={THEME.colors.accent} />
                   <Text style={styles.accName}>{wl.name || 'Account'}</Text>
                 </View>
                 <Text style={styles.accCurrency}>{wl.currency}</Text>
               </View>
               <Text style={styles.accBalance}>{money(wl.balance, wl.currency)}</Text>
-              <View style={styles.accFooter}>
-                <Text style={styles.accIban}>{wl.iban}</Text>
+              <View style={styles.accBottom}>
+                <Text style={styles.accIban} numberOfLines={1}>{wl.iban}</Text>
                 {(wl.interestRate || 0) > 0 && (
                   <View style={styles.apyBadge}>
                     <Text style={styles.apyText}>{((wl.interestRate || 0) * 100).toFixed(1)}% APY</Text>
@@ -137,28 +148,31 @@ export function ScreenOverview({ navigate, data, onTopup }: OverviewProps) {
         </ScrollView>
       </View>
 
-      {/* Recent transactions */}
-      <View style={[styles.card, styles.sectionCard]}>
-        <View style={styles.sectionHeaderInside}>
+      {/* ── Recent activity ── */}
+      <View style={styles.card}>
+        <View style={styles.cardHeader}>
           <Text style={styles.sectionTitle}>Recent activity</Text>
           <TouchableOpacity onPress={() => navigate('transactions')}>
-            <Text style={styles.seeAllBtn}>See all</Text>
+            <Text style={styles.seeAll}>See all</Text>
           </TouchableOpacity>
         </View>
-        <View style={styles.list}>
-          {recent.map((t: any) => {
+        <View>
+          {recent.map((t: any, idx: number) => {
             const cat = t.type === 'deposit' ? 'deposit' : 'transfer';
             const displayAmt = t.receiverWalletId && wallets.some((w: any) => w.id === t.receiverWalletId) ? t.amount : -t.amount;
             return (
-              <View key={t.id} style={styles.txRow}>
-                <CategoryIcon cat={cat} size={38} />
+              <View key={t.id} style={[styles.txRow, idx === 0 && { borderTopWidth: 0 }]}>
+                <CategoryIcon cat={cat} size={42} />
                 <View style={styles.txMeta}>
                   <Text style={styles.txDesc} numberOfLines={1}>{t.description}</Text>
                   <Text style={styles.txTime}>{relTime(new Date(t.createdAt).getTime())}</Text>
                 </View>
-                <Text style={[styles.txAmt, { color: displayAmt > 0 ? THEME.colors.pos : THEME.colors.text }]}>
-                  {money(displayAmt, t.currency || 'EUR', { signed: true })}
-                </Text>
+                <View style={{ alignItems: 'flex-end' }}>
+                  <Text style={[styles.txAmt, { color: displayAmt > 0 ? THEME.colors.pos : THEME.colors.text }]}>
+                    {money(displayAmt, t.currency || 'EUR', { signed: true })}
+                  </Text>
+                  <Text style={styles.txCur}>{t.currency || 'EUR'}</Text>
+                </View>
               </View>
             );
           })}
@@ -166,31 +180,80 @@ export function ScreenOverview({ navigate, data, onTopup }: OverviewProps) {
         </View>
       </View>
 
-      {/* Savings goals */}
-      {goalsPreview.length > 0 && (
-        <View style={[styles.card, styles.sectionCard]}>
-          <View style={styles.sectionHeaderInside}>
-            <Text style={styles.sectionTitle}>Savings goals</Text>
-            <TouchableOpacity onPress={() => navigate('savings')}>
-              <Text style={styles.seeAllBtn}>See all</Text>
+      {/* ── Spending breakdown ── */}
+      {topCats.length > 0 && (
+        <View style={styles.card}>
+          <View style={styles.cardHeader}>
+            <Text style={styles.sectionTitle}>Spending</Text>
+            <TouchableOpacity onPress={() => navigate('analytics')}>
+              <Text style={styles.seeAll}>Analytics</Text>
             </TouchableOpacity>
           </View>
-          <View style={styles.goalsList}>
+          <View style={{ gap: 10 }}>
+            {topCats.map(c => {
+              const pct = totalSpend > 0 ? Math.round((c.amount / totalSpend) * 100) : 0;
+              return (
+                <View key={c.cat}>
+                  <View style={styles.catRow}>
+                    <View style={styles.catDot}>
+                      <CategoryIcon cat={c.cat} size={32} />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 5 }}>
+                        <Text style={styles.catName}>{c.label}</Text>
+                        <Text style={styles.catAmt}>{money(c.amount).replace('.00', '')}</Text>
+                      </View>
+                      <View style={styles.progressBg}>
+                        <View style={[styles.progressFill, { width: `${pct}%` as any, backgroundColor: catColor(c.hue) }]} />
+                      </View>
+                    </View>
+                  </View>
+                </View>
+              );
+            })}
+          </View>
+        </View>
+      )}
+
+      {/* ── Bank card preview ── */}
+      {card && (
+        <View style={styles.card}>
+          <View style={styles.cardHeader}>
+            <Text style={styles.sectionTitle}>My card</Text>
+            <TouchableOpacity onPress={() => navigate('cards')}>
+              <Text style={styles.seeAll}>Manage</Text>
+            </TouchableOpacity>
+          </View>
+          <BankCard card={card} />
+        </View>
+      )}
+
+      {/* ── Savings goals ── */}
+      {goalsPreview.length > 0 && (
+        <View style={styles.card}>
+          <View style={styles.cardHeader}>
+            <Text style={styles.sectionTitle}>Goals</Text>
+            <TouchableOpacity onPress={() => navigate('savings')}>
+              <Text style={styles.seeAll}>See all</Text>
+            </TouchableOpacity>
+          </View>
+          <View style={{ gap: 14 }}>
             {goalsPreview.map((g: any) => {
               const pct = Math.round((g.saved / g.target) * 100);
               return (
                 <View key={g.id} style={styles.goalRow}>
-                  <Ring pct={pct} size={48} thickness={5} color={catColor(g.hue)}>
-                    <Icon name={g.icon} size={15} color={catColor(g.hue)} />
+                  <Ring pct={pct} size={50} thickness={5} color={catColor(g.hue)}>
+                    <Icon name={g.icon} size={16} color={catColor(g.hue)} />
                   </Ring>
-                  <View style={styles.goalMeta}>
-                    <View style={styles.goalTitleRow}>
+                  <View style={{ flex: 1 }}>
+                    <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
                       <Text style={styles.goalName}>{g.name}</Text>
-                      <Text style={styles.goalPct}>{pct}%</Text>
+                      <Text style={[styles.goalPct, { color: catColor(g.hue) }]}>{pct}%</Text>
                     </View>
-                    <Text style={styles.goalDetails}>
-                      {money(g.saved).replace('.00', '')} of {money(g.target).replace('.00', '')}
-                    </Text>
+                    <View style={[styles.progressBg, { marginTop: 6 }]}>
+                      <View style={[styles.progressFill, { width: `${pct}%` as any, backgroundColor: catColor(g.hue) }]} />
+                    </View>
+                    <Text style={styles.goalSub}>{money(g.saved).replace('.00', '')} of {money(g.target).replace('.00', '')}</Text>
                   </View>
                 </View>
               );
@@ -203,288 +266,77 @@ export function ScreenOverview({ navigate, data, onTopup }: OverviewProps) {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: THEME.colors.bg,
-  },
-  content: {
-    padding: 16,
-    gap: 16,
-    paddingBottom: 88,
-  },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-end',
-  },
-  eyebrow: {
-    fontSize: 11,
-    fontWeight: 'bold',
-    textTransform: 'uppercase',
-    color: THEME.colors.text3,
-    letterSpacing: 1.5,
-  },
-  title: {
-    fontSize: 26,
-    fontWeight: 'bold',
-    color: THEME.colors.text,
-    fontFamily: THEME.fonts.display,
-    marginTop: 4,
-  },
-  planBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    backgroundColor: THEME.colors.accentSoft,
-    borderColor: THEME.colors.accentLine,
-    borderWidth: 1,
-    borderRadius: THEME.radius.pill,
-    paddingVertical: 4,
-    paddingHorizontal: 10,
-  },
-  planText: {
-    color: THEME.colors.accent,
-    fontSize: 11,
-    fontWeight: 'bold',
-  },
-  card: {
-    backgroundColor: THEME.colors.surface,
-    borderRadius: THEME.radius.lg,
-    borderWidth: 1,
-    borderColor: THEME.colors.line,
-  },
-  heroCard: {
-    padding: 20,
-    gap: 14,
-  },
-  balanceHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-  },
-  heroEyebrow: {
-    fontSize: 10.5,
-    fontWeight: 'bold',
-    textTransform: 'uppercase',
-    color: THEME.colors.text3,
-    letterSpacing: 1.2,
-  },
-  balanceText: {
-    fontSize: 32,
-    fontWeight: 'bold',
-    color: THEME.colors.text,
-    fontFamily: THEME.fonts.display,
-    marginTop: 4,
-  },
-  chartWrapper: {
-    marginVertical: 4,
-  },
-  flowRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    borderTopWidth: 1,
-    borderTopColor: THEME.colors.line,
-    paddingTop: 14,
-  },
-  flowCol: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-  },
-  flowCircle: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  flowLabel: {
-    fontSize: 11,
-    color: THEME.colors.text3,
-  },
-  flowValue: {
-    fontSize: 13,
-    fontWeight: 'bold',
-    color: THEME.colors.text,
-    marginTop: 2,
-  },
-  quickActions: {
-    flexDirection: 'row',
-    gap: 8,
-  },
-  actionBtn: {
-    flex: 1,
-    backgroundColor: THEME.colors.surface,
-    borderWidth: 1,
-    borderColor: THEME.colors.line,
-    borderRadius: THEME.radius.regular,
-    paddingVertical: 14,
-    justifyContent: 'center',
-    alignItems: 'center',
-    gap: 8,
-  },
-  actionPrimary: {
-    backgroundColor: THEME.colors.accent,
-    borderColor: 'transparent',
-  },
-  actionText: {
-    color: THEME.colors.text,
-    fontSize: 11,
-    fontWeight: 'bold',
-  },
-  actionTextPrimary: {
-    color: THEME.colors.onAccent,
-  },
-  section: {
-    gap: 12,
-  },
-  sectionHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  sectionHeaderInside: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  sectionTitle: {
-    fontSize: 17,
-    fontWeight: 'bold',
-    color: THEME.colors.text,
-  },
-  seeAllBtn: {
-    fontSize: 13,
-    color: THEME.colors.accent,
-    fontWeight: 'bold',
-  },
-  horizScroll: {
-    gap: 12,
-    paddingRight: 16,
-  },
-  accountCard: {
-    width: 230,
-    backgroundColor: THEME.colors.surface,
-    borderWidth: 1,
-    borderRadius: THEME.radius.lg,
-    padding: 16,
-    gap: 12,
-  },
-  accHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  accIconName: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
-  accName: {
-    color: THEME.colors.text,
-    fontSize: 13,
-    fontWeight: '600',
-  },
-  accCurrency: {
-    color: THEME.colors.text3,
-    fontSize: 11,
-    fontWeight: 'bold',
-  },
-  accBalance: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: THEME.colors.text,
-    fontFamily: THEME.fonts.display,
-  },
-  accFooter: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  accIban: {
-    fontSize: 11,
-    color: THEME.colors.text3,
-  },
-  apyBadge: {
-    backgroundColor: THEME.colors.surface2,
-    borderColor: THEME.colors.line,
-    borderWidth: 1,
-    borderRadius: THEME.radius.pill,
-    paddingVertical: 2,
-    paddingHorizontal: 8,
-  },
-  apyText: {
-    fontSize: 10,
-    color: THEME.colors.accent,
-    fontWeight: 'bold',
-  },
-  sectionCard: {
-    padding: 16,
-  },
-  list: {
-    gap: 12,
-  },
-  txRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    borderTopWidth: 1,
-    borderTopColor: THEME.colors.line,
-    paddingTop: 10,
-  },
-  txMeta: {
-    flex: 1,
-  },
-  txDesc: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: THEME.colors.text,
-  },
-  txTime: {
-    fontSize: 12,
-    color: THEME.colors.text3,
-    marginTop: 2,
-  },
-  txAmt: {
-    fontSize: 15,
-    fontWeight: 'bold',
-  },
-  emptyText: {
-    color: THEME.colors.text3,
-    fontSize: 13,
-    textAlign: 'center',
-    paddingVertical: 12,
-  },
-  goalsList: {
-    gap: 12,
-  },
-  goalRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
-  goalMeta: {
-    flex: 1,
-  },
-  goalTitleRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  goalName: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: THEME.colors.text,
-  },
-  goalPct: {
-    fontSize: 13,
-    fontWeight: 'bold',
-    color: THEME.colors.text,
-  },
-  goalDetails: {
-    fontSize: 12,
-    color: THEME.colors.text3,
-    marginTop: 2,
-  },
+  container: { flex: 1, backgroundColor: THEME.colors.bg },
+  content: { padding: 16, gap: 14, paddingBottom: 88 },
+
+  /* greeting */
+  greeting: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end' },
+  greetingLabel: { fontSize: 12, color: THEME.colors.text3, fontWeight: '600', letterSpacing: 0.3 },
+  greetingName: { fontSize: 26, fontWeight: 'bold', color: THEME.colors.text, marginTop: 2, letterSpacing: -0.5 },
+  planBadge: { flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: THEME.colors.accentSoft, borderColor: THEME.colors.accentLine, borderWidth: 1, borderRadius: 99, paddingVertical: 4, paddingHorizontal: 10 },
+  planText: { color: THEME.colors.accent, fontSize: 11, fontWeight: 'bold' },
+
+  /* hero card */
+  heroCard: { backgroundColor: THEME.colors.surface, borderRadius: THEME.radius.xl, borderWidth: 1, borderColor: THEME.colors.line, padding: 20, gap: 16, overflow: 'hidden', position: 'relative' },
+  heroGlow: { position: 'absolute', top: -60, right: -60, width: 200, height: 200, borderRadius: 100, backgroundColor: THEME.colors.accentSoft },
+  heroTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
+  heroLabel: { fontSize: 11, fontWeight: '700', textTransform: 'uppercase', color: THEME.colors.text3, letterSpacing: 1.2 },
+  heroBalance: { fontSize: 36, fontWeight: 'bold', color: THEME.colors.text, letterSpacing: -1, marginTop: 4 },
+  heroFlowCol: { gap: 12, alignItems: 'flex-end' },
+  heroFlowItem: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  heroFlowIcon: { width: 30, height: 30, borderRadius: 8, justifyContent: 'center', alignItems: 'center' },
+  heroFlowLabel: { fontSize: 10, color: THEME.colors.text3, fontWeight: '600' },
+  heroFlowValue: { fontSize: 13, fontWeight: 'bold', color: THEME.colors.text, marginTop: 1 },
+  sparkWrap: { marginHorizontal: -4 },
+
+  /* quick actions */
+  quickRow: { flexDirection: 'row', backgroundColor: THEME.colors.surface, borderRadius: THEME.radius.xl, borderWidth: 1, borderColor: THEME.colors.line, padding: 8 },
+  qaction: { flex: 1, alignItems: 'center', gap: 7, paddingVertical: 10 },
+  qactionIcon: { width: 52, height: 52, borderRadius: THEME.radius.xl, justifyContent: 'center', alignItems: 'center' },
+  qactionIconPrimary: { backgroundColor: THEME.colors.accent, shadowColor: THEME.colors.accent, shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.4, shadowRadius: 12, elevation: 8 },
+  qactionIconGhost: { backgroundColor: THEME.colors.surface2, borderWidth: 1, borderColor: THEME.colors.line },
+  qactionLabel: { fontSize: 11, fontWeight: '600', color: THEME.colors.text2 },
+
+  /* accounts */
+  section: { gap: 10 },
+  sectionTitle: { fontSize: 17, fontWeight: 'bold', color: THEME.colors.text },
+  hScroll: { gap: 12, paddingRight: 16 },
+  accountCard: { width: 222, backgroundColor: THEME.colors.surface, borderWidth: 1, borderColor: THEME.colors.line, borderRadius: THEME.radius.lg, padding: 16, gap: 10, borderTopWidth: 3 },
+  accTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  accNameRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  accName: { fontSize: 13, fontWeight: '600', color: THEME.colors.text },
+  accCurrency: { fontSize: 11, fontWeight: 'bold', color: THEME.colors.text3 },
+  accBalance: { fontSize: 22, fontWeight: 'bold', color: THEME.colors.text, letterSpacing: -0.5 },
+  accBottom: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  accIban: { fontSize: 10, color: THEME.colors.text3, flex: 1 },
+  apyBadge: { backgroundColor: THEME.colors.accentSoft, borderColor: THEME.colors.accentLine, borderWidth: 1, borderRadius: 99, paddingHorizontal: 8, paddingVertical: 2 },
+  apyText: { fontSize: 10, color: THEME.colors.accent, fontWeight: 'bold' },
+
+  /* card */
+  card: { backgroundColor: THEME.colors.surface, borderRadius: THEME.radius.lg, borderWidth: 1, borderColor: THEME.colors.line, padding: 16, gap: 14 },
+  cardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  seeAll: { fontSize: 13, color: THEME.colors.accent, fontWeight: 'bold' },
+
+  /* transactions */
+  txRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 10, borderTopWidth: 1, borderTopColor: THEME.colors.line },
+  txMeta: { flex: 1 },
+  txDesc: { fontSize: 14, fontWeight: '600', color: THEME.colors.text },
+  txTime: { fontSize: 11, color: THEME.colors.text3, marginTop: 2 },
+  txAmt: { fontSize: 15, fontWeight: 'bold' },
+  txCur: { fontSize: 10, color: THEME.colors.text3, marginTop: 1 },
+  emptyText: { color: THEME.colors.text3, fontSize: 13, textAlign: 'center', paddingVertical: 12 },
+
+  /* spending */
+  catRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  catDot: { flexShrink: 0 },
+  catName: { fontSize: 13, fontWeight: '600', color: THEME.colors.text2 },
+  catAmt: { fontSize: 13, fontWeight: 'bold', color: THEME.colors.text },
+  progressBg: { height: 5, borderRadius: 99, backgroundColor: THEME.colors.surfaceHi, overflow: 'hidden' },
+  progressFill: { height: '100%', borderRadius: 99 },
+
+  /* goals */
+  goalRow: { flexDirection: 'row', alignItems: 'center', gap: 14 },
+  goalName: { fontSize: 14, fontWeight: '600', color: THEME.colors.text },
+  goalPct: { fontSize: 14, fontWeight: 'bold' },
+  goalSub: { fontSize: 11, color: THEME.colors.text3, marginTop: 4 },
 });
