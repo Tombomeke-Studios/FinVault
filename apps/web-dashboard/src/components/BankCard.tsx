@@ -78,3 +78,111 @@ export function BankCard({ card, width = 340, onClick, selected }: BankCardProps
     </div>
   );
 }
+
+export function SwipeableCards({ cards, width, onCardClick, selCard, setSelCard }: {
+  cards: CardData[];
+  width: number;
+  onCardClick?: () => void;
+  selCard: number;
+  setSelCard: (idx: number) => void;
+}) {
+  const [dragStartX, setDragStartX] = React.useState<number | null>(null);
+  const [dragOffset, setDragOffset] = React.useState(0);
+  const [isDragging, setIsDragging] = React.useState(false);
+
+  const cardWidth = width;
+  const gap = 16;
+  const step = cardWidth + gap;
+
+  const onTouchStart = (e: React.TouchEvent) => {
+    setDragStartX(e.touches[0].clientX);
+    setIsDragging(true);
+  };
+
+  const onTouchMove = (e: React.TouchEvent) => {
+    if (dragStartX === null) return;
+    const diff = e.touches[0].clientX - dragStartX;
+    setDragOffset(diff);
+  };
+
+  const onTouchEnd = () => {
+    if (dragStartX === null) return;
+    finishDrag();
+  };
+
+  const onMouseDown = (e: React.MouseEvent) => {
+    setDragStartX(e.clientX);
+    setIsDragging(true);
+    e.preventDefault();
+  };
+
+  const onMouseMove = (e: React.MouseEvent) => {
+    if (dragStartX === null) return;
+    const diff = e.clientX - dragStartX;
+    setDragOffset(diff);
+  };
+
+  const onMouseUp = () => {
+    if (dragStartX === null) return;
+    finishDrag();
+  };
+
+  const finishDrag = () => {
+    const thresh = step * 0.25;
+    let newIndex = selCard;
+    if (dragOffset < -thresh && selCard < cards.length - 1) {
+      newIndex = selCard + 1;
+    } else if (dragOffset > thresh && selCard > 0) {
+      newIndex = selCard - 1;
+    }
+    setSelCard(newIndex);
+    setDragStartX(null);
+    setDragOffset(0);
+    setIsDragging(false);
+  };
+
+  const onMouseLeave = () => {
+    if (dragStartX !== null) finishDrag();
+  };
+
+  const baseTranslate = -selCard * step;
+  const totalTranslate = baseTranslate + dragOffset;
+
+  return (
+    <div 
+      onTouchStart={onTouchStart}
+      onTouchMove={onTouchMove}
+      onTouchEnd={onTouchEnd}
+      onMouseDown={onMouseDown}
+      onMouseMove={onMouseMove}
+      onMouseUp={onMouseUp}
+      onMouseLeave={onMouseLeave}
+      style={{
+        width: cardWidth,
+        overflow: 'visible',
+        cursor: isDragging ? 'grabbing' : 'grab',
+        touchAction: 'pan-y',
+        position: 'relative',
+        height: cardWidth * 0.63,
+      }}
+    >
+      <div style={{
+        display: 'flex',
+        gap: gap,
+        width: 'max-content',
+        transform: `translateX(${totalTranslate}px)`,
+        transition: isDragging ? 'none' : 'transform 0.35s cubic-bezier(0.25, 1, 0.5, 1)',
+      }}>
+        {cards.map((c, i) => (
+          <BankCard 
+            key={c.id} 
+            card={c} 
+            width={cardWidth} 
+            onClick={Math.abs(dragOffset) < 5 ? onCardClick : undefined} 
+            selected={i === selCard} 
+          />
+        ))}
+      </div>
+    </div>
+  );
+}

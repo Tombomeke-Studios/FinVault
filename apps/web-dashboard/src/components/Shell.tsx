@@ -171,7 +171,7 @@ export function Shell({ route, setRoute, compact, children, onLogout, fire, toas
     <>
       <Notifs open={notif} onClose={() => setNotif(false)} items={notifications} />
       <UpgradeSheet open={upgradeOpen} onClose={closeUpgrade} compact={compact} fire={fire} currentPlan={user?.plan} onUpgrade={onUpgrade} />
-      <Toast toast={toast} />
+      <Toast toast={toast} embedded={embedded || compact} />
     </>
   );
 
@@ -185,7 +185,7 @@ export function Shell({ route, setRoute, compact, children, onLogout, fire, toas
         <nav style={{ position: 'sticky', bottom: 0, zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'space-around', padding: embedded ? '8px 8px 26px' : '8px 8px calc(8px + env(safe-area-inset-bottom))', background: 'color-mix(in oklab, var(--bg) 88%, transparent)', backdropFilter: 'blur(14px)', borderTop: '1px solid var(--line)' }}>
           {BOTTOM.map(id => {
             const n = NAV.find(x => x.id === id)!;
-            const active = route === id;
+            const active = route === id || (id === 'overview' && route.startsWith('account:'));
             if (id === 'transfer') return (
               <button key={id} onClick={() => setRoute(id)} style={{ border: 'none', cursor: 'pointer', width: 54, height: 54, borderRadius: 'var(--r-pill)', background: 'var(--accent)', color: 'var(--on-accent)', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 8px 20px -6px var(--accent-line)', transform: 'translateY(-10px)' }} aria-label="Send money">
                 <Icon name="send" size={24} />
@@ -206,7 +206,7 @@ export function Shell({ route, setRoute, compact, children, onLogout, fire, toas
 
   // ---- WEB layout ----
   const navBtn = (id: string, label: string, icon: string) => {
-    const active = route === id;
+    const active = route === id || (id === 'overview' && route.startsWith('account:'));
     return (
       <button key={id} onClick={() => setRoute(id)} role="menuitem" aria-current={active ? 'page' : undefined}
         className={`nav-item${active ? ' active' : ''}`}>

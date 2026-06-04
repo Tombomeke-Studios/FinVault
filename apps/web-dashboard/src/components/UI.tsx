@@ -228,15 +228,16 @@ export function Sheet({ open, onClose, children, title, mobile }: SheetProps) {
 
 // ---- Toast ----
 interface ToastData { title: string; body?: string; type: 'success' | 'warn' | 'info'; id?: number; }
-export function Toast({ toast }: { toast: ToastData | null }) {
+export function Toast({ toast, embedded }: { toast: ToastData | null; embedded?: boolean }) {
   if (!toast) return null;
   const map: Record<string, string> = { success: 'var(--pos)', warn: 'var(--warn)', info: 'var(--accent)' };
   return (
     <div style={{
-      position: 'fixed', bottom: 24, left: '50%', transform: 'translateX(-50%)', zIndex: 90,
+      position: embedded ? 'absolute' : 'fixed', bottom: embedded ? 78 : 24, left: '50%', transform: 'translateX(-50%)', zIndex: 90,
       display: 'flex', alignItems: 'center', gap: 12, padding: '13px 18px',
       background: 'var(--surface)', border: '1px solid var(--line-2)', borderRadius: 'var(--r-pill)',
       boxShadow: 'var(--shadow)', animation: 'fvRise .3s cubic-bezier(.22,.9,.3,1)', maxWidth: '90%',
+      width: 'max-content',
     }}>
       <span style={{ width: 26, height: 26, borderRadius: '50%', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', color: map[toast.type] || map.info, background: 'color-mix(in oklab, currentColor 16%, transparent)' }}>
         <Icon name={toast.type === 'success' ? 'check' : toast.type === 'warn' ? 'bell' : 'sparkle'} size={15} />
