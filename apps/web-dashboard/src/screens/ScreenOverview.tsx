@@ -1,4 +1,23 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
+
+function useCountUp(target: number, duration = 1300) {
+  const [val, setVal] = useState(0);
+  const started = useRef(false);
+  useEffect(() => {
+    if (started.current) return;
+    started.current = true;
+    const t0 = performance.now();
+    const tick = (now: number) => {
+      const p = Math.min((now - t0) / duration, 1);
+      const eased = 1 - Math.pow(1 - p, 3);
+      setVal(target * eased);
+      if (p < 1) requestAnimationFrame(tick);
+      else setVal(target);
+    };
+    requestAnimationFrame(tick);
+  }, [target]);
+  return val;
+}
 import { Icon } from '../components/Icon';
 import { money, Sparkline, relTime, CategoryIcon, Ring, Donut, catColor, Delta } from '../components/UI';
 import { BankCard } from '../components/BankCard';
@@ -23,6 +42,9 @@ export function ScreenOverview({ compact, navigate, data, onTopup }: OverviewPro
   const { wallets, transactions, cards, goals, spendByCat, balanceTrend, monthly } = data;
 
   const totalEUR = wallets.filter(w => w.currency === 'EUR').reduce((s, w) => s + w.balance, 0);
+  const animatedBalance = useCountUp(totalEUR);
+  const [showBars, setShowBars] = useState(false);
+  useEffect(() => { const t = setTimeout(() => setShowBars(true), 200); return () => clearTimeout(t); }, []);
   const recent = transactions.slice(0, 6);
   const card = cards[Math.min(selCard, cards.length - 1)] ?? null;
   const goalsPreview = goals.slice(0, 3);
@@ -56,7 +78,7 @@ export function ScreenOverview({ compact, navigate, data, onTopup }: OverviewPro
             <div style={{ position: 'relative', zIndex: 1 }}>
               <div className="eyebrow" style={{ marginBottom: 10 }}>Total balance · EUR</div>
               <div className="num display" style={{ fontSize: 'clamp(2.8rem, 7vw, 4.2rem)', fontWeight: 700, lineHeight: 1, letterSpacing: '-0.03em' }}>
-                {money(totalEUR)}
+                {money(animatedBalance)}
               </div>
               <div style={{ marginTop: 10 }}>
                 <Delta value={deltaBalance} />
@@ -125,11 +147,10 @@ export function ScreenOverview({ compact, navigate, data, onTopup }: OverviewPro
         </div>
         <div style={{ display: 'flex', gap: 'var(--gap)', overflowX: 'auto', paddingBottom: 4 }} className="hide-scroll">
           {wallets.map((wl, i) => {
-            const isSelected = false;
             return (
-              <div key={wl.id} className="card" style={{
+              <div key={wl.id} className={`card card-lift rise rise-d${i + 1}`} style={{
                 minWidth: 220, flex: compact ? '0 0 auto' : 1, padding: 'var(--pad)',
-                cursor: 'pointer', transition: 'all .2s', borderTop: `3px solid ${wl.currency === 'EUR' ? 'var(--accent)' : 'var(--warn)'}`,
+                cursor: 'pointer', borderTop: `3px solid ${wl.currency === 'EUR' ? 'var(--accent)' : 'var(--warn)'}`,
               }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <span style={{ display: 'flex', alignItems: 'center', gap: 7, fontWeight: 600, fontSize: '0.88rem' }}>
@@ -167,13 +188,13 @@ export function ScreenOverview({ compact, navigate, data, onTopup }: OverviewPro
             </button>
           </div>
           <div style={{ display: 'flex', flexDirection: 'column' }}>
-            {recent.map(t => {
+            {recent.map((t, idx) => {
               const cat = t.type === 'deposit' ? 'deposit' : 'transfer';
               const amtNum = typeof t.amount === 'number' ? t.amount : parseFloat(t.amount);
               const isIncoming = t.receiverWalletId && wallets.some(w => w.id === t.receiverWalletId);
               const displayAmt = isIncoming ? amtNum : -amtNum;
               return (
-                <div key={t.id} className="tx-row">
+                <div key={t.id} className={`tx-row rise rise-d${Math.min(idx + 1, 6)}`}>
                   <CategoryIcon cat={cat} size={44} />
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontWeight: 600, fontSize: '0.95rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
@@ -259,7 +280,7 @@ export function ScreenOverview({ compact, navigate, data, onTopup }: OverviewPro
                           <span className="num" style={{ fontSize: '0.8rem', fontWeight: 700 }}>{money(c.amount).replace('.00', '')}</span>
                         </div>
                         <div style={{ height: 3, borderRadius: 99, background: 'var(--surface-hi)', overflow: 'hidden' }}>
-                          <div style={{ height: '100%', width: `${pct}%`, background: catColor(c.hue), borderRadius: 99, transition: 'width .6s ease' }} />
+                          <div style={{ height: '100%', width: `${showBars ? pct : 0}%`, background: catColor(c.hue), borderRadius: 99, transition: 'width .8s cubic-bezier(.22,.9,.3,1)' }} />
                         </div>
                       </div>
                     );
@@ -281,10 +302,10 @@ export function ScreenOverview({ compact, navigate, data, onTopup }: OverviewPro
             </button>
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: compact ? '1fr' : 'repeat(3, 1fr)', gap: 'var(--gap)' }}>
-            {goalsPreview.map(g => {
+            {goalsPreview.map((g, gi) => {
               const pct = Math.round((g.saved / g.target) * 100);
               return (
-                <div key={g.id} className="card" style={{ padding: 'var(--pad)', background: 'var(--surface-2)', display: 'flex', flexDirection: 'column', gap: 12 }}>
+                <div key={g.id} className={`card card-lift scale-in rise-d${gi + 1}`} style={{ padding: 'var(--pad)', background: 'var(--surface-2)', display: 'flex', flexDirection: 'column', gap: 12 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                     <Ring pct={pct} size={48} thickness={5} color={catColor(g.hue)}>
                       <Icon name={g.icon} size={16} style={{ color: catColor(g.hue) }} />
@@ -301,7 +322,7 @@ export function ScreenOverview({ compact, navigate, data, onTopup }: OverviewPro
                       <span className="num" style={{ color: 'var(--text-3)' }}>{money(g.target).replace('.00', '')}</span>
                     </div>
                     <div style={{ height: 5, borderRadius: 99, background: 'var(--surface-hi)', overflow: 'hidden' }}>
-                      <div style={{ height: '100%', width: `${pct}%`, background: catColor(g.hue), borderRadius: 99, transition: 'width .6s ease' }} />
+                      <div style={{ height: '100%', width: `${showBars ? pct : 0}%`, background: catColor(g.hue), borderRadius: 99, transition: `width .9s cubic-bezier(.22,.9,.3,1) ${gi * 120}ms` }} />
                     </div>
                   </div>
                 </div>
