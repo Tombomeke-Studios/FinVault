@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { Shell } from './components/Shell';
 import { ScreenAuth } from './screens/ScreenAuth';
 import { ScreenOverview } from './screens/ScreenOverview';
@@ -8,8 +9,10 @@ import { ScreenCards } from './screens/ScreenCards';
 import { ScreenAnalytics } from './screens/ScreenAnalytics';
 import { ScreenSavings } from './screens/ScreenSavings';
 import { ScreenSettings } from './screens/ScreenSettings';
+import { ScreenAccountDashboard } from './screens/ScreenAccountDashboard';
 import { Sheet, money } from './components/UI';
 import { IOSDevice } from './components/IOSFrame';
+import { Icon } from './components/Icon';
 
 // ============================================================
 // Types
@@ -115,6 +118,30 @@ interface MonthlyBar {
 }
 
 // ============================================================
+// URL ↔ Route mapping
+// ============================================================
+const PATH_TO_ROUTE: Record<string, string> = {
+  '/':            'overview',
+  '/dashboard':   'overview',
+  '/activity':    'transactions',
+  '/transfer':    'transfer',
+  '/cards':       'cards',
+  '/analytics':   'analytics',
+  '/goals':       'savings',
+  '/settings':    'settings',
+};
+
+const ROUTE_TO_PATH: Record<string, string> = {
+  overview:     '/dashboard',
+  transactions: '/activity',
+  transfer:     '/transfer',
+  cards:        '/cards',
+  analytics:    '/analytics',
+  savings:      '/goals',
+  settings:     '/settings',
+};
+
+// ============================================================
 // Font and accent maps
 // ============================================================
 const FONTS: Record<string, { display: string; body: string; num: string; label: string }> = {
@@ -167,10 +194,8 @@ function applyTheme(t: ThemeConfig) {
 function buildMockData(firstName: string, lastName: string, email: string, wallets: Wallet[], transactions: Transaction[], cards: CardItem[], goals: Goal[], plan: string): AppData {
   const initials = `${firstName[0]}${lastName[0]}`.toUpperCase();
 
-  // 1. Calculate active wallets IDs
   const myWalletIds = new Set(wallets.map(w => w.id));
 
-  // 2. Compute dynamic spendByCat (Money Out)
   const catSums: Record<string, { label: string; amount: number; hue: number }> = {
     groceries: { label: 'Groceries', amount: 0, hue: 130 },
     dining:    { label: 'Dining',    amount: 0, hue: 28 },
@@ -181,28 +206,18 @@ function buildMockData(firstName: string, lastName: string, email: string, walle
     other:     { label: 'Other',     amount: 0, hue: 265 },
   };
 
-  let totalOutgoing = 0;
   transactions.forEach(t => {
     const amt = typeof t.amount === 'number' ? t.amount : parseFloat(String(t.amount)) || 0;
     const isOutgoing = t.senderWalletId && myWalletIds.has(t.senderWalletId);
-    
     if (isOutgoing) {
-      totalOutgoing += amt;
       const desc = (t.description || '').toLowerCase();
       let cat = 'other';
-      if (desc.includes('albert') || desc.includes('groceries') || desc.includes('supermarket') || desc.includes('ah') || desc.includes('heijn') || desc.includes('cart')) {
-        cat = 'groceries';
-      } else if (desc.includes('uber') || desc.includes('transport') || desc.includes('taxi') || desc.includes('train') || desc.includes('plane') || desc.includes('air') || desc.includes('travel')) {
-        cat = 'transport';
-      } else if (desc.includes('restaurant') || desc.includes('coffee') || desc.includes('starbucks') || desc.includes('dining') || desc.includes('cafe') || desc.includes('food')) {
-        cat = 'dining';
-      } else if (desc.includes('spotify') || desc.includes('netflix') || desc.includes('premium') || desc.includes('subs') || desc.includes('youtube')) {
-        cat = 'subs';
-      } else if (desc.includes('bill') || desc.includes('rent') || desc.includes('utilities') || desc.includes('invoice') || desc.includes('tax') || desc.includes('bolt')) {
-        cat = 'bills';
-      } else if (desc.includes('shopping') || desc.includes('amazon') || desc.includes('bol') || desc.includes('clothes') || desc.includes('buy') || desc.includes('bag')) {
-        cat = 'shopping';
-      }
+      if (desc.includes('albert') || desc.includes('groceries') || desc.includes('supermarket') || desc.includes('ah') || desc.includes('heijn') || desc.includes('cart')) cat = 'groceries';
+      else if (desc.includes('uber') || desc.includes('transport') || desc.includes('taxi') || desc.includes('train') || desc.includes('plane') || desc.includes('air') || desc.includes('travel')) cat = 'transport';
+      else if (desc.includes('restaurant') || desc.includes('coffee') || desc.includes('starbucks') || desc.includes('dining') || desc.includes('cafe') || desc.includes('food')) cat = 'dining';
+      else if (desc.includes('spotify') || desc.includes('netflix') || desc.includes('premium') || desc.includes('subs') || desc.includes('youtube')) cat = 'subs';
+      else if (desc.includes('bill') || desc.includes('rent') || desc.includes('utilities') || desc.includes('invoice') || desc.includes('tax') || desc.includes('bolt')) cat = 'bills';
+      else if (desc.includes('shopping') || desc.includes('amazon') || desc.includes('bol') || desc.includes('clothes') || desc.includes('buy') || desc.includes('bag')) cat = 'shopping';
       catSums[cat].amount += amt;
     }
   });
@@ -210,40 +225,31 @@ function buildMockData(firstName: string, lastName: string, email: string, walle
   const spendByCat: SpendCat[] = Object.entries(catSums)
     .map(([cat, val]) => ({ cat, ...val }))
     .filter(c => c.amount > 0);
+  if (spendByCat.length === 0) spendByCat.push({ cat: 'other', label: 'Other', amount: 0, hue: 265 });
 
-  if (spendByCat.length === 0) {
-    spendByCat.push({ cat: 'other', label: 'Other', amount: 0, hue: 265 });
-  }
-
-  // 3. Compute dynamic monthly cashflow (In vs Out)
   const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
   const monthlyMap: Record<string, { in: number; out: number; sortKey: number }> = {};
-
   const now = new Date();
   for (let i = 5; i >= 0; i--) {
     const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
     const label = monthNames[d.getMonth()];
     monthlyMap[label] = { in: 0, out: 0, sortKey: d.getTime() };
   }
-
   transactions.forEach(t => {
     const amt = typeof t.amount === 'number' ? t.amount : parseFloat(String(t.amount)) || 0;
     const date = new Date(t.createdAt);
     const label = monthNames[date.getMonth()];
     const isIncoming = t.receiverWalletId && myWalletIds.has(t.receiverWalletId);
     const isOutgoing = t.senderWalletId && myWalletIds.has(t.senderWalletId);
-
     if (monthlyMap[label]) {
       if (isIncoming) monthlyMap[label].in += amt;
       if (isOutgoing) monthlyMap[label].out += amt;
     }
   });
-
   const monthly: MonthlyBar[] = Object.entries(monthlyMap)
     .sort((a, b) => a[1].sortKey - b[1].sortKey)
     .map(([m, val]) => ({ m, in: Math.round(val.in), out: Math.round(val.out) }));
 
-  // 4. Balance Trend — reconstruct deterministically from monthly cashflow
   const currentBalance = wallets.reduce((sum, w) => sum + w.balance, 0);
   const balanceTrend: number[] = [Math.max(0, Math.round(currentBalance))];
   let runBal = currentBalance;
@@ -251,8 +257,6 @@ function buildMockData(firstName: string, lastName: string, email: string, walle
     runBal -= monthly[i].in - monthly[i].out;
     balanceTrend.unshift(Math.max(0, Math.round(runBal)));
   }
-
-
 
   return {
     user: { firstName, lastName, email, initials, plan: plan.startsWith('FinVault') ? plan : `FinVault ${plan}`, memberSince: '2024' },
@@ -264,10 +268,37 @@ function buildMockData(firstName: string, lastName: string, email: string, walle
 // App
 // ============================================================
 export default function App() {
-  const isMobileMode = (window as any).FV_MODE === 'mobile' || new URLSearchParams(window.location.search).get('mode') === 'mobile';
+  const navigate = useNavigate();
+  const location = useLocation();
+
+  const isMobileMode = (window as any).FV_MODE === 'mobile' || new URLSearchParams(location.search).get('mode') === 'mobile';
+
+  // Derive current route from URL
+  const urlRoute = PATH_TO_ROUTE[location.pathname] ?? 'overview';
+  // accountRoute holds 'account:walletId' sub-routes that don't have URL paths
+  const [accountRoute, setAccountRoute] = useState<string | null>(null);
+  const route = accountRoute ?? urlRoute;
+
+  const setRoute = useCallback((r: string) => {
+    if (r.startsWith('account:')) {
+      // Sub-route: store in state, don't change URL
+      setAccountRoute(r);
+      return;
+    }
+    // Clear any sub-route when navigating away
+    setAccountRoute(null);
+    const parts = r.split('?');
+    const routeKey = parts[0];
+    const query = parts[1] ? '?' + parts[1] : '';
+    navigate((ROUTE_TO_PATH[routeKey] || '/dashboard') + query);
+  }, [navigate]);
+
+  // Clear account sub-route when URL changes (e.g. browser back button or nav click)
+  useEffect(() => { setAccountRoute(null); }, [location.pathname]);
 
   // --- Auth state ---
   const [token, setToken] = useState<string | null>(localStorage.getItem('finvault_token'));
+  const [authLoading, setAuthLoading] = useState(() => !!localStorage.getItem('finvault_token'));
   const [rawUser, setRawUser] = useState<any>(null);
   const [wallets, setWallets] = useState<Wallet[]>([]);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
@@ -276,12 +307,29 @@ export default function App() {
   const [authError, setAuthError] = useState('');
   const [authSuccess, setAuthSuccess] = useState('');
 
+  // Goals persistence across reloads
+  const goalsInitRef = useRef(false);
+  useEffect(() => {
+    if (!goalsInitRef.current) {
+      goalsInitRef.current = true;
+      return;
+    }
+    if (goals.length > 0) localStorage.setItem('fv_mock_goals', JSON.stringify(goals));
+  }, [goals]);
+
   const initializeGoals = useCallback(() => {
+    const saved = localStorage.getItem('fv_mock_goals');
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved) as Goal[];
+        if (Array.isArray(parsed) && parsed.length > 0) { setGoals(parsed); return; }
+      } catch { /* ignore */ }
+    }
     setGoals([
       { id: 'g-japan', name: 'Japan Trip',     target: 4000,  saved: 2680, hue: 12,  icon: 'plane',  due: 'Oct 2026' },
       { id: 'g-emerg', name: 'Emergency Fund', target: 10000, saved: 8200, hue: 158, icon: 'shield', due: 'No date' },
       { id: 'g-mac',   name: 'New MacBook',    target: 2500,  saved: 900,  hue: 265, icon: 'laptop', due: 'Mar 2026' },
-      { id: 'g-car',   name: 'Car Deposit',    target: 6000,  saved: 1500, hue: 230, icon: 'car',        due: 'Jul 2027' },
+      { id: 'g-car',   name: 'Car Deposit',    target: 6000,  saved: 1500, hue: 230, icon: 'car',    due: 'Jul 2027' },
     ]);
   }, []);
 
@@ -303,12 +351,12 @@ export default function App() {
   }, []);
 
   // --- UI state ---
-  const [route, setRoute] = useState('overview');
   const [compact, setCompact] = useState(window.innerWidth < 768 || isMobileMode);
   const [vw, setVw] = useState(window.innerWidth);
   const [vh, setVh] = useState(window.innerHeight);
   const [upgradeOpen, setUpgradeOpen] = useState(false);
   const [depositOpen, setDepositOpen] = useState(false);
+  const [depositWalletId, setDepositWalletId] = useState('');
   const [depositAmt, setDepositAmt] = useState('');
   const [depositLoading, setDepositLoading] = useState(false);
 
@@ -343,7 +391,7 @@ export default function App() {
   useEffect(() => { applyTheme(theme); }, [theme]);
 
   const setTheme = (t: ThemeConfig | ((k: keyof ThemeConfig, v: string) => ThemeConfig)) => {
-    if (typeof t === 'function') return; // handled via setTweak in settings
+    if (typeof t === 'function') return;
     setThemeState(t);
   };
 
@@ -385,31 +433,15 @@ export default function App() {
   const fetchGoals = useCallback(async () => {
     try {
       const res = await fetch('/api/goals', { headers: { Authorization: `Bearer ${token}` } });
-      if (res.ok) setGoals(await res.json());
+      if (res.ok) {
+        const data = await res.json();
+        setGoals(data);
+        localStorage.setItem('fv_mock_goals', JSON.stringify(data));
+      }
     } catch { /* stay with current */ }
   }, [token]);
 
-  const fetchProfile = useCallback(async () => {
-    try {
-      const res = await fetch('/api/users/profile', { headers: { Authorization: `Bearer ${token}` } });
-      if (res.ok) {
-        const data = await res.json();
-        setRawUser(data);
-        fetchWallets();
-        fetchTransactions();
-        fetchCards();
-        fetchGoals();
-      } else {
-        localStorage.removeItem('finvault_token');
-        setToken(null);
-      }
-    } catch {
-      // Offline fallback
-      setupMockSession();
-    }
-  }, [token, fetchWallets, fetchTransactions, fetchCards, fetchGoals]);
-
-  // Offline demo
+  // Offline demo session
   const setupMockSession = useCallback(() => {
     const fakeUser = { id: 'mock-u', email: 'tom@finvault.com', accountType: 'personal', profile: { firstName: 'Tom', lastName: 'Bomeke' } };
     setRawUser(fakeUser);
@@ -426,8 +458,30 @@ export default function App() {
     ]);
     initializeCards('Tom', 'Bomeke', 'mock-wallet-eur');
     initializeGoals();
+    setAuthLoading(false);
     fire('Demo mode active', 'Backend offline — showing demo data.', 'info');
   }, [fire, initializeCards, initializeGoals]);
+
+  const fetchProfile = useCallback(async () => {
+    try {
+      const res = await fetch('/api/users/profile', { headers: { Authorization: `Bearer ${token}` } });
+      if (res.ok) {
+        const data = await res.json();
+        setRawUser(data);
+        fetchWallets();
+        fetchTransactions();
+        fetchCards();
+        fetchGoals();
+        setAuthLoading(false);
+      } else {
+        localStorage.removeItem('finvault_token');
+        setToken(null);
+        setAuthLoading(false);
+      }
+    } catch {
+      setupMockSession();
+    }
+  }, [token, fetchWallets, fetchTransactions, fetchCards, fetchGoals, setupMockSession]);
 
   // Connect WebSocket
   const connectWs = useCallback(() => {
@@ -455,10 +509,22 @@ export default function App() {
 
   useEffect(() => {
     if (token) fetchProfile();
-    else { setRawUser(null); setWallets([]); setTransactions([]); setCards([]); setGoals([]); }
+    else { setRawUser(null); setWallets([]); setTransactions([]); setCards([]); setGoals([]); setAuthLoading(false); }
   }, [token]);
 
   useEffect(() => { if (rawUser && token) connectWs(); }, [rawUser, token]);
+
+  // Auth redirects
+  useEffect(() => {
+    if (authLoading) return;
+    if (!token) {
+      if (location.pathname !== '/login') navigate('/login', { replace: true });
+    } else if (rawUser) {
+      if (location.pathname === '/login' || location.pathname === '/') {
+        navigate('/dashboard', { replace: true });
+      }
+    }
+  }, [token, rawUser, authLoading, location.pathname]);
 
   // --- Auth handlers ---
   const handleLogin = async (email: string, password: string) => {
@@ -472,14 +538,12 @@ export default function App() {
         setAuthSuccess('Welcome back!');
       } else {
         setAuthError(data.error || 'Login failed.');
-        // Allow demo if credentials match known demo account
         if (email === 'admin@finvault.com' || email === 'tom@finvault.com') {
           localStorage.setItem('finvault_token', 'mock-token-abc');
           setToken('mock-token-abc');
         }
       }
     } catch {
-      // Offline — use demo
       localStorage.setItem('finvault_token', 'mock-token-abc');
       setToken('mock-token-abc');
     }
@@ -504,6 +568,7 @@ export default function App() {
     localStorage.removeItem('finvault_token');
     setToken(null); setRawUser(null); setWallets([]); setTransactions([]); setCards([]); setGoals([]);
     if (wsRef.current) wsRef.current.close();
+    navigate('/login', { replace: true });
   };
 
   const handleTransfer = async (email: string, amount: number, desc: string, walletId: string) => {
@@ -515,7 +580,6 @@ export default function App() {
       if (res.ok) { fetchWallets(); fetchTransactions(); }
       else throw new Error(data.error);
     } catch {
-      // Mock transfer
       const newBal = wallet.balance - amount;
       setWallets(prev => prev.map(w => w.id === walletId ? { ...w, balance: newBal } : w));
       setTransactions(prev => [{
@@ -527,7 +591,6 @@ export default function App() {
   };
 
   const handleRequest = async (_email: string, _amount: number, _desc: string) => {
-    // Fire success notification (mock for now)
     await Promise.resolve();
     fire('Request sent', `They'll receive a notification to pay you.`, 'success');
   };
@@ -536,23 +599,72 @@ export default function App() {
     const amt = parseFloat(depositAmt);
     if (!amt || amt <= 0) return;
     setDepositLoading(true);
-    const wallet = wallets[0];
+    const selectedId = depositWalletId || wallets[0]?.id;
+    const wallet = wallets.find(w => w.id === selectedId) || wallets[0];
     try {
       const res = await fetch('/api/wallets/deposit', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify({ walletId: wallet.id, amount: amt }) });
-      if (res.ok) { fetchWallets(); fetchTransactions(); fire('Deposit successful', `${money(amt)} added to your account.`, 'success'); }
+      if (res.ok) { 
+        fetchWallets(); 
+        fetchTransactions(); 
+        fire('Deposit successful', `${money(amt, wallet.currency)} added to your ${wallet.name || (wallet.type === 'savings' ? 'Savings Vault' : wallet.type === 'travel' ? 'Travel Multi-Currency' : 'Everyday Checking')} account.`, 'success'); 
+      }
       else throw new Error();
     } catch {
-      setWallets(prev => prev.map((w, i) => i === 0 ? { ...w, balance: w.balance + amt } : w));
+      setWallets(prev => prev.map(w => w.id === wallet.id ? { ...w, balance: w.balance + amt } : w));
       setTransactions(prev => [{
         id: Math.random().toString(), senderWalletId: null, receiverWalletId: wallet.id,
-        amount: amt, currency: 'EUR', status: 'confirmed', type: 'deposit',
+        amount: amt, currency: wallet.currency || 'EUR', status: 'confirmed', type: 'deposit',
         description: 'Cash deposit', createdAt: new Date().toISOString(),
       }, ...prev]);
-      fire('Deposit added (demo)', `${money(amt)} deposited via demo simulator.`, 'success');
+      fire('Deposit added (demo)', `${money(amt, wallet.currency)} deposited via demo simulator.`, 'success');
     } finally {
       setDepositLoading(false);
       setDepositAmt('');
       setDepositOpen(false);
+    }
+  };
+
+  const handleOwnTransfer = async (fromWalletId: string, toWalletId: string, amount: number, description: string): Promise<void> => {
+    const fromWallet = wallets.find(w => w.id === fromWalletId);
+    const toWallet   = wallets.find(w => w.id === toWalletId);
+    if (!fromWallet || !toWallet) { fire('Error', 'Account not found.', 'warn'); return; }
+
+    try {
+      const res = await fetch('/api/transactions/own-transfer', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ fromWalletId, toWalletId, amount, description })
+      });
+      if (res.ok) {
+        const result = await res.json();
+        setWallets(prev => prev.map(w => {
+          if (w.id === fromWalletId) return { ...w, balance: result.fromBalance };
+          if (w.id === toWalletId)   return { ...w, balance: result.toBalance };
+          return w;
+        }));
+        setTransactions(prev => [result.transaction, ...prev]);
+        fire('Transfer complete', `${money(amount)} moved to ${toWallet.name || toWallet.type}.`, 'success');
+        return;
+      } else {
+        throw new Error((await res.json()).error || 'Transfer failed');
+      }
+    } catch (err: any) {
+      // Local demo fallback
+      setWallets(prev => prev.map(w => {
+        if (w.id === fromWalletId) return { ...w, balance: w.balance - amount };
+        if (w.id === toWalletId)   return { ...w, balance: w.balance + amount };
+        return w;
+      }));
+      setTransactions(prev => [{
+        id: `own-${Date.now()}`,
+        senderWalletId: fromWalletId,
+        receiverWalletId: toWalletId,
+        amount, currency: fromWallet.currency,
+        status: 'confirmed', type: 'transfer',
+        description: description || `Transfer: ${fromWallet.name} → ${toWallet.name}`,
+        createdAt: new Date().toISOString(),
+      }, ...prev]);
+      fire('Transfer complete (demo)', `${money(amount)} moved to ${toWallet.name || toWallet.type}.`, 'success');
     }
   };
 
@@ -562,14 +674,10 @@ export default function App() {
       fire('Success', `Welcome to FinVault ${newPlan}! Your new perks are live.`, 'success');
       return;
     }
-
     try {
       const res = await fetch('/api/users/plan', {
         method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`
-        },
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({ plan: newPlan })
       });
       if (res.ok) {
@@ -588,10 +696,22 @@ export default function App() {
   const email     = rawUser?.email || 'tom@finvault.com';
   const appData   = buildMockData(firstName, lastName, email, wallets, transactions, cards, goals, rawUser?.plan || 'Metal');
 
-
-
   // --- Route → Screen ---
   const renderScreen = () => {
+    // Account dashboard: 'account:walletId'
+    if (route.startsWith('account:')) {
+      const walletId = route.replace('account:', '');
+      return (
+        <ScreenAccountDashboard
+          walletId={walletId}
+          compact={compact}
+          navigate={setRoute}
+          data={appData}
+          onOwnTransfer={handleOwnTransfer}
+          fire={fire}
+        />
+      );
+    }
     switch (route) {
       case 'overview':
         return <ScreenOverview compact={compact} navigate={setRoute} data={appData} onTopup={() => setDepositOpen(true)} />;
@@ -600,7 +720,7 @@ export default function App() {
       case 'transfer':
         return <ScreenTransfer compact={compact} navigate={setRoute} fire={fire} data={appData} onTransfer={handleTransfer} onRequest={handleRequest} />;
       case 'cards':
-        return <ScreenCards compact={compact} data={appData} fire={fire} cards={cards} setCards={setCards} token={token} />;
+        return <ScreenCards compact={compact} data={appData} fire={fire} cards={cards} setCards={setCards} token={token} navigate={setRoute} />;
       case 'analytics':
         return <ScreenAnalytics compact={compact} data={appData} />;
       case 'savings':
@@ -610,9 +730,7 @@ export default function App() {
           <ScreenSettings
             compact={compact}
             theme={theme}
-            setTheme={(t) => {
-              if (typeof t === 'object') setThemeState(t);
-            }}
+            setTheme={(t) => { if (typeof t === 'object') setThemeState(t); }}
             fire={fire}
             openUpgrade={() => setUpgradeOpen(true)}
             onLogout={handleLogout}
@@ -624,7 +742,30 @@ export default function App() {
     }
   };
 
-  // --- Auth gate ---
+  // Loading screen while verifying token
+  if (authLoading) {
+    const loader = (
+      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg)', flexDirection: 'column', gap: 20 }}>
+        <div style={{ width: 44, height: 44, borderRadius: 'var(--r)', background: 'var(--accent)', display: 'flex', alignItems: 'center', justifyContent: 'center', animation: 'fvPop .5s cubic-bezier(.22,.9,.3,1)' }}>
+          <Icon name="shield" size={24} style={{ color: 'var(--on-accent)' }} />
+        </div>
+        <div className="shimmer" style={{ width: 120, height: 6, borderRadius: 99 }} />
+      </div>
+    );
+    if (isMobileMode) {
+      const scale = Math.min(1, (vh - 36) / 874, (vw - 24) / 402);
+      return (
+        <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 12, background: 'var(--bg-grad)' }}>
+          <div style={{ transform: `scale(${scale})`, transformOrigin: 'center' }}>
+            <IOSDevice dark={theme.mode === 'dark'} width={402} height={874}>{loader}</IOSDevice>
+          </div>
+        </div>
+      );
+    }
+    return loader;
+  }
+
+  // Auth gate — show login screen
   if (!token || !rawUser) {
     const loginScreen = (
       <ScreenAuth
@@ -635,30 +776,53 @@ export default function App() {
         authSuccess={authSuccess}
       />
     );
-
     if (isMobileMode) {
       const scale = Math.min(1, (vh - 36) / 874, (vw - 24) / 402);
       return (
-        <>
-          <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 12, background: 'var(--bg-grad)' }}>
-            <div style={{ transform: `scale(${scale})`, transformOrigin: 'center' }}>
-              <IOSDevice dark={theme.mode === 'dark'} width={402} height={874}>
-                <div style={{ width: 402, minHeight: '100%', paddingTop: 36, background: 'var(--bg)', color: 'var(--text)' }}>
-                  {loginScreen}
-                </div>
-              </IOSDevice>
-            </div>
+        <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 12, background: 'var(--bg-grad)' }}>
+          <div style={{ transform: `scale(${scale})`, transformOrigin: 'center' }}>
+            <IOSDevice dark={theme.mode === 'dark'} width={402} height={874}>
+              <div style={{ width: 402, minHeight: '100%', paddingTop: 36, background: 'var(--bg)', color: 'var(--text)' }}>{loginScreen}</div>
+            </IOSDevice>
           </div>
-        </>
+        </div>
       );
     }
-
-    return (
-      <div style={{ minHeight: '100vh', background: 'var(--bg)' }}>
-        {loginScreen}
-      </div>
-    );
+    return <div style={{ minHeight: '100vh', background: 'var(--bg)' }}>{loginScreen}</div>;
   }
+
+  const depositSheet = (
+    <Sheet open={depositOpen} onClose={() => setDepositOpen(false)} title="Top up your account" mobile={compact}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--gap)' }}>
+        <p style={{ color: 'var(--text-2)', fontSize: '0.92rem' }}>Add funds to your account instantly.</p>
+        
+        <label className="label">Destination Account</label>
+        <select 
+          className="field" 
+          value={depositWalletId || (wallets[0]?.id || '')} 
+          onChange={e => setDepositWalletId(e.target.value)}
+          style={{ width: '100%', padding: '10px', borderRadius: 'var(--r-sm)', background: 'var(--surface-2)', color: 'var(--text)', border: '1px solid var(--line)' }}
+        >
+          {wallets.map(w => (
+            <option key={w.id} value={w.id}>
+              {w.name || (w.type === 'savings' ? 'Savings Vault' : w.type === 'travel' ? 'Travel Multi-Currency' : 'Everyday Checking')} ({w.currency} - {w.iban.substring(w.iban.length - 4)})
+            </option>
+          ))}
+        </select>
+
+        <label className="label">Amount</label>
+        <input className="field num" autoFocus value={depositAmt} onChange={e => setDepositAmt(e.target.value.replace(/[^0-9.]/g, ''))} placeholder="0.00" style={{ textAlign: 'center', fontSize: '1.5rem', fontWeight: 700 }} />
+        <div style={{ display: 'flex', gap: 8 }}>
+          {[50, 100, 250, 500].map(v => (
+            <button key={v} onClick={() => setDepositAmt(String(v))} className="chip" style={{ flex: 1, justifyContent: 'center', cursor: 'pointer', padding: '9px 0' }}>€{v}</button>
+          ))}
+        </div>
+        <button className="btn btn-primary btn-block" onClick={handleDeposit} disabled={depositLoading || !parseFloat(depositAmt)}>
+          {depositLoading ? 'Processing…' : `Add ${depositAmt ? money(parseFloat(depositAmt)) : 'funds'}`}
+        </button>
+      </div>
+    </Sheet>
+  );
 
   const appContent = (
     <Shell
@@ -687,29 +851,11 @@ export default function App() {
         <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 12, background: 'var(--bg-grad)' }}>
           <div style={{ transform: `scale(${scale})`, transformOrigin: 'center' }}>
             <IOSDevice dark={theme.mode === 'dark'} width={402} height={874}>
-              <div style={{ width: 402, minHeight: '100%', background: 'var(--bg)', color: 'var(--text)' }}>
-                {appContent}
-              </div>
+              <div style={{ width: 402, minHeight: '100%', background: 'var(--bg)', color: 'var(--text)' }}>{appContent}</div>
             </IOSDevice>
           </div>
         </div>
-
-        {/* Quick deposit sheet */}
-        <Sheet open={depositOpen} onClose={() => setDepositOpen(false)} title="Top up your account" mobile={compact}>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--gap)' }}>
-            <p style={{ color: 'var(--text-2)', fontSize: '0.92rem' }}>Add funds to your Everyday account instantly.</p>
-            <label className="label">Amount</label>
-            <input className="field num" autoFocus value={depositAmt} onChange={e => setDepositAmt(e.target.value.replace(/[^0-9.]/g, ''))} placeholder="0.00" style={{ textAlign: 'center', fontSize: '1.5rem', fontWeight: 700 }} />
-            <div style={{ display: 'flex', gap: 8 }}>
-              {[50, 100, 250, 500].map(v => (
-                <button key={v} onClick={() => setDepositAmt(String(v))} className="chip" style={{ flex: 1, justifyContent: 'center', cursor: 'pointer', padding: '9px 0' }}>€{v}</button>
-              ))}
-            </div>
-            <button className="btn btn-primary btn-block" onClick={handleDeposit} disabled={depositLoading || !parseFloat(depositAmt)}>
-              {depositLoading ? 'Processing…' : `Add ${depositAmt ? money(parseFloat(depositAmt)) : 'funds'}`}
-            </button>
-          </div>
-        </Sheet>
+        {depositSheet}
       </>
     );
   }
@@ -717,23 +863,7 @@ export default function App() {
   return (
     <>
       {appContent}
-
-      {/* Quick deposit sheet */}
-      <Sheet open={depositOpen} onClose={() => setDepositOpen(false)} title="Top up your account" mobile={compact}>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--gap)' }}>
-          <p style={{ color: 'var(--text-2)', fontSize: '0.92rem' }}>Add funds to your Everyday account instantly.</p>
-          <label className="label">Amount</label>
-          <input className="field num" autoFocus value={depositAmt} onChange={e => setDepositAmt(e.target.value.replace(/[^0-9.]/g, ''))} placeholder="0.00" style={{ textAlign: 'center', fontSize: '1.5rem', fontWeight: 700 }} />
-          <div style={{ display: 'flex', gap: 8 }}>
-            {[50, 100, 250, 500].map(v => (
-              <button key={v} onClick={() => setDepositAmt(String(v))} className="chip" style={{ flex: 1, justifyContent: 'center', cursor: 'pointer', padding: '9px 0' }}>€{v}</button>
-            ))}
-          </div>
-          <button className="btn btn-primary btn-block" onClick={handleDeposit} disabled={depositLoading || !parseFloat(depositAmt)}>
-            {depositLoading ? 'Processing…' : `Add ${depositAmt ? money(parseFloat(depositAmt)) : 'funds'}`}
-          </button>
-        </div>
-      </Sheet>
+      {depositSheet}
     </>
   );
 }
