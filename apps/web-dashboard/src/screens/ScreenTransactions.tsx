@@ -1,4 +1,5 @@
 import React, { useState, useMemo } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { Icon } from '../components/Icon';
 import { money, dayLabel, relTime, CategoryIcon, PageHead } from '../components/UI';
 import type { AppData } from '../App';
@@ -38,6 +39,11 @@ interface TxItem {
 export function ScreenTransactions({ compact, data, onExport }: TransactionsProps) {
   const [q, setQ] = useState('');
   const [cat, setCat] = useState('all');
+  const { search } = useLocation();
+  const navigate = useNavigate();
+
+  const filterWalletId = useMemo(() => new URLSearchParams(search).get('walletId'), [search]);
+  const activeWallet = useMemo(() => data.wallets.find(w => w.id === filterWalletId), [data.wallets, filterWalletId]);
 
   // Convert backend transactions to display format
   const txList = useMemo(() => data.transactions.map(t => ({
@@ -50,9 +56,10 @@ export function ScreenTransactions({ compact, data, onExport }: TransactionsProp
 
   const filtered = useMemo(() =>
     txList.filter(t =>
+      (!filterWalletId || t.senderWalletId === filterWalletId || t.receiverWalletId === filterWalletId) &&
       (cat === 'all' || t.category === cat) &&
       (q === '' || t.name.toLowerCase().includes(q.toLowerCase()))
-    ), [q, cat, txList]);
+    ), [q, cat, txList, filterWalletId]);
 
   const groups = useMemo(() => {
     const m: Record<string, typeof filtered> = {};
@@ -76,6 +83,21 @@ export function ScreenTransactions({ compact, data, onExport }: TransactionsProp
       <PageHead title="Transactions" subtitle="Your immutable account ledger." action={
         <button className="btn btn-ghost" onClick={onExport}><Icon name="download" size={17} /> {compact ? '' : 'Export'}</button>
       } />
+
+      {activeWallet && (
+        <div className="rise" style={{
+          display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+          background: 'var(--accent-soft)', border: '1px solid var(--accent-line)',
+          borderRadius: 'var(--r)', padding: '10px 14px', fontSize: '0.86rem', color: 'var(--accent)',
+        }}>
+          <span>
+            Showing activity for <strong>{activeWallet.name || (activeWallet.type === 'savings' ? 'Savings Vault' : activeWallet.type === 'travel' ? 'Travel Multi-Currency' : 'Everyday Checking')}</strong>
+          </span>
+          <button onClick={() => navigate('/activity')} className="btn btn-quiet" style={{ padding: '4px 8px', fontSize: '0.78rem', color: 'var(--accent)', border: '1px solid var(--accent-line)', background: 'var(--surface)' }}>
+            Clear filter
+          </button>
+        </div>
+      )}
 
       {/* summary */}
       <div style={{ display: 'flex', gap: 'var(--gap)' }}>

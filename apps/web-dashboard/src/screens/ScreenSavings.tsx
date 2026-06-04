@@ -36,20 +36,73 @@ export function ScreenSavings({ compact, fire, goals, setGoals, wallets, setWall
     setEditHue(g.hue);
   };
 
-  const handleEditGoal = () => {
+  const handleEditGoal = async () => {
     const tgt = parseFloat(editTarget);
     if (!editGoal || !editName || !tgt) return;
-    setGoals(gs => gs.map(g => g.id === editGoal.id ? {
-      ...g, name: editName, target: tgt, icon: editIcon, hue: editHue,
-      due: editDue || 'No date',
-    } : g));
-    fire('Goal updated', `"${editName}" has been saved.`, 'success');
-    setEditGoal(null);
+
+    if (!token || token.startsWith('mock-token')) {
+      setGoals(gs => gs.map(g => g.id === editGoal.id ? {
+        ...g, name: editName, target: tgt, icon: editIcon, hue: editHue,
+        due: editDue || 'No date',
+      } : g));
+      fire('Goal updated', `"${editName}" has been saved.`, 'success');
+      setEditGoal(null);
+      return;
+    }
+
+    try {
+      const res = await fetch(`/api/goals/${editGoal.id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          name: editName,
+          target: tgt,
+          hue: editHue,
+          icon: editIcon,
+          due: editDue || 'No date'
+        })
+      });
+      if (res.ok) {
+        const updated = await res.json();
+        setGoals(gs => gs.map(g => g.id === editGoal.id ? updated : g));
+        fire('Goal updated', `"${editName}" has been saved.`, 'success');
+        setEditGoal(null);
+      } else {
+        const err = await res.json();
+        fire('Error', err.error || 'Failed to update goal', 'error');
+      }
+    } catch (e: any) {
+      fire('Error', 'Failed to update goal: ' + e.message, 'error');
+    }
   };
 
-  const handleDeleteGoal = (g: Goal) => {
-    setGoals(gs => gs.filter(x => x.id !== g.id));
-    fire('Goal removed', `"${g.name}" has been deleted.`, 'info');
+  const handleDeleteGoal = async (g: Goal) => {
+    if (!token || token.startsWith('mock-token')) {
+      setGoals(gs => gs.filter(x => x.id !== g.id));
+      fire('Goal removed', `"${g.name}" has been deleted.`, 'info');
+      return;
+    }
+
+    try {
+      const res = await fetch(`/api/goals/${g.id}`, {
+        method: 'DELETE',
+        headers: {
+          Authorization: `Bearer ${token}`
+        }
+      });
+      if (res.ok) {
+        setGoals(gs => gs.filter(x => x.id !== g.id));
+        fire('Goal removed', `"${g.name}" has been deleted.`, 'info');
+      } else {
+        const err = await res.json();
+        fire('Error', err.error || 'Failed to delete goal', 'error');
+      }
+    } catch (e: any) {
+      fire('Error', 'Failed to delete goal: ' + e.message, 'error');
+    }
   };
 
   // New goal forms state
@@ -72,7 +125,7 @@ export function ScreenSavings({ compact, fire, goals, setGoals, wallets, setWall
     const v = parseFloat(addAmt || '0');
     if (!(v > 0) || !add) return;
 
-    if (!token) {
+    if (!token || token.startsWith('mock-token')) {
       // offline fallback
       setWallets(prev => prev.map((w, idx) => idx === 0 ? { ...w, balance: Math.max(0, w.balance - v) } : w));
       setGoals(gs => gs.map(g => g.id === add.id ? { ...g, saved: Math.min(g.target, g.saved + v) } : g));
@@ -121,7 +174,7 @@ export function ScreenSavings({ compact, fire, goals, setGoals, wallets, setWall
     const tgt = parseFloat(newTarget);
     if (!newName || !tgt) return;
 
-    if (!token) {
+    if (!token || token.startsWith('mock-token')) {
       // offline fallback
       const newG = {
         id: 'g-' + Date.now(),
