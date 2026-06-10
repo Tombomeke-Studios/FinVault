@@ -2,6 +2,7 @@
   "name": "finvault-monorepo",
   "version": "1.0.0",
   "description": "FinVault Custom Banking App Monorepo",
+  "type": "module",
   "private": true,
   "workspaces": [
     "apps/*",
@@ -15,7 +16,11 @@
     "dev:wallet": "npm run dev --workspace=services/wallet-transaction-service",
     "dev:invoice": "npm run dev --workspace=services/invoice-service",
     "dev:web": "npm run dev --workspace=apps/web-dashboard",
+    "dev:mobile": "npm run start --workspace=apps/mobile",
+    "predev": "node scripts/kill-ports.js",
     "dev": "concurrently \"npm run dev:shared\" \"npm run dev:gateway\" \"npm run dev:account\" \"npm run dev:wallet\" \"npm run dev:invoice\" \"npm run dev:web\"",
+    "dev:all": "concurrently --names \"WEB,MOBILE\" --prefix-colors \"cyan,magenta\" \"npm run dev\" \"npm run dev:mobile\"",
+    "kill-ports": "node scripts/kill-ports.js",
     "build": "npm run build --workspaces --if-present",
     "install:all": "npm install",
     "test": "vitest run"

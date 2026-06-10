@@ -4,6 +4,36 @@ import type { Request, Response, NextFunction } from 'express';
 // Shared JWT secret — in production this should come from a secure vault / env
 export const JWT_SECRET = process.env.JWT_SECRET || 'finvault-super-secret-key-98765';
 
+if (!process.env.JWT_SECRET) {
+  console.warn(
+    '[shared/auth] WARNING: JWT_SECRET env var not set — using the built-in development ' +
+    'fallback. Anyone with the source can forge tokens. Set JWT_SECRET before deploying.'
+  );
+}
+
+// Shared internal service-to-service secret (X-Service-Secret header).
+export const SERVICE_SECRET = process.env.SERVICE_SECRET || 'finvault-internal-service-secret';
+
+if (!process.env.SERVICE_SECRET) {
+  console.warn(
+    '[shared/auth] WARNING: SERVICE_SECRET env var not set — internal endpoints are using ' +
+    'the built-in development fallback. Set SERVICE_SECRET before deploying.'
+  );
+}
+
+/**
+ * Express middleware for internal service-to-service endpoints.
+ * Requires the X-Service-Secret header to match SERVICE_SECRET.
+ */
+export function requireServiceSecret(req: Request, res: Response, next: NextFunction): void {
+  const secret = req.headers['x-service-secret'] as string | undefined;
+  if (secret !== SERVICE_SECRET) {
+    res.status(403).json({ error: 'Forbidden: internal endpoint requires service authentication' });
+    return;
+  }
+  next();
+}
+
 export interface JWTPayload {
   userId: string;
   email: string;

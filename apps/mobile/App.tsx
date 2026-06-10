@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useEffect } from 'react';
-import { View, StyleSheet, SafeAreaView, TouchableOpacity, Text, StatusBar, Modal, TextInput, ActivityIndicator, Alert, Platform } from 'react-native';
+import { View, StyleSheet, SafeAreaView, TouchableOpacity, Text, StatusBar, TextInput, Alert, Platform, BackHandler } from 'react-native';
 import { ScreenAuth } from './src/screens/ScreenAuth';
 import { ScreenOverview } from './src/screens/ScreenOverview';
 import { ScreenTransactions } from './src/screens/ScreenTransactions';
@@ -8,9 +8,13 @@ import { ScreenCards } from './src/screens/ScreenCards';
 import { ScreenSavings } from './src/screens/ScreenSavings';
 import { ScreenAnalytics } from './src/screens/ScreenAnalytics';
 import { ScreenSettings } from './src/screens/ScreenSettings';
+import { ScreenAccountDashboard } from './src/screens/ScreenAccountDashboard';
 import { Shell } from './src/components/Shell';
 import { money } from './src/components/UI';
 import { MobileSheet } from './src/components/MobileExtras';
+import { ToastHost, useToasts } from './src/components/Toast';
+import { Icon } from './src/components/Icon';
+import { saveSession, loadSession, clearSession, tryRefreshSession, revokeSession } from './src/session';
 import { THEME } from './src/theme';
 
 export interface ThemeConfig {
@@ -201,9 +205,9 @@ function buildMockData(firstName: string, lastName: string, email: string, walle
 
 // ---- Plan upgrade bottom sheet ----
 const PLANS = [
-  { name: 'Standard', price: '€0',     tag: 'Gratis',       feats: ['1 kaart', '€200/mo gratis ATM', 'P2P transfers'] },
-  { name: 'Metal',    price: '€9,99',  tag: 'Populair',     feats: ['3 kaarten', '€2.000/mo gratis ATM', 'Prioriteit support'] },
-  { name: 'Metal+',   price: '€16,99', tag: 'Beste waarde', feats: ['Onbeperkte kaarten', 'Onbeperkt ATM', 'Reisverzekerering', '3% spaarrente'] },
+  { name: 'Standard', price: '€0',     tag: 'Free',       feats: ['1 card', '€200/mo free ATM', 'P2P transfers'] },
+  { name: 'Metal',    price: '€9.99',  tag: 'Popular',    feats: ['3 cards', '€2,000/mo free ATM', 'Priority support'] },
+  { name: 'Metal+',   price: '€16.99', tag: 'Best value', feats: ['Unlimited cards', 'Unlimited ATM', 'Travel insurance', '3% savings APY'] },
 ];
 
 function UpgradePlanSheet({ open, onClose, currentPlan, onUpgrade }: { open: boolean; onClose: () => void; currentPlan: string; onUpgrade: (p: string) => void }) {
@@ -212,7 +216,7 @@ function UpgradePlanSheet({ open, onClose, currentPlan, onUpgrade }: { open: boo
   React.useEffect(() => { if (open) setSel(currentPlan); }, [open, currentPlan]);
 
   return (
-    <MobileSheet open={open} onClose={onClose} title="Kies jouw abonnement">
+    <MobileSheet open={open} onClose={onClose} title="Choose your plan">
       <View style={{ gap: 10 }}>
         {PLANS.map(p => {
           const active = sel === p.name;
@@ -223,16 +227,24 @@ function UpgradePlanSheet({ open, onClose, currentPlan, onUpgrade }: { open: boo
               onPress={() => setSel(p.name)}
               style={[upgStyles.planCard, active ? upgStyles.planCardActive : null]}
               activeOpacity={0.8}
+              accessibilityRole="button"
+              accessibilityState={{ selected: active }}
+              accessibilityLabel={`${p.name} plan, ${p.price} per month${isCurrent ? ', current plan' : ''}`}
             >
               <View style={upgStyles.planHeader}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
                   <Text style={[upgStyles.planName, active ? upgStyles.planNameActive : null]}>{p.name}</Text>
-                  {isCurrent && <View style={upgStyles.chip}><Text style={upgStyles.chipTxt}>Huidig</Text></View>}
+                  {isCurrent && <View style={upgStyles.chip}><Text style={upgStyles.chipTxt}>Current</Text></View>}
                 </View>
                 <Text style={[upgStyles.planPrice, active ? upgStyles.planNameActive : null]}>{p.price}<Text style={upgStyles.planPer}>/mo</Text></Text>
               </View>
-              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 8 }}>
-                {p.feats.map(f => <Text key={f} style={upgStyles.feat}>✓ {f}</Text>)}
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 8 }}>
+                {p.feats.map(f => (
+                  <View key={f} style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                    <Icon name="check" size={11} color={active ? THEME.colors.accent : THEME.colors.text3} />
+                    <Text style={upgStyles.feat}>{f}</Text>
+                  </View>
+                ))}
               </View>
             </TouchableOpacity>
           );
@@ -241,8 +253,11 @@ function UpgradePlanSheet({ open, onClose, currentPlan, onUpgrade }: { open: boo
           style={[upgStyles.confirmBtn, sel === currentPlan ? upgStyles.confirmBtnMuted : null]}
           onPress={() => sel !== currentPlan ? onUpgrade(sel) : onClose()}
           activeOpacity={0.85}
+          accessibilityRole="button"
         >
-          <Text style={upgStyles.confirmTxt}>{sel === currentPlan ? 'Huidig abonnement' : `Overstappen naar ${sel}`}</Text>
+          <Text style={[upgStyles.confirmTxt, sel === currentPlan && upgStyles.confirmTxtMuted]}>
+            {sel === currentPlan ? 'Current plan' : `Switch to ${sel}`}
+          </Text>
         </TouchableOpacity>
       </View>
     </MobileSheet>
@@ -271,12 +286,14 @@ const upgStyles = StyleSheet.create({
   chipTxt: { fontSize: 11, color: THEME.colors.text3, fontWeight: '600' },
   confirmBtn: { backgroundColor: THEME.colors.accent, borderRadius: 12, paddingVertical: 14, alignItems: 'center', marginTop: 4 },
   confirmBtnMuted: { backgroundColor: THEME.colors.surface2, borderWidth: 1, borderColor: THEME.colors.line },
-  confirmTxt: { fontSize: 15, fontWeight: 'bold', color: '#fff' },
+  confirmTxt: { fontSize: 15, fontWeight: 'bold', color: THEME.colors.onAccent },
+  confirmTxtMuted: { color: THEME.colors.text2 },
 });
 
 export default function App() {
   // --- Auth State ---
   const [token, setToken] = useState<string | null>(null);
+  const [restoring, setRestoring] = useState(true); // true while loading the stored session
   const [rawUser, setRawUser] = useState<any>(null);
   const [wallets, setWallets] = useState<Wallet[]>([]);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
@@ -314,15 +331,27 @@ export default function App() {
   // --- Navigation & Overlays ---
   const [route, setRoute] = useState('overview');
   const [depositOpen, setDepositOpen] = useState(false);
+  const [depositWalletId, setDepositWalletId] = useState('');
   const [depositAmt, setDepositAmt] = useState('');
   const [depositLoading, setDepositLoading] = useState(false);
   const [theme, setTheme] = useState<ThemeConfig>({
     mode: 'dark', accent: 'emerald', font: 'grotesk', radius: 'soft', density: 'regular', card: 'elevated'
   });
 
-  const fire = useCallback((title: string, body: string, type: string = 'info') => {
-    Alert.alert(title, body);
-  }, []);
+  // Non-blocking toast feedback (Alert is reserved for destructive confirms).
+  const { toasts, fire, dismiss } = useToasts();
+
+  // Android hardware back: step back to overview before letting the OS exit.
+  useEffect(() => {
+    const sub = BackHandler.addEventListener('hardwareBackPress', () => {
+      if (route !== 'overview') {
+        setRoute('overview');
+        return true;
+      }
+      return false; // on overview → default behavior (exit)
+    });
+    return () => sub.remove();
+  }, [route]);
 
   const setupMockSession = useCallback(() => {
     setRawUser({ id: 'mock-u', email: 'tom@finvault.com', profile: { firstName: 'Tom', lastName: 'Bomeke' } });
@@ -341,7 +370,17 @@ export default function App() {
     initializeGoals();
   }, [initializeCards, initializeGoals]);
 
-  const API_URL = 'http://192.168.0.6:8000';
+  // Configure via apps/mobile/.env → EXPO_PUBLIC_API_URL=http://<your-lan-ip>:8000
+  const API_URL = process.env.EXPO_PUBLIC_API_URL || 'http://192.168.0.6:8000';
+
+  // Restore the persisted session once on launch (keystore-backed).
+  useEffect(() => {
+    let cancelled = false;
+    loadSession().then(({ accessToken }) => {
+      if (!cancelled && accessToken) setToken(accessToken);
+    }).finally(() => { if (!cancelled) setRestoring(false); });
+    return () => { cancelled = true; };
+  }, []);
 
   const fetchWallets = useCallback(async () => {
     if (!token || token === 'mock-token') return;
@@ -400,7 +439,14 @@ export default function App() {
         fetchCards();
         fetchGoals();
       } else {
-        setToken(null);
+        // Access token expired/invalid — try one silent refresh before signing out.
+        const refreshed = await tryRefreshSession(API_URL);
+        if (refreshed) {
+          setToken(refreshed);
+        } else {
+          await clearSession();
+          setToken(null);
+        }
       }
     } catch {
       setupMockSession();
@@ -424,6 +470,7 @@ export default function App() {
       });
       if (res.ok) {
         const data = await res.json();
+        await saveSession(data.accessToken, data.refreshToken);
         setToken(data.accessToken);
         setAuthSuccess('Welcome back!');
       } else {
@@ -433,6 +480,7 @@ export default function App() {
     } catch {
       // Offline fallback
       if (email === 'admin@finvault.com' || email === 'tom@finvault.com') {
+        await saveSession('mock-token');
         setToken('mock-token');
         setupMockSession();
         setAuthSuccess('Welcome back (Demo mode)!');
@@ -446,6 +494,7 @@ export default function App() {
     setAuthError('');
     setAuthSuccess('');
     setRawUser(null);
+    saveSession('mock-token');
     setToken('mock-token');
     setupMockSession();
     setAuthSuccess('Face ID scan successful!');
@@ -469,7 +518,11 @@ export default function App() {
     }
   };
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    if (token && token !== 'mock-token') {
+      await revokeSession(API_URL); // best-effort server-side revocation
+    }
+    await clearSession();
     setToken(null);
     setRawUser(null);
     setCards([]);
@@ -479,7 +532,7 @@ export default function App() {
   const handleUpgradePlan = async (newPlan: string) => {
     if (!token || token === 'mock-token') {
       setRawUser((prev: any) => prev ? { ...prev, plan: newPlan } : null);
-      fire('Gelukt', `Welkom bij FinVault ${newPlan}!`, 'success');
+      fire('Plan updated', `Welcome to FinVault ${newPlan}!`, 'success');
       return;
     }
     try {
@@ -491,10 +544,10 @@ export default function App() {
       if (res.ok) {
         const updated = await res.json();
         setRawUser(updated);
-        fire('Gelukt', `Welkom bij FinVault ${newPlan}!`, 'success');
+        fire('Plan updated', `Welcome to FinVault ${newPlan}!`, 'success');
       }
     } catch {
-      fire('Fout', 'Abonnement wijzigen mislukt.', 'warn');
+      fire('Plan change failed', 'Could not update your plan. Try again later.', 'warn');
     }
   };
 
@@ -545,18 +598,21 @@ export default function App() {
     if (!val || val <= 0) return;
 
     setDepositLoading(true);
+    const selectedId = depositWalletId || wallets[0]?.id;
+    const wallet = wallets.find(w => w.id === selectedId) || wallets[0];
 
     if (token && token !== 'mock-token') {
-      fetch(`${API_URL}/api/transactions/deposit`, {
+      fetch(`${API_URL}/api/wallets/deposit`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`
         },
-        body: JSON.stringify({ amount: val, description: 'Cash deposit', receiverWalletId: wallets[0]?.id })
+        body: JSON.stringify({ amount: val, walletId: wallet.id })
       }).then(res => {
         if (res.ok) {
-          fire('Deposit added', `${money(val)} deposited into your checking account.`, 'success');
+          const wName = wallet.name || (wallet.type === 'savings' ? 'Savings Vault' : wallet.type === 'travel' ? 'Travel Multi-Currency' : 'Everyday Checking');
+          fire('Deposit added', `${money(val, wallet.currency)} deposited into your ${wName} account.`, 'success');
           fetchWallets();
           fetchTransactions();
           setDepositLoading(false);
@@ -567,32 +623,82 @@ export default function App() {
         }
       }).catch(() => {
         // Fallback
-        setWallets(prev => prev.map((w, i) => i === 0 ? { ...w, balance: w.balance + val } : w));
+        setWallets(prev => prev.map(w => w.id === wallet.id ? { ...w, balance: w.balance + val } : w));
         setTransactions(prev => [{
-          id: Math.random().toString(), senderWalletId: null, receiverWalletId: wallets[0].id,
-          amount: val, currency: 'EUR', status: 'confirmed', type: 'deposit',
+          id: Math.random().toString(), senderWalletId: null, receiverWalletId: wallet.id,
+          amount: val, currency: wallet.currency || 'EUR', status: 'confirmed', type: 'deposit',
           description: 'Cash deposit', createdAt: new Date().toISOString()
         } as any, ...prev]);
         setDepositLoading(false);
         setDepositAmt('');
         setDepositOpen(false);
-        fire('Deposit added (Demo)', `${money(val)} deposited into your checking account.`, 'success');
+        const wName = wallet.name || (wallet.type === 'savings' ? 'Savings Vault' : wallet.type === 'travel' ? 'Travel Multi-Currency' : 'Everyday Checking');
+        fire('Deposit added (Demo)', `${money(val, wallet.currency)} deposited into your ${wName} account.`, 'success');
       });
       return;
     }
 
     setTimeout(() => {
-      setWallets(prev => prev.map((w, i) => i === 0 ? { ...w, balance: w.balance + val } : w));
+      setWallets(prev => prev.map(w => w.id === wallet.id ? { ...w, balance: w.balance + val } : w));
       setTransactions(prev => [{
-        id: Math.random().toString(), senderWalletId: null, receiverWalletId: wallets[0].id,
-        amount: val, currency: 'EUR', status: 'confirmed', type: 'deposit',
+        id: Math.random().toString(), senderWalletId: null, receiverWalletId: wallet.id,
+        amount: val, currency: wallet.currency || 'EUR', status: 'confirmed', type: 'deposit',
         description: 'Cash deposit', createdAt: new Date().toISOString()
       } as any, ...prev]);
       setDepositLoading(false);
       setDepositAmt('');
       setDepositOpen(false);
-      fire('Deposit added (Demo)', `${money(val)} deposited into your checking account.`, 'success');
+      const wName = wallet.name || (wallet.type === 'savings' ? 'Savings Vault' : wallet.type === 'travel' ? 'Travel Multi-Currency' : 'Everyday Checking');
+      fire('Deposit added (Demo)', `${money(val, wallet.currency)} deposited into your ${wName} account.`, 'success');
     }, 800);
+  };
+
+  const handleOwnTransfer = async (fromWalletId: string, toWalletId: string, amount: number, description: string): Promise<void> => {
+    const fromWallet = wallets.find(w => w.id === fromWalletId);
+    const toWallet   = wallets.find(w => w.id === toWalletId);
+    if (!fromWallet || !toWallet) { Alert.alert('Error', 'Account not found.'); return; }
+
+    if (token && token !== 'mock-token') {
+      try {
+        const res = await fetch(`${API_URL}/api/transactions/own-transfer`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+          body: JSON.stringify({ fromWalletId, toWalletId, amount, description })
+        });
+        if (res.ok) {
+          const result = await res.json();
+          setWallets(prev => prev.map(w => {
+            if (w.id === fromWalletId) return { ...w, balance: result.fromBalance };
+            if (w.id === toWalletId)   return { ...w, balance: result.toBalance };
+            return w;
+          }));
+          setTransactions(prev => [result.transaction, ...prev]);
+          fire('Transfer complete', `${money(amount)} moved to ${toWallet.name || toWallet.type}.`, 'success');
+          return;
+        } else {
+          const err = await res.json();
+          Alert.alert('Transfer failed', err.error || err.message || 'Could not complete transfer.');
+          return;
+        }
+      } catch { /* fall through to local simulation */ }
+    }
+
+    // Local demo fallback
+    setWallets(prev => prev.map(w => {
+      if (w.id === fromWalletId) return { ...w, balance: w.balance - amount };
+      if (w.id === toWalletId)   return { ...w, balance: w.balance + amount };
+      return w;
+    }));
+    setTransactions(prev => [{
+      id: `own-${Date.now()}`,
+      senderWalletId: fromWalletId,
+      receiverWalletId: toWalletId,
+      amount, currency: fromWallet.currency,
+      status: 'confirmed', type: 'transfer',
+      description: description || `Transfer: ${fromWallet.name} → ${toWallet.name}`,
+      createdAt: new Date().toISOString()
+    } as Transaction, ...prev]);
+    fire('Transfer complete (Demo)', `${money(amount)} moved to ${toWallet.name || toWallet.type}.`, 'success');
   };
 
   const firstName = rawUser?.profile?.firstName || rawUser?.firstName || 'Tom';
@@ -601,6 +707,18 @@ export default function App() {
   const appData   = buildMockData(firstName, lastName, email, wallets, transactions, cards, goals, rawUser?.plan || 'Metal');
 
   const renderScreen = () => {
+    // Account dashboard routing: 'account:walletId'
+    if (route.startsWith('account:')) {
+      const walletId = route.replace('account:', '');
+      return (
+        <ScreenAccountDashboard
+          walletId={walletId}
+          data={appData}
+          navigate={setRoute}
+          onOwnTransfer={handleOwnTransfer}
+        />
+      );
+    }
     switch (route) {
       case 'overview':
         return <ScreenOverview navigate={setRoute} data={appData} onTopup={() => setDepositOpen(true)} />;
@@ -609,13 +727,13 @@ export default function App() {
       case 'transfer':
         return <ScreenTransfer data={appData} onTransfer={handleTransfer} onRequest={handleRequest} />;
       case 'cards':
-        return <ScreenCards data={appData} fire={fire} cards={cards} setCards={setCards} token={token} apiUrl={API_URL} />;
+        return <ScreenCards data={appData} fire={fire} cards={cards} setCards={setCards} token={token} apiUrl={API_URL} navigate={setRoute} />;
       case 'analytics':
         return <ScreenAnalytics data={appData} />;
       case 'savings':
         return <ScreenSavings data={appData} fire={fire} goals={goals} setGoals={setGoals} wallets={wallets} setWallets={setWallets} setTransactions={setTransactions} token={token} apiUrl={API_URL} />;
       case 'settings':
-        return <ScreenSettings data={appData} theme={theme} setTheme={setTheme} onLogout={handleLogout} fire={fire} openUpgrade={() => setUpgradeOpen(true)} />;
+        return <ScreenSettings data={appData} theme={theme} setTheme={setTheme} onLogout={handleLogout} fire={fire} openUpgrade={() => setUpgradeOpen(true)} token={token} apiUrl={API_URL} />;
       default:
         return <ScreenOverview navigate={setRoute} data={appData} onTopup={() => setDepositOpen(true)} />;
     }
@@ -625,8 +743,15 @@ export default function App() {
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle="light-content" />
 
-      {/* Auth Screen or Main application shell */}
-      {!token ? (
+      {/* Session restore splash, Auth screen, or Main application shell */}
+      {restoring ? (
+        <View style={styles.splash}>
+          <View style={styles.splashLogo}>
+            <Icon name="shield" size={26} color={THEME.colors.onAccent} />
+          </View>
+          <Text style={styles.splashText}>FinVault</Text>
+        </View>
+      ) : !token ? (
         <ScreenAuth
           onLogin={handleLogin}
           onRegister={handleRegister}
@@ -649,9 +774,41 @@ export default function App() {
       />
 
       {/* Dynamic topup modal sheet */}
-      <MobileSheet open={depositOpen} onClose={() => setDepositOpen(false)} title="Top up Everyday Account">
+      <MobileSheet open={depositOpen} onClose={() => setDepositOpen(false)} title="Top up account">
         <View style={styles.sheetForm}>
-          <Text style={styles.sheetDesc}>Top up your Everyday checking account balance instantly.</Text>
+          <Text style={styles.sheetDesc}>Top up your account balance instantly.</Text>
+          
+          <Text style={styles.label}>Destination Account</Text>
+          <View style={{ gap: 6, marginBottom: 12 }}>
+            {wallets.map(w => {
+              const selected = (depositWalletId || wallets[0]?.id) === w.id;
+              return (
+                <TouchableOpacity 
+                  key={w.id} 
+                  onPress={() => setDepositWalletId(w.id)}
+                  style={{
+                    padding: 10,
+                    borderRadius: THEME.radius.sm,
+                    backgroundColor: THEME.colors.surface2,
+                    borderWidth: selected ? 1.5 : 1,
+                    borderColor: selected ? THEME.colors.accent : THEME.colors.line,
+                    flexDirection: 'row',
+                    justifyContent: 'space-between',
+                    alignItems: 'center'
+                  }}
+                  activeOpacity={0.7}
+                >
+                  <Text style={{ color: THEME.colors.text, fontWeight: '700', fontSize: 13 }}>
+                    {w.name || (w.type === 'savings' ? 'Savings Vault' : w.type === 'travel' ? 'Travel Multi-Currency' : 'Everyday Checking')}
+                  </Text>
+                  <Text style={{ color: THEME.colors.text3, fontSize: 11 }}>
+                    {w.iban ? `${w.iban.substring(w.iban.length - 4)}` : ''}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+
           <Text style={styles.label}>Amount to deposit</Text>
           <TextInput
             style={styles.amountInput}
@@ -670,11 +827,21 @@ export default function App() {
             ))}
           </View>
 
-          <TouchableOpacity style={styles.submitBtn} onPress={handleDeposit} disabled={depositLoading || !depositAmt}>
+          <TouchableOpacity
+            style={[styles.submitBtn, (depositLoading || !depositAmt) && { opacity: 0.5 }]}
+            onPress={handleDeposit}
+            disabled={depositLoading || !depositAmt}
+            accessibilityRole="button"
+            accessibilityLabel="Deposit"
+            accessibilityState={{ disabled: depositLoading || !depositAmt, busy: depositLoading }}
+          >
             <Text style={styles.submitText}>{depositLoading ? 'Processing…' : 'Deposit'}</Text>
           </TouchableOpacity>
         </View>
       </MobileSheet>
+
+      {/* Toast notifications overlay */}
+      <ToastHost toasts={toasts} onDismiss={dismiss} />
     </SafeAreaView>
   );
 }
@@ -684,6 +851,26 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: THEME.colors.bg,
     paddingTop: Platform.OS === 'android' ? (StatusBar.currentHeight || 24) : 0,
+  },
+  splash: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 14,
+  },
+  splashLogo: {
+    width: 56,
+    height: 56,
+    borderRadius: 16,
+    backgroundColor: THEME.colors.accent,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  splashText: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: THEME.colors.text,
+    letterSpacing: -0.4,
   },
   sheetForm: {
     gap: 16,

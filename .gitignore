@@ -48,6 +48,10 @@ yarn-debug.log*
 yarn-error.log*
 lerna-debug.log*
 
-# Prisma generated client (sometimes in dev, usually generated on npm run dev)
+# Prisma generated clients (output to service-local generated/ dirs)
+/services/account-service/generated/
+/services/wallet-transaction-service/generated/
+/services/invoice-service/generated/
 /services/account-service/prisma/account.db
 /services/wallet-transaction-service/prisma/wallet.db
+/services/invoice-service/prisma/invoice.db

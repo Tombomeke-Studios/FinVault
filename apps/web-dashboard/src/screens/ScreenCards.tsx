@@ -56,7 +56,7 @@ function CardCarousel({ cards, sel, setSel, compact }: { cards: any[]; sel: numb
   );
 }
 
-export function ScreenCards({ compact, fire, data, cards, setCards, token }: { compact: boolean; fire: (t: string, b: string, type?: string) => void; data: AppData; cards: any[]; setCards: React.Dispatch<React.SetStateAction<any[]>>; token?: string | null }) {
+export function ScreenCards({ compact, fire, data, cards, setCards, token, navigate }: { compact: boolean; fire: (t: string, b: string, type?: string) => void; data: AppData; cards: any[]; setCards: React.Dispatch<React.SetStateAction<any[]>>; token?: string | null; navigate?: (r: string) => void }) {
   const [sel, setSel] = useState(0);
   const [details, setDetails] = useState(false);
   const [reveal, setReveal] = useState(false);
@@ -79,7 +79,7 @@ export function ScreenCards({ compact, fire, data, cards, setCards, token }: { c
   };
 
   const toggleFreeze = async () => {
-    if (!token) {
+    if (!token || token.startsWith('mock-token')) {
       setCards(cs => cs.map((c, i) => i === sel ? { ...c, frozen: !c.frozen } : c));
       fire(card.frozen ? 'Card unfrozen' : 'Card frozen', card.frozen ? 'Payments re-enabled.' : 'All payments are now blocked.', card.frozen ? 'success' : 'warn');
       return;
@@ -104,7 +104,7 @@ export function ScreenCards({ compact, fire, data, cards, setCards, token }: { c
   };
 
   const handleOrderCard = async () => {
-    if (!token) {
+    if (!token || token.startsWith('mock-token')) {
       const last4 = Math.floor(1000 + Math.random() * 9000).toString();
       const newCard = {
         id: 'card-' + Date.now(),
@@ -161,7 +161,7 @@ export function ScreenCards({ compact, fire, data, cards, setCards, token }: { c
   };
 
   const handleSaveLimits = async () => {
-    if (!token) {
+    if (!token || token.startsWith('mock-token')) {
       setCards(cs => cs.map((c, i) => i === sel ? { ...c, limit: limitVal } : c));
       setLimitsOpen(false);
       fire('Limits Updated', `Monthly spending cap updated to ${money(limitVal)}.`, 'success');
@@ -241,6 +241,21 @@ export function ScreenCards({ compact, fire, data, cards, setCards, token }: { c
 
           <div className="card" style={{ padding: 'var(--pad)', display: 'flex', flexDirection: 'column' }}>
             {settings.map((s, i) => <SettingRow key={i} {...s} last={i === settings.length - 1} />)}
+            {card.walletId && navigate && (
+              <div
+                onClick={() => navigate(`account:${card.walletId}`)}
+                style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '12px 4px', borderTop: '1px solid var(--line)', cursor: 'pointer', marginTop: 2 }}
+              >
+                <span style={{ width: 38, height: 38, borderRadius: 'var(--r-sm)', background: 'var(--accent-soft)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--accent)' }}>
+                  <Icon name="wallet" size={18} />
+                </span>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontWeight: 600, fontSize: '0.92rem' }}>View Linked Account</div>
+                  <div style={{ color: 'var(--text-3)', fontSize: '0.8rem' }}>Balance, activity &amp; add money</div>
+                </div>
+                <Icon name="chevRight" size={16} style={{ color: 'var(--text-3)' }} />
+              </div>
+            )}
           </div>
         </div>
       </div>

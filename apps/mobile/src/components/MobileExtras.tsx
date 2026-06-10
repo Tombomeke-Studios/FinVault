@@ -1,52 +1,110 @@
-import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Modal, Switch, Dimensions, TextInput } from 'react-native';
+import React, { useEffect, useRef, useState } from 'react';
+import {
+  Animated, Dimensions, KeyboardAvoidingView, Modal, PanResponder,
+  Platform, Pressable, ScrollView, StyleSheet, Switch, Text, TextInput,
+  TouchableOpacity, View,
+} from 'react-native';
+import * as Clipboard from 'expo-clipboard';
 import { Icon } from './Icon';
 import { BankCard } from './BankCard';
 import { money } from './UI';
+import { useReducedMotion } from './Motion';
 import { THEME } from '../theme';
 
-// ── Drag-to-dismiss bottom sheet simulator using Modal ─────────────────────────
+const SCREEN_H = Dimensions.get('window').height;
+
+// ── Bottom sheet: spring slide-up, fading scrim, drag-to-dismiss ────────
 export function MobileSheet({ open, onClose, title, children }: {
   open: boolean;
   onClose: () => void;
   title?: string;
   children: React.ReactNode;
 }) {
+  const [visible, setVisible] = useState(open);
+  const progress = useRef(new Animated.Value(0)).current; // 0 = hidden, 1 = shown
+  const dragY = useRef(new Animated.Value(0)).current;
+  const reduced = useReducedMotion();
+
+  useEffect(() => {
+    if (open) {
+      setVisible(true);
+      dragY.setValue(0);
+      if (reduced) { progress.setValue(1); return; }
+      progress.setValue(0);
+      Animated.spring(progress, { toValue: 1, tension: 62, friction: 13, useNativeDriver: true }).start();
+    } else if (visible) {
+      if (reduced) { progress.setValue(0); setVisible(false); return; }
+      Animated.timing(progress, { toValue: 0, duration: 180, useNativeDriver: true })
+        .start(({ finished }) => { if (finished) setVisible(false); });
+    }
+  }, [open]);
+
+  // Drag-to-dismiss is bound to the grab area (handle + header) only, so it
+  // never fights with scrolling content inside the sheet.
+  const panResponder = useRef(
+    PanResponder.create({
+      onMoveShouldSetPanResponder: (_, g) => g.dy > 6 && Math.abs(g.dy) > Math.abs(g.dx),
+      onPanResponderMove: (_, g) => { if (g.dy > 0) dragY.setValue(g.dy); },
+      onPanResponderRelease: (_, g) => {
+        if (g.dy > 110 || g.vy > 0.8) onClose();
+        else Animated.spring(dragY, { toValue: 0, tension: 60, friction: 10, useNativeDriver: true }).start();
+      },
+    })
+  ).current;
+
+  const slideUp = progress.interpolate({ inputRange: [0, 1], outputRange: [SCREEN_H, 0] });
+
   return (
-    <Modal
-      visible={open}
-      animationType="slide"
-      transparent={true}
-      onRequestClose={onClose}
-    >
-      <TouchableOpacity style={styles.backdrop} activeOpacity={1} onPress={onClose}>
-        <View style={styles.sheetContainer} onStartShouldSetResponder={() => true}>
-          {/* Drag handle visual */}
-          <View style={styles.dragHandleWrapper}>
-            <View style={styles.dragHandle} />
-          </View>
+    <Modal visible={visible} transparent animationType="none" onRequestClose={onClose} statusBarTranslucent>
+      <Animated.View style={[styles.backdrop, { opacity: progress }]}>
+        <Pressable style={StyleSheet.absoluteFill} onPress={onClose} accessibilityLabel="Close sheet" />
+      </Animated.View>
 
-          {/* Title Row */}
-          {!!title && (
-            <View style={styles.sheetHeader}>
-              <Text style={styles.sheetTitle}>{title}</Text>
-              <TouchableOpacity onPress={onClose} style={styles.closeBtn}>
-                <Icon name="x" size={18} color={THEME.colors.text3} />
-              </TouchableOpacity>
+      <KeyboardAvoidingView
+        style={styles.sheetPositioner}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        pointerEvents="box-none"
+      >
+        <Animated.View
+          style={[styles.sheetContainer, { transform: [{ translateY: Animated.add(slideUp, dragY) }] }]}
+        >
+          {/* Grab area: drag handle + title row */}
+          <View {...panResponder.panHandlers}>
+            <View style={styles.dragHandleWrapper}>
+              <View style={styles.dragHandle} />
             </View>
-          )}
 
-          {/* Content */}
-          <View style={styles.sheetContent}>
-            {children}
+            {!!title && (
+              <View style={styles.sheetHeader}>
+                <Text style={styles.sheetTitle}>{title}</Text>
+                <TouchableOpacity
+                  onPress={onClose}
+                  style={styles.closeBtn}
+                  hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                  accessibilityLabel="Close"
+                  accessibilityRole="button"
+                >
+                  <Icon name="x" size={18} color={THEME.colors.text3} />
+                </TouchableOpacity>
+              </View>
+            )}
           </View>
-        </View>
-      </TouchableOpacity>
+
+          <ScrollView
+            style={{ flexGrow: 0 }}
+            contentContainerStyle={styles.sheetContent}
+            keyboardShouldPersistTaps="handled"
+            showsVerticalScrollIndicator={false}
+          >
+            {children}
+          </ScrollView>
+        </Animated.View>
+      </KeyboardAvoidingView>
     </Modal>
   );
 }
 
-// ── 3D Card flip simulator + detail rows ────────────────────────────────────────────
+// ── Card detail sheet with reveal + real clipboard copy ─────────────────
 export function MobileCardDetail({ card, open, onClose, wallets, fire }: {
   card: any;
   open: boolean;
@@ -57,8 +115,16 @@ export function MobileCardDetail({ card, open, onClose, wallets, fire }: {
   const [revealed, setReveal] = useState(false);
   const wallet = wallets.find(w => w.id === card.walletId) || {};
 
-  const copy = (text: string, label: string) => {
-    fire('Copied', label + ' copied to clipboard.', 'success');
+  // Sensitive details never stay revealed across open/close cycles.
+  useEffect(() => { if (!open) setReveal(false); }, [open]);
+
+  const copy = async (text: string, label: string) => {
+    try {
+      await Clipboard.setStringAsync(text);
+      fire('Copied', `${label} copied to clipboard.`, 'success');
+    } catch {
+      fire('Copy failed', 'Could not access the clipboard.', 'error');
+    }
   };
 
   const rows = [
@@ -73,20 +139,22 @@ export function MobileCardDetail({ card, open, onClose, wallets, fire }: {
   return (
     <MobileSheet open={open} onClose={onClose} title="Card details">
       <View style={styles.cardDetailsForm}>
-        {/* Visual card */}
         <View style={styles.centerCard}>
           <BankCard card={card} revealed={revealed} />
         </View>
 
-        {/* Reveal Toggle */}
-        <TouchableOpacity style={styles.btnGhost} onPress={() => setReveal(!revealed)}>
+        <TouchableOpacity
+          style={styles.btnGhost}
+          onPress={() => setReveal(!revealed)}
+          accessibilityLabel={revealed ? 'Hide sensitive details' : 'Reveal sensitive details'}
+          accessibilityRole="button"
+        >
           <Icon name={revealed ? 'eyeOff' : 'eye'} size={16} color={THEME.colors.text} />
           <Text style={styles.btnGhostText}>
             {revealed ? 'Hide sensitive details' : 'Tap to reveal details'}
           </Text>
         </TouchableOpacity>
 
-        {/* Info Rows */}
         <View style={styles.infoRows}>
           {rows.map((r, i) => (
             <View key={r.label} style={[
@@ -98,7 +166,13 @@ export function MobileCardDetail({ card, open, onClose, wallets, fire }: {
                 <Text style={styles.infoValue}>{r.value}</Text>
               </View>
               {!!r.copy && revealed && (
-                <TouchableOpacity onPress={() => copy(r.copy, r.label)} style={styles.copyBtn}>
+                <TouchableOpacity
+                  onPress={() => copy(r.copy, r.label)}
+                  style={styles.copyBtn}
+                  hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+                  accessibilityLabel={`Copy ${r.label}`}
+                  accessibilityRole="button"
+                >
                   <Icon name="copy" size={16} color={THEME.colors.accent} />
                 </TouchableOpacity>
               )}
@@ -117,7 +191,7 @@ export function MobileCardDetail({ card, open, onClose, wallets, fire }: {
   );
 }
 
-// ── Card Limits sheet ──────────────────────────────────────────────────────────
+// ── Card Limits sheet ──────────────────────────────────────────────────
 export function LimitsSheet({ card, open, onClose, fire, onSaveLimits }: {
   card: any;
   open: boolean;
@@ -148,13 +222,24 @@ export function LimitsSheet({ card, open, onClose, fire, onSaveLimits }: {
             keyboardType="numeric"
             placeholder="2000"
             placeholderTextColor={THEME.colors.text3}
+            accessibilityLabel="Monthly spending limit in euros"
           />
           <View style={styles.quickChips}>
-            {[500, 1000, 2000, 5000].map(v => (
-              <TouchableOpacity key={v} style={styles.chip} onPress={() => setLimitVal(v)}>
-                <Text style={styles.chipText}>€{v}</Text>
-              </TouchableOpacity>
-            ))}
+            {[500, 1000, 2000, 5000].map(v => {
+              const active = limitVal === v;
+              return (
+                <TouchableOpacity
+                  key={v}
+                  style={[styles.chip, active && styles.chipActive]}
+                  onPress={() => setLimitVal(v)}
+                  accessibilityLabel={`Set limit to ${v} euros`}
+                  accessibilityRole="button"
+                  accessibilityState={{ selected: active }}
+                >
+                  <Text style={[styles.chipText, active && styles.chipTextActive]}>€{v}</Text>
+                </TouchableOpacity>
+              );
+            })}
           </View>
         </View>
 
@@ -172,6 +257,7 @@ export function LimitsSheet({ card, open, onClose, fire, onSaveLimits }: {
               onValueChange={setContactless}
               trackColor={{ false: THEME.colors.surface2, true: THEME.colors.accent }}
               thumbColor="#fff"
+              accessibilityLabel="Contactless payments"
             />
           </View>
 
@@ -187,11 +273,17 @@ export function LimitsSheet({ card, open, onClose, fire, onSaveLimits }: {
               onValueChange={setForeign}
               trackColor={{ false: THEME.colors.surface2, true: THEME.colors.accent }}
               thumbColor="#fff"
+              accessibilityLabel="Foreign transactions"
             />
           </View>
         </View>
 
-        <TouchableOpacity style={styles.btnPrimary} onPress={() => { onSaveLimits(limitVal); onClose(); fire('Settings saved', 'Your card controls have been updated.', 'success'); }}>
+        <TouchableOpacity
+          style={styles.btnPrimary}
+          onPress={() => { onSaveLimits(limitVal); onClose(); fire('Settings saved', 'Your card controls have been updated.', 'success'); }}
+          accessibilityLabel="Save card controls"
+          accessibilityRole="button"
+        >
           <Text style={styles.btnPrimaryText}>Save controls</Text>
         </TouchableOpacity>
       </View>
@@ -201,15 +293,18 @@ export function LimitsSheet({ card, open, onClose, fire, onSaveLimits }: {
 
 const styles = StyleSheet.create({
   backdrop: {
-    flex: 1,
+    ...StyleSheet.absoluteFillObject,
     backgroundColor: 'rgba(0, 0, 0, 0.55)',
+  },
+  sheetPositioner: {
+    flex: 1,
     justifyContent: 'flex-end',
   },
   sheetContainer: {
     backgroundColor: THEME.colors.surface,
     borderTopLeftRadius: THEME.radius.xl,
     borderTopRightRadius: THEME.radius.xl,
-    maxHeight: '90%',
+    maxHeight: SCREEN_H * 0.88,
     paddingBottom: 34, // Safe-area-like padding
   },
   dragHandleWrapper: {
@@ -220,7 +315,7 @@ const styles = StyleSheet.create({
     width: 38,
     height: 5,
     borderRadius: 99,
-    backgroundColor: THEME.colors.surface2,
+    backgroundColor: THEME.colors.surfaceHi,
   },
   sheetHeader: {
     flexDirection: 'row',
@@ -239,6 +334,7 @@ const styles = StyleSheet.create({
   },
   sheetContent: {
     paddingHorizontal: 20,
+    paddingBottom: 8,
   },
   cardDetailsForm: {
     gap: 16,
@@ -368,10 +464,18 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     justifyContent: 'center',
     alignItems: 'center',
+    minHeight: 44,
+  },
+  chipActive: {
+    borderColor: THEME.colors.accentLine,
+    backgroundColor: THEME.colors.accentSoft,
   },
   chipText: {
     fontSize: 12.5,
     fontWeight: 'bold',
     color: THEME.colors.text,
+  },
+  chipTextActive: {
+    color: THEME.colors.accent,
   },
 });

@@ -18,6 +18,8 @@ const PATHS: Record<string, string> = {
   check: 'M20 6 9 17l-5-5',
   checkCircle: 'M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM8.5 12l2.5 2.5L16 9',
   plus: 'M12 5v14M5 12h14',
+  edit: 'M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7 M18.5 2.5a2.121 2.121 0 1 1 3 3L12 15l-4 1 1-4 9.5-9.5z',
+  trash: 'M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2 M10 11v6 M14 11v6',
   arrowUpRight: 'M7 17 17 7M8 7h9v9',
   arrowDownLeft: 'M17 7 7 17M16 17H7V8',
   arrowRight: 'M5 12h14M13 6l6 6-6 6',

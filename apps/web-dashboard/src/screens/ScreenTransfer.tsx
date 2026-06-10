@@ -142,14 +142,14 @@ export function ScreenTransfer({ compact, navigate, fire, data, onTransfer, onRe
               €{amt || '0'}
             </div>
             <div className="num" style={{ fontSize: '0.84rem', color: amtNum > (wallet?.balance || 0) ? 'var(--neg)' : 'var(--text-3)' }}>
-              From {wallet?.name || 'Everyday'} · {money(wallet?.balance || 0, wallet?.currency || 'EUR')} available
+              From {wallet?.name || (wallet?.type === 'savings' ? 'Savings' : wallet?.type === 'travel' ? 'Travel' : 'Everyday')} · {money(wallet?.balance || 0, wallet?.currency || 'EUR')} available
             </div>
             {/* wallet selector if multiple */}
             {data.wallets.length > 1 && (
               <div style={{ display: 'flex', gap: 8 }}>
                 {data.wallets.map((w, i) => (
                   <button key={w.id} onClick={() => setFromIdx(i)} className={fromIdx === i ? 'chip chip-accent' : 'chip'} style={{ cursor: 'pointer' }}>
-                    {w.name || (w.type === 'savings' ? 'Savings' : 'Everyday')}
+                    {w.name || (w.type === 'savings' ? 'Savings' : w.type === 'travel' ? 'Travel' : 'Everyday')}
                   </button>
                 ))}
               </div>

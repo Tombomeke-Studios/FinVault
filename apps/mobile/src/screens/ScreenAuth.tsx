@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, KeyboardAvoidingView, Platform, ScrollView } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, KeyboardAvoidingView, Platform, ScrollView, ActivityIndicator } from 'react-native';
 import { Icon } from '../components/Icon';
-import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { FadeSlideIn } from '../components/Motion';
 import { THEME } from '../theme';
 
 interface AuthProps {
@@ -45,9 +45,9 @@ export function ScreenAuth({ onLogin, onRegister, authError, authSuccess, onFace
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       style={styles.keyboard}
     >
-      <ScrollView contentContainerStyle={styles.scroll} bounces={false}>
+      <ScrollView contentContainerStyle={styles.scroll} bounces={false} keyboardShouldPersistTaps="handled">
         {/* Main card */}
-        <View style={styles.card}>
+        <FadeSlideIn style={styles.card} distance={20}>
           {/* Logo */}
           <View style={styles.logoRow}>
             <View style={styles.logoIcon}>
@@ -90,6 +90,8 @@ export function ScreenAuth({ onLogin, onRegister, authError, authSuccess, onFace
                     onChangeText={setFirstName}
                     placeholder="John"
                     placeholderTextColor={THEME.colors.text3}
+                    autoComplete="given-name"
+                    textContentType="givenName"
                   />
                 </View>
                 <View style={{ flex: 1, marginLeft: 12 }}>
@@ -100,6 +102,8 @@ export function ScreenAuth({ onLogin, onRegister, authError, authSuccess, onFace
                     onChangeText={setLastName}
                     placeholder="Doe"
                     placeholderTextColor={THEME.colors.text3}
+                    autoComplete="family-name"
+                    textContentType="familyName"
                   />
                 </View>
               </View>
@@ -115,6 +119,8 @@ export function ScreenAuth({ onLogin, onRegister, authError, authSuccess, onFace
                 placeholderTextColor={THEME.colors.text3}
                 keyboardType="email-address"
                 autoCapitalize="none"
+                autoComplete="email"
+                textContentType="emailAddress"
               />
             </View>
 
@@ -129,8 +135,18 @@ export function ScreenAuth({ onLogin, onRegister, authError, authSuccess, onFace
                   placeholderTextColor={THEME.colors.text3}
                   secureTextEntry={!show}
                   autoCapitalize="none"
+                  autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
+                  textContentType={mode === 'login' ? 'password' : 'newPassword'}
+                  onSubmitEditing={submit}
+                  returnKeyType="go"
                 />
-                <TouchableOpacity style={styles.eyeBtn} onPress={() => setShow(!show)}>
+                <TouchableOpacity
+                  style={styles.eyeBtn}
+                  onPress={() => setShow(!show)}
+                  hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                  accessibilityRole="button"
+                  accessibilityLabel={show ? 'Hide password' : 'Show password'}
+                >
                   <Icon name={show ? 'eyeOff' : 'eye'} size={18} color={THEME.colors.text3} />
                 </TouchableOpacity>
               </View>
@@ -145,16 +161,34 @@ export function ScreenAuth({ onLogin, onRegister, authError, authSuccess, onFace
               </View>
             )}
 
-            <TouchableOpacity style={styles.submitBtn} onPress={submit} disabled={loading}>
-              <Text style={styles.submitText}>
-                {loading ? 'Loading…' : mode === 'login' ? 'Sign in' : 'Create account'}
-              </Text>
-              <Icon name="chevRight" size={16} color={THEME.colors.onAccent} />
+            <TouchableOpacity
+              style={[styles.submitBtn, loading && { opacity: 0.7 }]}
+              onPress={submit}
+              disabled={loading}
+              accessibilityRole="button"
+              accessibilityState={{ disabled: loading, busy: loading }}
+            >
+              {loading ? (
+                <ActivityIndicator size="small" color={THEME.colors.onAccent} />
+              ) : (
+                <>
+                  <Text style={styles.submitText}>
+                    {mode === 'login' ? 'Sign in' : 'Create account'}
+                  </Text>
+                  <Icon name="chevRight" size={16} color={THEME.colors.onAccent} />
+                </>
+              )}
             </TouchableOpacity>
 
             {mode === 'login' && (
-              <TouchableOpacity style={styles.faceIdBtn} onPress={handleFaceIdLogin} disabled={loading}>
-                <MaterialCommunityIcons name="face-recognition" size={20} color={THEME.colors.accent} />
+              <TouchableOpacity
+                style={[styles.faceIdBtn, loading && { opacity: 0.5 }]}
+                onPress={handleFaceIdLogin}
+                disabled={loading}
+                accessibilityRole="button"
+                accessibilityLabel="Sign in with Face ID"
+              >
+                <Icon name="faceId" size={20} color={THEME.colors.accent} />
                 <Text style={styles.faceIdText}>Sign in with Face ID</Text>
               </TouchableOpacity>
             )}
@@ -167,7 +201,7 @@ export function ScreenAuth({ onLogin, onRegister, authError, authSuccess, onFace
               {mode === 'login' ? 'Open an account' : 'Sign in'}
             </Text>
           </Text>
-        </View>
+        </FadeSlideIn>
       </ScrollView>
     </KeyboardAvoidingView>
   );

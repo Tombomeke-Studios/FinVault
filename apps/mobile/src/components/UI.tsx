@@ -5,8 +5,15 @@ import { Icon } from './Icon';
 import { THEME } from '../theme';
 
 // ---- Formatters ----
-export function money(val: number, currency = 'EUR', opts?: { signed?: boolean }) {
-  const formatted = val.toLocaleString('nl-NL', { style: 'currency', currency });
+// `whole` drops cents via Intl options — never strip ".00" from the formatted
+// string: nl-NL uses "." as the thousands separator, so "€ 4.000,00" would
+// get mangled into "€ 40,00".
+export function money(val: number, currency = 'EUR', opts?: { signed?: boolean; whole?: boolean }) {
+  const formatted = val.toLocaleString('nl-NL', {
+    style: 'currency',
+    currency,
+    ...(opts?.whole ? { minimumFractionDigits: 0, maximumFractionDigits: 0 } : {}),
+  });
   if (opts?.signed && val > 0) return '+' + formatted;
   return formatted;
 }
@@ -144,14 +151,14 @@ export function Donut({ size = 100, thickness = 14, segments, children }: {
 
 // ---- Sparkline Trend Chart ----
 export function Sparkline({ data, h = 60 }: { data: number[]; h?: number }) {
+  const [width, setWidth] = React.useState(0);
   if (!data || data.length < 2) return null;
 
   const min = Math.min(...data);
   const max = Math.max(...data);
   const range = max - min || 1;
 
-  const width = 360; // Approximate phone card width
-  const dx = width / (data.length - 1);
+  const dx = width > 0 ? width / (data.length - 1) : 0;
 
   const points = data.map((val, idx) => {
     const x = idx * dx;
@@ -162,10 +169,15 @@ export function Sparkline({ data, h = 60 }: { data: number[]; h?: number }) {
   const path = `M ${points.map(p => p.replace(',', ' ')).join(' L ')}`;
 
   return (
-    <View style={{ height: h, width: '100%', overflow: 'hidden' }}>
-      <Svg height={h} width="100%">
-        <Path d={path} fill="none" stroke={THEME.colors.accent} strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
-      </Svg>
+    <View
+      style={{ height: h, width: '100%', overflow: 'hidden' }}
+      onLayout={e => setWidth(e.nativeEvent.layout.width)}
+    >
+      {width > 0 && (
+        <Svg height={h} width={width}>
+          <Path d={path} fill="none" stroke={THEME.colors.accent} strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
+        </Svg>
+      )}
     </View>
   );
 }
@@ -183,7 +195,7 @@ export function Bars({ data, h = 140 }: { data: { m: string; in: number; out: nu
         <View key={i} style={{ flex: 1, alignItems: 'center', gap: 4 }}>
           <View style={{ flexDirection: 'row', alignItems: 'flex-end', gap: 2, height: h }}>
             <View style={{ width: barW, height: Math.max(4, (d.in / maxVal) * h), backgroundColor: THEME.colors.accent, borderRadius: 3 }} />
-            <View style={{ width: barW, height: Math.max(4, (d.out / maxVal) * h), backgroundColor: THEME.colors.line2 || '#444', borderRadius: 3 }} />
+            <View style={{ width: barW, height: Math.max(4, (d.out / maxVal) * h), backgroundColor: 'rgba(248, 113, 113, 0.55)', borderRadius: 3 }} />
           </View>
           <Text style={{ fontSize: 9, color: THEME.colors.text3, fontWeight: 'bold' }}>{d.m}</Text>
         </View>
@@ -213,18 +225,18 @@ const styles = StyleSheet.create({
     gap: 4,
     paddingVertical: 4,
     paddingHorizontal: 8,
-    borderRadius: THEME.radius.xs,
+    borderRadius: THEME.radius.pill,
   },
   deltaText: {
     fontSize: 12,
     fontWeight: 'bold',
   },
   avatar: {
-    backgroundColor: '#8b5cf6', // Indigo background for users
+    backgroundColor: 'rgba(139, 92, 246, 0.9)',
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 1.5,
-    borderColor: THEME.colors.line2,
+    borderColor: 'rgba(139, 92, 246, 0.35)',
   },
   avatarText: {
     color: '#fff',

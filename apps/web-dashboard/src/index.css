@@ -101,7 +101,7 @@ html, body {
 }
 
 body {
-  min-height: 100vh;
+  min-height: 100dvh;
   background:
     radial-gradient(120% 80% at 100% 0%, var(--accent-soft) 0%, transparent 42%),
     linear-gradient(180deg, var(--bg) 0%, var(--bg-grad) 100%);
@@ -150,6 +150,9 @@ body {
   -webkit-tap-highlight-color: transparent;
 }
 .btn:active { transform: translateY(1px) scale(0.99); }
+.btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.field:focus-visible { outline: none; }
+a:focus-visible, button:focus-visible, [tabindex]:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: var(--r-sm); }
 .btn-primary { background: var(--accent); color: var(--on-accent); box-shadow: 0 6px 18px -8px var(--accent-line); }
 .btn-primary:hover { background: var(--accent-hi); box-shadow: 0 10px 26px -10px var(--accent-line); }
 .btn-ghost { background: var(--surface-2); color: var(--text); border-color: var(--line); }
@@ -191,16 +194,107 @@ body {
 .hide-scroll { scrollbar-width: none; }
 .hide-scroll::-webkit-scrollbar { display: none; }
 
-@keyframes fvRise { from { transform: translateY(12px); opacity: 0; } to { transform: none; opacity: 1; } }
-@keyframes fvFade { from { opacity: 0.35; } to { opacity: 1; } }
-@keyframes fvPop { 0% { transform: scale(0.92); opacity: 0; } 60% { transform: scale(1.02); } 100% { transform: scale(1); opacity: 1; } }
+/* ── HERO CARD ─────────────────────────────────────────────────── */
+.card-hero { position: relative; overflow: hidden; }
+.card-hero::after {
+  content: '';
+  position: absolute; inset: 0; pointer-events: none; border-radius: inherit;
+  background:
+    radial-gradient(ellipse 65% 90% at 5% 115%, var(--accent-soft) 0%, transparent 55%),
+    radial-gradient(ellipse 45% 55% at 95% -15%, oklch(0.72 0.12 250 / 0.07) 0%, transparent 60%);
+}
+
+/* ── QUICK ACTION BUTTON ───────────────────────────────────────── */
+.qaction {
+  flex: 1; display: flex; flex-direction: column; align-items: center; gap: 9px;
+  background: transparent; border: none; cursor: pointer; padding: 14px 6px;
+  border-radius: var(--r); transition: background .15s ease;
+  font-family: var(--font-body); -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+.qaction:hover { background: var(--surface-2); }
+.qaction:active { background: var(--surface-hi); transform: scale(0.97); }
+.qaction__icon {
+  width: 52px; height: 52px; border-radius: var(--r-xl); flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  transition: transform .18s cubic-bezier(.22,.9,.3,1), box-shadow .18s ease;
+}
+.qaction:hover .qaction__icon { transform: translateY(-3px); }
+.qaction__label { font-size: 0.8rem; font-weight: 600; color: var(--text-2); white-space: nowrap; }
+
+/* ── TRANSACTION ROW ───────────────────────────────────────────── */
+.tx-row {
+  display: flex; align-items: center; gap: 14px;
+  padding: 10px 8px; border-radius: var(--r);
+  transition: background .12s ease; cursor: default;
+}
+.tx-row:hover { background: var(--surface-2); }
+
+/* ── STAT TILE ─────────────────────────────────────────────────── */
+.stat-tile {
+  flex: 1; display: flex; align-items: center; gap: 12px;
+  padding: 14px 16px; border-radius: var(--r); background: var(--surface-2);
+  border: 1px solid var(--line);
+}
+
+/* ── NAV ITEM ──────────────────────────────────────────────────── */
+.nav-item {
+  display: flex; align-items: center; gap: 13px; padding: 10px 14px;
+  border-radius: var(--r); cursor: pointer; border: none; text-align: left;
+  font-family: var(--font-body); font-size: 0.95rem; font-weight: 600;
+  transition: all .16s ease; width: 100%; position: relative;
+  border-left: 3px solid transparent;
+}
+.nav-item.active {
+  background: var(--accent-soft); color: var(--accent);
+  border-left-color: var(--accent);
+}
+.nav-item:not(.active):hover { background: var(--surface-2); color: var(--text); }
+.nav-item:not(.active) { background: transparent; color: var(--text-2); }
+
+@keyframes fvRise      { from { transform: translateY(14px); opacity: 0; } to { transform: none; opacity: 1; } }
+@keyframes fvFade      { from { opacity: 0.35; } to { opacity: 1; } }
+@keyframes fvPop       { 0% { transform: scale(0.92); opacity: 0; } 60% { transform: scale(1.02); } 100% { transform: scale(1); opacity: 1; } }
 @keyframes fvSlideRight { from { transform: translateX(100%); } to { transform: none; } }
 @keyframes fvSlideLeft  { from { transform: translateX(-40%); } to { transform: none; } }
 @keyframes fvSheetUp   { from { transform: translateY(100%); } to { transform: none; } }
-.rise { animation: fvRise .45s cubic-bezier(.22,.9,.3,1); }
-.fade { animation: fvFade .4s ease; }
+@keyframes fvShimmer   { from { background-position: -200% center; } to { background-position: 200% center; } }
+@keyframes fvNumFlash  { 0%,100% { color: inherit; } 40% { color: var(--pos); } }
+@keyframes fvScaleIn   { from { transform: scale(0.94); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+@keyframes fvPageEnter { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+@keyframes fvFloat     { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-10px); } }
+@keyframes fvGlow      { 0%,100% { box-shadow: 0 0 0 0 var(--accent-line); } 50% { box-shadow: 0 0 28px 6px var(--accent-line); } }
+@keyframes fvSpin      { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+
+.rise        { animation: fvRise .45s cubic-bezier(.22,.9,.3,1) both; }
+.rise-d1     { animation-delay: 60ms; }
+.rise-d2     { animation-delay: 120ms; }
+.rise-d3     { animation-delay: 180ms; }
+.rise-d4     { animation-delay: 240ms; }
+.rise-d5     { animation-delay: 300ms; }
+.rise-d6     { animation-delay: 360ms; }
+.fade        { animation: fvFade .4s ease; }
+.scale-in    { animation: fvScaleIn .3s cubic-bezier(.22,.9,.3,1) both; }
 .slide-right { animation: fvSlideRight .32s cubic-bezier(.22,.9,.3,1); }
 .slide-left  { animation: fvSlideLeft  .32s cubic-bezier(.22,.9,.3,1); }
+.page-enter  { animation: fvPageEnter .38s cubic-bezier(.22,.9,.3,1) both; }
+.float       { animation: fvFloat 5s ease-in-out infinite; }
+.glow-pulse  { animation: fvGlow 2.4s ease-in-out infinite; }
+
+/* Card hover lift — Revolut / N26 style */
+.card-lift { transition: transform .22s cubic-bezier(.22,.9,.3,1), box-shadow .22s ease; }
+.card-lift:hover { transform: translateY(-3px); box-shadow: var(--shadow); }
+
+/* Shimmer skeleton */
+.shimmer {
+  background: linear-gradient(90deg, var(--surface) 25%, var(--surface-hi) 50%, var(--surface) 75%);
+  background-size: 200% 100%;
+  animation: fvShimmer 1.6s ease-in-out infinite;
+  border-radius: inherit;
+}
+
+/* Number count-up flash */
+.num-flash { animation: fvNumFlash .7s ease forwards; }
 
 @media (prefers-reduced-motion: reduce) {
   * { animation-duration: .001ms !important; transition-duration: .04ms !important; }

@@ -6,12 +6,11 @@ import type { ToastData } from '../App';
 // ---- Logo ----
 export function FVLogo({ size = 28 }: { size?: number }) {
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-      <div style={{ width: size, height: size, borderRadius: 'calc(var(--r-sm))', background: 'var(--accent)', color: 'var(--on-accent)', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 4px 14px -4px var(--accent-line)' }}>
-        <Icon name="shield" size={size * 0.6} stroke={2.3} />
-      </div>
-      <span className="display" style={{ fontSize: size * 0.7, fontWeight: 700, letterSpacing: '-0.03em' }}>FinVault</span>
-    </div>
+    <img
+      src="/logo-lockup.png"
+      alt="FinVault"
+      style={{ height: size * 1.1, width: 'auto', display: 'block', objectFit: 'contain' }}
+    />
   );
 }
 
@@ -144,13 +143,13 @@ export function Shell({ route, setRoute, compact, children, onLogout, fire, toas
       {!compact && (
         <div style={{ position: 'relative', flex: '0 1 380px' }}>
           <Icon name="search" size={18} style={{ position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-3)' }} />
-          <input className="field" placeholder="Search anything…" style={{ paddingLeft: 42, background: 'var(--surface)' }} />
+          <input className="field" placeholder="Search anything…" aria-label="Search transactions, accounts and contacts" style={{ paddingLeft: 42, background: 'var(--surface)' }} />
         </div>
       )}
       <div style={{ flex: 1 }} />
-      <button className="btn btn-ghost" style={{ padding: 11, borderRadius: 'var(--r-pill)', position: 'relative' }} onClick={() => setNotif(true)} aria-label="Notifications">
+      <button className="btn btn-ghost" style={{ padding: 11, borderRadius: 'var(--r-pill)', position: 'relative' }} onClick={() => setNotif(true)} aria-label={unread ? 'Notifications — unread alerts' : 'Notifications'}>
         <Icon name="bell" size={19} />
-        {unread && <span style={{ position: 'absolute', top: 8, right: 9, width: 8, height: 8, borderRadius: '50%', background: 'var(--accent)', border: '2px solid var(--surface-2)' }} />}
+        {unread && <span aria-hidden="true" style={{ position: 'absolute', top: 8, right: 9, width: 8, height: 8, borderRadius: '50%', background: 'var(--accent)', border: '2px solid var(--surface-2)' }} />}
       </button>
       {!compact ? (
         <button onClick={() => setRoute('settings')} className="btn btn-ghost" style={{ padding: '7px 7px 7px 12px', borderRadius: 'var(--r-pill)', gap: 10, borderColor: route === 'settings' ? 'var(--accent-line)' : 'var(--line)' }}>
@@ -172,7 +171,7 @@ export function Shell({ route, setRoute, compact, children, onLogout, fire, toas
     <>
       <Notifs open={notif} onClose={() => setNotif(false)} items={notifications} />
       <UpgradeSheet open={upgradeOpen} onClose={closeUpgrade} compact={compact} fire={fire} currentPlan={user?.plan} onUpgrade={onUpgrade} />
-      <Toast toast={toast} />
+      <Toast toast={toast} embedded={embedded || compact} />
     </>
   );
 
@@ -186,9 +185,9 @@ export function Shell({ route, setRoute, compact, children, onLogout, fire, toas
         <nav style={{ position: 'sticky', bottom: 0, zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'space-around', padding: embedded ? '8px 8px 26px' : '8px 8px calc(8px + env(safe-area-inset-bottom))', background: 'color-mix(in oklab, var(--bg) 88%, transparent)', backdropFilter: 'blur(14px)', borderTop: '1px solid var(--line)' }}>
           {BOTTOM.map(id => {
             const n = NAV.find(x => x.id === id)!;
-            const active = route === id;
+            const active = route === id || (id === 'overview' && route.startsWith('account:'));
             if (id === 'transfer') return (
-              <button key={id} onClick={() => setRoute(id)} style={{ border: 'none', cursor: 'pointer', width: 54, height: 54, borderRadius: 'var(--r-pill)', background: 'var(--accent)', color: 'var(--on-accent)', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 8px 20px -6px var(--accent-line)', transform: 'translateY(-10px)' }} aria-label="Send">
+              <button key={id} onClick={() => setRoute(id)} style={{ border: 'none', cursor: 'pointer', width: 54, height: 54, borderRadius: 'var(--r-pill)', background: 'var(--accent)', color: 'var(--on-accent)', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 8px 20px -6px var(--accent-line)', transform: 'translateY(-10px)' }} aria-label="Send money">
                 <Icon name="send" size={24} />
               </button>
             );
@@ -207,16 +206,12 @@ export function Shell({ route, setRoute, compact, children, onLogout, fire, toas
 
   // ---- WEB layout ----
   const navBtn = (id: string, label: string, icon: string) => {
-    const active = route === id;
+    const active = route === id || (id === 'overview' && route.startsWith('account:'));
     return (
-      <button key={id} onClick={() => setRoute(id)} style={{
-        display: 'flex', alignItems: 'center', gap: 13, padding: '11px 14px', borderRadius: 'var(--r)', cursor: 'pointer', border: 'none', textAlign: 'left',
-        fontFamily: 'var(--font-body)', fontSize: '0.95rem', fontWeight: 600,
-        background: active ? 'var(--accent-soft)' : 'transparent', color: active ? 'var(--accent)' : 'var(--text-2)', transition: 'all .16s ease', width: '100%',
-      }}
-        onMouseEnter={e => { if (!active) { (e.currentTarget as HTMLElement).style.background = 'var(--surface-2)'; (e.currentTarget as HTMLElement).style.color = 'var(--text)'; } }}
-        onMouseLeave={e => { if (!active) { (e.currentTarget as HTMLElement).style.background = 'transparent'; (e.currentTarget as HTMLElement).style.color = 'var(--text-2)'; } }}>
-        <Icon name={icon} size={20} stroke={active ? 2.3 : 2} /> {label}
+      <button key={id} onClick={() => setRoute(id)} role="menuitem" aria-current={active ? 'page' : undefined}
+        className={`nav-item${active ? ' active' : ''}`}>
+        <Icon name={icon} size={20} stroke={active ? 2.3 : 2} />
+        {label}
       </button>
     );
   };
@@ -225,20 +220,34 @@ export function Shell({ route, setRoute, compact, children, onLogout, fire, toas
     <div style={{ display: 'grid', gridTemplateColumns: '244px 1fr', minHeight: '100%', position: 'relative' }}>
       <aside style={{ borderRight: '1px solid var(--line)', padding: '24px 16px', display: 'flex', flexDirection: 'column', gap: 6, position: 'sticky', top: 0, height: '100vh', background: 'var(--bg)', overflowY: 'auto' }}>
         <div style={{ padding: '4px 10px 22px' }}><FVLogo size={28} /></div>
-        {NAV.map(n => navBtn(n.id, n.label, n.icon))}
+        <nav role="menu" aria-label="Main navigation" style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+          {NAV.map(n => navBtn(n.id, n.label, n.icon))}
+        </nav>
         <div style={{ marginTop: 'auto', display: 'flex', flexDirection: 'column', gap: 6 }}>
-          <div className="card" style={{ padding: 'var(--pad)', background: 'var(--surface-2)', display: 'flex', flexDirection: 'column', gap: 8 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontWeight: 700, fontSize: '0.86rem' }}><Icon name="sparkle" size={16} style={{ color: 'var(--accent)' }} /> Go Metal+</div>
-            <p style={{ fontSize: '0.78rem', color: 'var(--text-3)', lineHeight: 1.4 }}>Higher limits, lounge access & travel insurance.</p>
-            <button className="btn btn-primary" style={{ padding: '9px', fontSize: '0.84rem' }} onClick={openUpgrade}>Upgrade</button>
-          </div>
+          {(!user?.plan || user.plan === 'FinVault Standard') && (
+            <div style={{ padding: '14px 16px', borderRadius: 'var(--r-lg)', background: 'linear-gradient(145deg, var(--accent-soft), color-mix(in oklab, var(--surface-2) 70%, var(--accent-soft)))', border: '1px solid var(--accent-line)', display: 'flex', flexDirection: 'column', gap: 10 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <div style={{ width: 28, height: 28, borderRadius: 'var(--r-sm)', background: 'var(--accent)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                  <Icon name="sparkle" size={14} style={{ color: 'var(--on-accent)' }} />
+                </div>
+                <div>
+                  <div style={{ fontWeight: 700, fontSize: '0.88rem' }}>Go Metal+</div>
+                  <div style={{ fontSize: '0.72rem', color: 'var(--text-3)' }}>€16.99 / month</div>
+                </div>
+              </div>
+              <p style={{ fontSize: '0.76rem', color: 'var(--text-2)', lineHeight: 1.5 }}>Unlimited cards · Lounge access · 3% savings rate</p>
+              <button className="btn btn-primary" style={{ padding: '8px', fontSize: '0.82rem' }} onClick={openUpgrade}>Upgrade plan</button>
+            </div>
+          )}
           {navBtn('settings', 'Settings', 'settings')}
-          <button onClick={onLogout} className="btn btn-quiet" style={{ justifyContent: 'flex-start', gap: 13, padding: '11px 14px', color: 'var(--text-3)' }}><Icon name="logout" size={20} /> Sign out</button>
+          <button onClick={onLogout} className="nav-item" style={{ color: 'var(--text-3)', justifyContent: 'flex-start', fontFamily: 'var(--font-body)', fontSize: '0.95rem', fontWeight: 600, width: '100%' }}>
+            <Icon name="logout" size={20} /> Sign out
+          </button>
         </div>
       </aside>
       <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
         {TopBar}
-        <main style={{ flex: 1, padding: '28px clamp(20px, 3vw, 40px) 48px', maxWidth: 1180, width: '100%', margin: '0 auto' }} key={route}>{children}</main>
+        <main style={{ flex: 1, padding: '28px clamp(20px, 3vw, 40px) 48px', maxWidth: 1180, width: '100%', margin: '0 auto' }} key={route} className="page-enter">{children}</main>
       </div>
       {overlays}
     </div>

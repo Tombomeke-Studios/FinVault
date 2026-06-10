@@ -7,13 +7,14 @@ dotenv.config({ path: path.resolve(__dirname, '../../../.env') });
 import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
-import { PrismaClient } from '@prisma/client';
-import { 
-  publishEvent, 
-  requireAuth, 
-  validateBody, 
-  PaymentRequestSchema, 
-  MandateSchema 
+import { PrismaClient } from '../generated/prisma/index.js';
+import {
+  publishEvent,
+  requireAuth,
+  validateBody,
+  PaymentRequestSchema,
+  MandateSchema,
+  SERVICE_SECRET
 } from 'shared';
 import { generateReceiptPdf } from './pdf-generator.js';
 
@@ -346,7 +347,7 @@ app.post('/mandates', requireAuth, async (req, res) => {
 
   try {
     // Resolve payee userId via Account Service
-    const userRes = await fetch(`${ACCOUNT_SERVICE_URL}/users/profile-by-email?email=${encodeURIComponent(payeeEmail)}`);
+    const userRes = await fetch(`${ACCOUNT_SERVICE_URL}/users/profile-by-email?email=${encodeURIComponent(payeeEmail)}`, { headers: { 'X-Service-Secret': SERVICE_SECRET } });
     if (!userRes.ok) {
       return res.status(404).json({ error: `No FinVault user found with email: ${payeeEmail}` });
     }
@@ -512,6 +513,24 @@ app.post('/mandates/process-charges', requireInternalAuth, async (req, res) => {
   }
 });
 
-app.listen(PORT, () => {
-  console.log(`[Invoice Service] running on http://localhost:${PORT}`);
-});
+let invoiceRetries = 8;
+const startInvoice = () => {
+  const srv = app.listen(PORT, () => console.log(`[Invoice Service] running on http://localhost:${PORT}`));
+  srv.once('error', (e: any) => {
+    srv.close();
+    if (e.code === 'EADDRINUSE' && invoiceRetries-- > 0) {
+      console.log(`[Invoice Service] port ${PORT} busy, retrying in 600ms...`);
+      setTimeout(startInvoice, 600);
+    } else { console.error(e); process.exit(1); }
+  });
+  const shutdown = () => {
+    (srv as any).closeAllConnections?.();
+    srv.close(() => process.exit(0));
+    setTimeout(() => process.exit(0), 500);
+  };
+  process.removeAllListeners('SIGTERM');
+  process.removeAllListeners('SIGINT');
+  process.on('SIGTERM', shutdown);
+  process.on('SIGINT',  shutdown);
+};
+startInvoice();

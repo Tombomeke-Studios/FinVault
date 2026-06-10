@@ -16,11 +16,23 @@ const INVOICE_SERVICE_URL = process.env.INVOICE_SERVICE_URL || 'http://localhost
 const app = express();
 
 app.use(helmet());
-app.use(cors());
-app.use(express.json());
+
+// CORS: open by default for local demo; set CORS_ORIGINS to a comma-separated
+// allowlist (e.g. "https://app.finvault.com,https://admin.finvault.com") in prod.
+const corsOrigins = (process.env.CORS_ORIGINS || '')
+  .split(',')
+  .map(s => s.trim())
+  .filter(Boolean);
+app.use(cors(corsOrigins.length > 0 ? { origin: corsOrigins } : {}));
+
+app.use(express.json({ limit: '1mb' }));
 
 // Global Gateway Rate Limiter (Max 500 requests per minute per IP for local/Docker testing compatibility)
 const apiAttempts = new Map<string, { count: number; resetAt: number }>();
+setInterval(() => {
+  const now = Date.now();
+  for (const [k, v] of apiAttempts) if (now > v.resetAt) apiAttempts.delete(k);
+}, 5 * 60 * 1000).unref();
 app.use((req, res, next) => {
   const ip = req.ip || '127.0.0.1';
   const now = Date.now();
@@ -189,6 +201,22 @@ function broadcastToWebSockets(envelope: EventEnvelope) {
   }
 }
 
-server.listen(PORT, () => {
-  console.log(`[API Gateway] running on http://localhost:${PORT}`);
-});
+let gatewayRetries = 8;
+const startGateway = () => {
+  server.once('error', (err: any) => {
+    if (err.code === 'EADDRINUSE' && gatewayRetries-- > 0) {
+      console.log(`[API Gateway] port ${PORT} busy, retrying in 600ms...`);
+      server.close(() => setTimeout(startGateway, 600));
+    } else { console.error(err); process.exit(1); }
+  });
+  server.listen(PORT, () => console.log(`[API Gateway] running on http://localhost:${PORT}`));
+};
+startGateway();
+
+const shutdown = () => {
+  (server as any).closeAllConnections?.();
+  server.close(() => process.exit(0));
+  setTimeout(() => process.exit(0), 500); // no .unref() — must fire even if server is waiting
+};
+process.on('SIGTERM', shutdown);
+process.on('SIGINT',  shutdown);

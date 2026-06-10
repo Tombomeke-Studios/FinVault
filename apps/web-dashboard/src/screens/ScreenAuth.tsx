@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Icon } from '../components/Icon';
+import { FVLogo } from '../components/Shell';
 
 interface AuthProps {
   compact: boolean;
@@ -7,10 +8,11 @@ interface AuthProps {
   onRegister: (firstName: string, lastName: string, email: string, password: string) => Promise<void>;
   authError: string;
   authSuccess: string;
+  initialMode?: 'login' | 'register';
 }
 
-export function ScreenAuth({ compact, onLogin, onRegister, authError, authSuccess }: AuthProps) {
-  const [mode, setMode] = useState<'login' | 'register'>('login');
+export function ScreenAuth({ compact, onLogin, onRegister, authError, authSuccess, initialMode }: AuthProps) {
+  const [mode, setMode] = useState<'login' | 'register'>(initialMode ?? 'login');
   const [email, setEmail] = useState('admin@finvault.com');
   const [pw, setPw] = useState('');
   const [show, setShow] = useState(false);
@@ -36,11 +38,8 @@ export function ScreenAuth({ compact, onLogin, onRegister, authError, authSucces
     <div className="card rise" style={{ width: '100%', maxWidth: 420, padding: 'var(--pad-lg)', boxShadow: 'var(--shadow)' }}>
       <div style={{ marginBottom: 'var(--gap-lg)' }}>
         {compact && (
-          <div style={{ marginBottom: 20, display: 'flex', alignItems: 'center', gap: 10 }}>
-            <div style={{ width: 32, height: 32, borderRadius: 'var(--r-sm)', background: 'var(--accent)', color: 'var(--on-accent)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <Icon name="shield" size={19} stroke={2.3} />
-            </div>
-            <span className="display" style={{ fontSize: '1.2rem', fontWeight: 700, letterSpacing: '-0.03em' }}>FinVault</span>
+          <div style={{ marginBottom: 20 }}>
+            <FVLogo size={28} />
           </div>
         )}
         <h1 className="display" style={{ fontSize: '1.75rem', fontWeight: 700 }}>
@@ -117,8 +116,8 @@ export function ScreenAuth({ compact, onLogin, onRegister, authError, authSucces
       {/* Brand panel */}
       <div style={{ position: 'relative', overflow: 'hidden', padding: '48px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', background: 'linear-gradient(155deg, var(--accent-lo), var(--accent) 55%, var(--accent-hi))', color: 'var(--on-accent)' }}>
         <div style={{ position: 'absolute', inset: 0, opacity: 0.12, backgroundImage: 'radial-gradient(circle at 80% 20%, white 0 1px, transparent 1px)', backgroundSize: '26px 26px' }} />
-        <div style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: 10, fontWeight: 700, fontSize: '1.3rem' }} className="display">
-          <Icon name="shield" size={26} stroke={2.4} /> FinVault
+        <div style={{ position: 'relative' }}>
+          <FVLogo size={32} />
         </div>
         <div style={{ position: 'relative' }}>
           <div className="display" style={{ fontSize: '2.6rem', lineHeight: 1.05, fontWeight: 700, letterSpacing: '-0.03em' }}>

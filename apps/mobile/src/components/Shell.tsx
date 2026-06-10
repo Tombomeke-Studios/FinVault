@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, SafeAreaView } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Image } from 'react-native';
 import { Icon } from './Icon';
 import { Avatar } from './UI';
 import { THEME } from '../theme';
@@ -14,7 +14,7 @@ interface ShellProps {
 const BOTTOM_NAV = [
   { id: 'overview',     label: 'Home',     icon: 'home'       },
   { id: 'transactions', label: 'Activity', icon: 'list'       },
-  { id: 'transfer',     label: 'Money',    icon: 'send'       },
+  { id: 'transfer',     label: 'Send',     icon: 'send'       },
   { id: 'analytics',   label: 'Insights', icon: 'chart'      },
   { id: 'savings',      label: 'Goals',    icon: 'targetRing' },
 ];
@@ -24,9 +24,21 @@ export function Shell({ route, setRoute, user, children }: ShellProps) {
     <View style={styles.container}>
       {/* Top sticky bar */}
       <View style={styles.topBar}>
-        <Text style={styles.logoText}>FinVault</Text>
+        <Image
+          source={require('../../assets/icon.png')}
+          style={styles.logoImage}
+          resizeMode="contain"
+          accessibilityLabel="FinVault"
+        />
         <View style={styles.topRight}>
-          <TouchableOpacity style={styles.topBtn} onPress={() => setRoute('settings')}>
+          <TouchableOpacity
+            style={styles.topBtn}
+            onPress={() => setRoute('settings')}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            accessibilityLabel="Open settings"
+            accessibilityRole="button"
+            accessibilityState={{ selected: route === 'settings' }}
+          >
             <Avatar initials={user?.initials || 'FV'} size={32} />
           </TouchableOpacity>
         </View>
@@ -40,7 +52,7 @@ export function Shell({ route, setRoute, user, children }: ShellProps) {
       {/* Bottom sticky navigation row */}
       <View style={styles.navBar}>
         {BOTTOM_NAV.map(nav => {
-          const active = route === nav.id;
+          const active = route === nav.id || (nav.id === 'overview' && route.startsWith('account:'));
 
           if (nav.id === 'transfer') {
             return (
@@ -48,7 +60,9 @@ export function Shell({ route, setRoute, user, children }: ShellProps) {
                 key={nav.id}
                 onPress={() => setRoute(nav.id)}
                 style={styles.floatingBtn}
-                activeOpacity={0.9}
+                activeOpacity={0.85}
+                accessibilityLabel="Send money"
+                accessibilityRole="button"
               >
                 <Icon name="send" size={22} color={THEME.colors.onAccent} />
               </TouchableOpacity>
@@ -61,12 +75,17 @@ export function Shell({ route, setRoute, user, children }: ShellProps) {
               onPress={() => setRoute(nav.id)}
               style={styles.navItem}
               activeOpacity={0.7}
+              accessibilityLabel={nav.label}
+              accessibilityRole="tab"
+              accessibilityState={{ selected: active }}
             >
-              <Icon
-                name={nav.icon}
-                size={22}
-                color={active ? THEME.colors.accent : THEME.colors.text3}
-              />
+              <View style={[styles.navIconWrap, active && styles.navIconWrapActive]}>
+                <Icon
+                  name={nav.icon}
+                  size={21}
+                  color={active ? THEME.colors.accent : THEME.colors.text3}
+                />
+              </View>
               <Text style={[styles.navText, { color: active ? THEME.colors.accent : THEME.colors.text3 }]}>
                 {nav.label}
               </Text>
@@ -92,11 +111,9 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: THEME.colors.line,
   },
-  logoText: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#fff',
-    letterSpacing: -0.4,
+  logoImage: {
+    height: 32,
+    width: 120,
   },
   topRight: {
     flexDirection: 'row',
@@ -123,26 +140,38 @@ const styles = StyleSheet.create({
   navItem: {
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 8,
+    paddingVertical: 6,
     flex: 1,
+    gap: 4,
+    minHeight: 44,
+  },
+  navIconWrap: {
+    width: 48,
+    height: 30,
+    borderRadius: THEME.radius.xl,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  navIconWrapActive: {
+    backgroundColor: THEME.colors.accentSoft,
   },
   navText: {
-    fontSize: 9.5,
-    fontWeight: 'bold',
-    marginTop: 4,
+    fontSize: 11,
+    fontWeight: '700',
+    letterSpacing: 0.2,
   },
   floatingBtn: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
+    width: 52,
+    height: 52,
+    borderRadius: 26,
     backgroundColor: THEME.colors.accent,
     justifyContent: 'center',
     alignItems: 'center',
     shadowColor: THEME.colors.accent,
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.22,
-    shadowRadius: 8,
-    elevation: 6,
-    transform: [{ translateY: -12 }],
+    shadowOpacity: 0.3,
+    shadowRadius: 10,
+    elevation: 8,
+    transform: [{ translateY: -14 }],
   },
 });

@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Platform } from 'react-native';
 import { Icon } from '../components/Icon';
 import { money, catColor, Donut, Bars, CategoryIcon, Delta } from '../components/UI';
 import { THEME } from '../theme';
@@ -60,10 +60,14 @@ export function ScreenAnalytics({ data }: AnalyticsProps) {
     ];
   }, [data.transactions, data.wallets]);
 
+  const now = new Date();
+  const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+  const daysLeft = daysInMonth - now.getDate();
+
   const STATS = [
     { label: 'Total spent',  value: money(total),                       delta: spentDelta,   icon: 'trend'  },
-    { label: 'vs budget',    value: `${Math.round((total/budget)*100)}%`, sub: `of ${money(budget).replace('.00','')}`, icon: 'target' },
-    { label: 'Avg / day',    value: money(avgDay).replace('.00', '.0'),  delta: avgDayDelta,  icon: 'clock'  },
+    { label: 'vs budget',    value: `${Math.round((total/budget)*100)}%`, sub: `of ${money(budget, 'EUR', { whole: true })}`, icon: 'target' },
+    { label: 'Avg / day',    value: money(avgDay),                       delta: avgDayDelta,  icon: 'clock'  },
     { label: 'Saved',        value: money(totalSaved),                   sub: `${savedPct}% of goals`,       icon: 'flame'  },
   ];
 
@@ -99,7 +103,7 @@ export function ScreenAnalytics({ data }: AnalyticsProps) {
           <Text style={styles.sectionTitle}>By category</Text>
           <View style={styles.donutRow}>
             <Donut size={148} thickness={20} segments={cats.map(c => ({ value: c.amount, color: catColor(c.hue) }))}>
-              <Text style={styles.donutTotal}>{money(total).replace('.00', '')}</Text>
+              <Text style={styles.donutTotal}>{money(total, 'EUR', { whole: true })}</Text>
               <Text style={styles.donutSub}>spent</Text>
             </Donut>
             <View style={styles.legend}>
@@ -156,7 +160,7 @@ export function ScreenAnalytics({ data }: AnalyticsProps) {
             </View>
           ) : (
             <TouchableOpacity onPress={() => { setBudgetInput(String(budget)); setBudgetEditing(true); }} style={styles.budgetDisplay}>
-              <Text style={styles.budgetText}>{money(total).replace('.00','')} / {money(budget).replace('.00','')}</Text>
+              <Text style={styles.budgetText}>{money(total, 'EUR', { whole: true })} / {money(budget, 'EUR', { whole: true })}</Text>
               <Icon name="edit" size={12} color={THEME.colors.text3} />
             </TouchableOpacity>
           )}
@@ -169,8 +173,8 @@ export function ScreenAnalytics({ data }: AnalyticsProps) {
         </View>
         <Text style={styles.budgetNote}>
           {total > budget
-            ? `${money(total - budget).replace('.00','')} over budget this month`
-            : `${money(budget - total).replace('.00','')} under budget · ${31 - new Date().getDate()} days left`}
+            ? `${money(total - budget, 'EUR', { whole: true })} over budget this month`
+            : `${money(budget - total, 'EUR', { whole: true })} under budget · ${daysLeft} ${daysLeft === 1 ? 'day' : 'days'} left`}
         </Text>
       </View>
 
@@ -191,19 +195,19 @@ export function ScreenAnalytics({ data }: AnalyticsProps) {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: THEME.colors.bg },
-  content: { padding: 16, gap: 16, paddingBottom: 40 },
+  content: { padding: 16, gap: 16, paddingBottom: 88 },
   header: { paddingBottom: 4 },
   title: { fontSize: 24, fontWeight: 'bold', color: THEME.colors.text },
   subtitle: { fontSize: 13, color: THEME.colors.text3, marginTop: 2 },
-  card: { backgroundColor: THEME.colors.surface, borderRadius: THEME.radius.lg, borderWidth: 1, borderColor: THEME.colors.line },
+  card: { backgroundColor: THEME.colors.surface, borderRadius: THEME.radius.lg, borderWidth: 1, borderColor: THEME.colors.line, elevation: 2, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.1, shadowRadius: 3 },
   statsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
-  statCard: { flex: 1, flexBasis: '47%', padding: 14 },
+  statCard: { flex: 1, flexBasis: '47%', padding: 16 },
   statHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   statLabel: { fontSize: 11, fontWeight: 'bold', color: THEME.colors.text3, textTransform: 'uppercase', letterSpacing: 0.8 },
-  statValue: { fontSize: 20, fontWeight: 'bold', color: THEME.colors.text, marginTop: 8, fontFamily: 'monospace' },
+  statValue: { fontSize: 20, fontWeight: 'bold', color: THEME.colors.text, marginTop: 8, fontFamily: Platform.select({ ios: 'Menlo', android: 'monospace' }) },
   statSub: { fontSize: 11, color: THEME.colors.text3 },
   section: { padding: 16 },
-  sectionTitle: { fontSize: 16, fontWeight: 'bold', color: THEME.colors.text, marginBottom: 14 },
+  sectionTitle: { fontSize: 16, fontWeight: 'bold', color: THEME.colors.text, marginBottom: 14, letterSpacing: -0.2 },
   donutRow: { flexDirection: 'row', alignItems: 'center', gap: 16 },
   donutTotal: { fontSize: 16, fontWeight: 'bold', color: THEME.colors.text, textAlign: 'center' },
   donutSub: { fontSize: 10, color: THEME.colors.text3, textAlign: 'center' },
