@@ -733,7 +733,7 @@ export default function App() {
       case 'savings':
         return <ScreenSavings data={appData} fire={fire} goals={goals} setGoals={setGoals} wallets={wallets} setWallets={setWallets} setTransactions={setTransactions} token={token} apiUrl={API_URL} />;
       case 'settings':
-        return <ScreenSettings data={appData} theme={theme} setTheme={setTheme} onLogout={handleLogout} fire={fire} openUpgrade={() => setUpgradeOpen(true)} />;
+        return <ScreenSettings data={appData} theme={theme} setTheme={setTheme} onLogout={handleLogout} fire={fire} openUpgrade={() => setUpgradeOpen(true)} token={token} apiUrl={API_URL} />;
       default:
         return <ScreenOverview navigate={setRoute} data={appData} onTopup={() => setDepositOpen(true)} />;
     }
