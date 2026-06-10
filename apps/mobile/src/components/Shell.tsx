@@ -34,8 +34,10 @@ export function Shell({ route, setRoute, user, children }: ShellProps) {
           <TouchableOpacity
             style={styles.topBtn}
             onPress={() => setRoute('settings')}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
             accessibilityLabel="Open settings"
             accessibilityRole="button"
+            accessibilityState={{ selected: route === 'settings' }}
           >
             <Avatar initials={user?.initials || 'FV'} size={32} />
           </TouchableOpacity>
@@ -74,7 +76,7 @@ export function Shell({ route, setRoute, user, children }: ShellProps) {
               style={styles.navItem}
               activeOpacity={0.7}
               accessibilityLabel={nav.label}
-              accessibilityRole="button"
+              accessibilityRole="tab"
               accessibilityState={{ selected: active }}
             >
               <View style={[styles.navIconWrap, active && styles.navIconWrapActive]}>

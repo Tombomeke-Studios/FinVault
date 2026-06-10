@@ -60,10 +60,14 @@ export function ScreenAnalytics({ data }: AnalyticsProps) {
     ];
   }, [data.transactions, data.wallets]);
 
+  const now = new Date();
+  const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+  const daysLeft = daysInMonth - now.getDate();
+
   const STATS = [
     { label: 'Total spent',  value: money(total),                       delta: spentDelta,   icon: 'trend'  },
-    { label: 'vs budget',    value: `${Math.round((total/budget)*100)}%`, sub: `of ${money(budget).replace('.00','')}`, icon: 'target' },
-    { label: 'Avg / day',    value: money(avgDay).replace('.00', '.0'),  delta: avgDayDelta,  icon: 'clock'  },
+    { label: 'vs budget',    value: `${Math.round((total/budget)*100)}%`, sub: `of ${money(budget, 'EUR', { whole: true })}`, icon: 'target' },
+    { label: 'Avg / day',    value: money(avgDay),                       delta: avgDayDelta,  icon: 'clock'  },
     { label: 'Saved',        value: money(totalSaved),                   sub: `${savedPct}% of goals`,       icon: 'flame'  },
   ];
 
@@ -99,7 +103,7 @@ export function ScreenAnalytics({ data }: AnalyticsProps) {
           <Text style={styles.sectionTitle}>By category</Text>
           <View style={styles.donutRow}>
             <Donut size={148} thickness={20} segments={cats.map(c => ({ value: c.amount, color: catColor(c.hue) }))}>
-              <Text style={styles.donutTotal}>{money(total).replace('.00', '')}</Text>
+              <Text style={styles.donutTotal}>{money(total, 'EUR', { whole: true })}</Text>
               <Text style={styles.donutSub}>spent</Text>
             </Donut>
             <View style={styles.legend}>
@@ -156,7 +160,7 @@ export function ScreenAnalytics({ data }: AnalyticsProps) {
             </View>
           ) : (
             <TouchableOpacity onPress={() => { setBudgetInput(String(budget)); setBudgetEditing(true); }} style={styles.budgetDisplay}>
-              <Text style={styles.budgetText}>{money(total).replace('.00','')} / {money(budget).replace('.00','')}</Text>
+              <Text style={styles.budgetText}>{money(total, 'EUR', { whole: true })} / {money(budget, 'EUR', { whole: true })}</Text>
               <Icon name="edit" size={12} color={THEME.colors.text3} />
             </TouchableOpacity>
           )}
@@ -169,8 +173,8 @@ export function ScreenAnalytics({ data }: AnalyticsProps) {
         </View>
         <Text style={styles.budgetNote}>
           {total > budget
-            ? `${money(total - budget).replace('.00','')} over budget this month`
-            : `${money(budget - total).replace('.00','')} under budget · ${31 - new Date().getDate()} days left`}
+            ? `${money(total - budget, 'EUR', { whole: true })} over budget this month`
+            : `${money(budget - total, 'EUR', { whole: true })} under budget · ${daysLeft} ${daysLeft === 1 ? 'day' : 'days'} left`}
         </Text>
       </View>
 

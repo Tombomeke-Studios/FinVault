@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Alert 
 import { Icon } from '../components/Icon';
 import { money, Ring, catColor } from '../components/UI';
 import { MobileSheet } from '../components/MobileExtras';
+import { FadeSlideIn, AnimatedProgressBar } from '../components/Motion';
 import { THEME } from '../theme';
 import type { AppData } from '../../App';
 
@@ -271,11 +272,11 @@ export function ScreenSavings({ data, fire, goals, setGoals, wallets, setWallets
 
         {/* Goals Grid */}
         <View style={styles.goalsContainer}>
-          {goals.map((g: any) => {
+          {goals.map((g: any, idx: number) => {
             const pct = Math.min(100, Math.round((g.saved / g.target) * 100));
             const done = pct >= 100;
             return (
-              <View key={g.id} style={[styles.card, styles.goalCard]}>
+              <FadeSlideIn key={g.id} delay={idx * 50} style={[styles.card, styles.goalCard]}>
                 <View style={styles.goalRow}>
                   <Ring pct={pct} size={54} thickness={6} color={catColor(g.hue)}>
                     <Icon name={g.icon} size={18} color={catColor(g.hue)} />
@@ -290,33 +291,59 @@ export function ScreenSavings({ data, fire, goals, setGoals, wallets, setWallets
                       )}
                     </View>
                     <Text style={styles.goalValues}>
-                      {money(g.saved).replace('.00', '')} of {money(g.target).replace('.00', '')}
+                      {money(g.saved, 'EUR', { whole: true })} of {money(g.target, 'EUR', { whole: true })}
                     </Text>
                     <Text style={styles.goalDate}>Due {g.due}</Text>
                   </View>
                 </View>
                 {/* Progress bar */}
-                <View style={styles.progressBg}>
-                  <View style={[styles.progressFill, { width: `${pct}%` as any, backgroundColor: catColor(g.hue) }]} />
-                </View>
+                <AnimatedProgressBar pct={pct} color={catColor(g.hue)} />
                 {/* Action buttons */}
                 <View style={styles.goalActions}>
-                  <TouchableOpacity style={[styles.goalActionBtn, styles.goalActionPrimary]} onPress={() => !done && setActiveGoalId(g.id)} disabled={done} activeOpacity={0.8}>
+                  <TouchableOpacity
+                    style={[styles.goalActionBtn, styles.goalActionPrimary, done && { opacity: 0.5 }]}
+                    onPress={() => !done && setActiveGoalId(g.id)}
+                    disabled={done}
+                    activeOpacity={0.8}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Add funds to ${g.name}`}
+                    accessibilityState={{ disabled: done }}
+                  >
                     <Icon name="plus" size={14} color={THEME.colors.onAccent} />
                     <Text style={styles.goalActionPrimaryText}>Add funds</Text>
                   </TouchableOpacity>
-                  <TouchableOpacity style={styles.goalActionIcon} onPress={() => openEdit(g)} activeOpacity={0.7}>
+                  <TouchableOpacity
+                    style={styles.goalActionIcon}
+                    onPress={() => openEdit(g)}
+                    activeOpacity={0.7}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Edit ${g.name}`}
+                  >
                     <Icon name="edit" size={15} color={THEME.colors.text2} />
                   </TouchableOpacity>
-                  <TouchableOpacity style={[styles.goalActionIcon, { borderColor: 'rgba(248,113,113,0.3)' }]} onPress={() => handleDeleteGoal(g)} activeOpacity={0.7}>
+                  <TouchableOpacity
+                    style={[styles.goalActionIcon, { borderColor: 'rgba(248,113,113,0.3)' }]}
+                    onPress={() => handleDeleteGoal(g)}
+                    activeOpacity={0.7}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Delete ${g.name}`}
+                  >
                     <Icon name="trash" size={15} color={THEME.colors.neg} />
                   </TouchableOpacity>
                 </View>
-              </View>
+              </FadeSlideIn>
             );
           })}
           {goals.length === 0 && (
-            <Text style={{ color: THEME.colors.text3, textAlign: 'center', marginTop: 40 }}>No savings vaults created.</Text>
+            <View style={styles.emptyState}>
+              <Icon name="targetRing" size={32} color={THEME.colors.text3} />
+              <Text style={styles.emptyTitle}>No savings goals yet</Text>
+              <Text style={styles.emptyText}>Create your first vault to start saving towards something.</Text>
+              <TouchableOpacity style={styles.emptyCta} onPress={() => setNewGoalOpen(true)} accessibilityRole="button">
+                <Icon name="plus" size={14} color={THEME.colors.onAccent} />
+                <Text style={styles.emptyCtaText}>Create a goal</Text>
+              </TouchableOpacity>
+            </View>
           )}
         </View>
       </ScrollView>
@@ -344,7 +371,13 @@ export function ScreenSavings({ data, fire, goals, setGoals, wallets, setWallets
             ))}
           </View>
 
-          <TouchableOpacity style={styles.submitBtn} onPress={handleAddSavings} disabled={loading || !addAmt}>
+          <TouchableOpacity
+            style={[styles.submitBtn, (loading || !addAmt) && { opacity: 0.5 }]}
+            onPress={handleAddSavings}
+            disabled={loading || !addAmt}
+            accessibilityRole="button"
+            accessibilityState={{ disabled: loading || !addAmt, busy: loading }}
+          >
             <Text style={styles.submitText}>{loading ? 'Processing…' : 'Add funds'}</Text>
           </TouchableOpacity>
         </View>
@@ -502,15 +535,37 @@ const styles = StyleSheet.create({
     padding: 16,
     gap: 12,
   },
-  progressBg: {
-    height: 8,
-    borderRadius: 99,
-    backgroundColor: THEME.colors.surfaceHi,
-    overflow: 'hidden',
+  emptyState: {
+    alignItems: 'center',
+    gap: 8,
+    paddingVertical: 40,
+    paddingHorizontal: 24,
   },
-  progressFill: {
-    height: '100%',
-    borderRadius: 99,
+  emptyTitle: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: THEME.colors.text,
+    marginTop: 4,
+  },
+  emptyText: {
+    fontSize: 13,
+    color: THEME.colors.text3,
+    textAlign: 'center',
+  },
+  emptyCta: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: THEME.colors.accent,
+    borderRadius: THEME.radius.regular,
+    paddingVertical: 11,
+    paddingHorizontal: 18,
+    marginTop: 8,
+  },
+  emptyCtaText: {
+    color: THEME.colors.onAccent,
+    fontSize: 13.5,
+    fontWeight: 'bold',
   },
   goalActions: {
     flexDirection: 'row',
@@ -538,8 +593,8 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   goalActionIcon: {
-    width: 42,
-    height: 42,
+    width: 44,
+    height: 44,
     borderRadius: THEME.radius.regular,
     borderWidth: 1,
     borderColor: THEME.colors.line,

@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useEffect } from 'react';
-import { View, StyleSheet, SafeAreaView, TouchableOpacity, Text, StatusBar, Modal, TextInput, ActivityIndicator, Alert, Platform } from 'react-native';
+import { View, StyleSheet, SafeAreaView, TouchableOpacity, Text, StatusBar, TextInput, Alert, Platform, BackHandler } from 'react-native';
 import { ScreenAuth } from './src/screens/ScreenAuth';
 import { ScreenOverview } from './src/screens/ScreenOverview';
 import { ScreenTransactions } from './src/screens/ScreenTransactions';
@@ -12,6 +12,8 @@ import { ScreenAccountDashboard } from './src/screens/ScreenAccountDashboard';
 import { Shell } from './src/components/Shell';
 import { money } from './src/components/UI';
 import { MobileSheet } from './src/components/MobileExtras';
+import { ToastHost, useToasts } from './src/components/Toast';
+import { Icon } from './src/components/Icon';
 import { THEME } from './src/theme';
 
 export interface ThemeConfig {
@@ -202,9 +204,9 @@ function buildMockData(firstName: string, lastName: string, email: string, walle
 
 // ---- Plan upgrade bottom sheet ----
 const PLANS = [
-  { name: 'Standard', price: '€0',     tag: 'Gratis',       feats: ['1 kaart', '€200/mo gratis ATM', 'P2P transfers'] },
-  { name: 'Metal',    price: '€9,99',  tag: 'Populair',     feats: ['3 kaarten', '€2.000/mo gratis ATM', 'Prioriteit support'] },
-  { name: 'Metal+',   price: '€16,99', tag: 'Beste waarde', feats: ['Onbeperkte kaarten', 'Onbeperkt ATM', 'Reisverzekerering', '3% spaarrente'] },
+  { name: 'Standard', price: '€0',     tag: 'Free',       feats: ['1 card', '€200/mo free ATM', 'P2P transfers'] },
+  { name: 'Metal',    price: '€9.99',  tag: 'Popular',    feats: ['3 cards', '€2,000/mo free ATM', 'Priority support'] },
+  { name: 'Metal+',   price: '€16.99', tag: 'Best value', feats: ['Unlimited cards', 'Unlimited ATM', 'Travel insurance', '3% savings APY'] },
 ];
 
 function UpgradePlanSheet({ open, onClose, currentPlan, onUpgrade }: { open: boolean; onClose: () => void; currentPlan: string; onUpgrade: (p: string) => void }) {
@@ -213,7 +215,7 @@ function UpgradePlanSheet({ open, onClose, currentPlan, onUpgrade }: { open: boo
   React.useEffect(() => { if (open) setSel(currentPlan); }, [open, currentPlan]);
 
   return (
-    <MobileSheet open={open} onClose={onClose} title="Kies jouw abonnement">
+    <MobileSheet open={open} onClose={onClose} title="Choose your plan">
       <View style={{ gap: 10 }}>
         {PLANS.map(p => {
           const active = sel === p.name;
@@ -224,16 +226,24 @@ function UpgradePlanSheet({ open, onClose, currentPlan, onUpgrade }: { open: boo
               onPress={() => setSel(p.name)}
               style={[upgStyles.planCard, active ? upgStyles.planCardActive : null]}
               activeOpacity={0.8}
+              accessibilityRole="button"
+              accessibilityState={{ selected: active }}
+              accessibilityLabel={`${p.name} plan, ${p.price} per month${isCurrent ? ', current plan' : ''}`}
             >
               <View style={upgStyles.planHeader}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
                   <Text style={[upgStyles.planName, active ? upgStyles.planNameActive : null]}>{p.name}</Text>
-                  {isCurrent && <View style={upgStyles.chip}><Text style={upgStyles.chipTxt}>Huidig</Text></View>}
+                  {isCurrent && <View style={upgStyles.chip}><Text style={upgStyles.chipTxt}>Current</Text></View>}
                 </View>
                 <Text style={[upgStyles.planPrice, active ? upgStyles.planNameActive : null]}>{p.price}<Text style={upgStyles.planPer}>/mo</Text></Text>
               </View>
-              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 8 }}>
-                {p.feats.map(f => <Text key={f} style={upgStyles.feat}>✓ {f}</Text>)}
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 8 }}>
+                {p.feats.map(f => (
+                  <View key={f} style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                    <Icon name="check" size={11} color={active ? THEME.colors.accent : THEME.colors.text3} />
+                    <Text style={upgStyles.feat}>{f}</Text>
+                  </View>
+                ))}
               </View>
             </TouchableOpacity>
           );
@@ -242,8 +252,11 @@ function UpgradePlanSheet({ open, onClose, currentPlan, onUpgrade }: { open: boo
           style={[upgStyles.confirmBtn, sel === currentPlan ? upgStyles.confirmBtnMuted : null]}
           onPress={() => sel !== currentPlan ? onUpgrade(sel) : onClose()}
           activeOpacity={0.85}
+          accessibilityRole="button"
         >
-          <Text style={upgStyles.confirmTxt}>{sel === currentPlan ? 'Huidig abonnement' : `Overstappen naar ${sel}`}</Text>
+          <Text style={[upgStyles.confirmTxt, sel === currentPlan && upgStyles.confirmTxtMuted]}>
+            {sel === currentPlan ? 'Current plan' : `Switch to ${sel}`}
+          </Text>
         </TouchableOpacity>
       </View>
     </MobileSheet>
@@ -272,7 +285,8 @@ const upgStyles = StyleSheet.create({
   chipTxt: { fontSize: 11, color: THEME.colors.text3, fontWeight: '600' },
   confirmBtn: { backgroundColor: THEME.colors.accent, borderRadius: 12, paddingVertical: 14, alignItems: 'center', marginTop: 4 },
   confirmBtnMuted: { backgroundColor: THEME.colors.surface2, borderWidth: 1, borderColor: THEME.colors.line },
-  confirmTxt: { fontSize: 15, fontWeight: 'bold', color: '#fff' },
+  confirmTxt: { fontSize: 15, fontWeight: 'bold', color: THEME.colors.onAccent },
+  confirmTxtMuted: { color: THEME.colors.text2 },
 });
 
 export default function App() {
@@ -322,9 +336,20 @@ export default function App() {
     mode: 'dark', accent: 'emerald', font: 'grotesk', radius: 'soft', density: 'regular', card: 'elevated'
   });
 
-  const fire = useCallback((title: string, body: string, type: string = 'info') => {
-    Alert.alert(title, body);
-  }, []);
+  // Non-blocking toast feedback (Alert is reserved for destructive confirms).
+  const { toasts, fire, dismiss } = useToasts();
+
+  // Android hardware back: step back to overview before letting the OS exit.
+  useEffect(() => {
+    const sub = BackHandler.addEventListener('hardwareBackPress', () => {
+      if (route !== 'overview') {
+        setRoute('overview');
+        return true;
+      }
+      return false; // on overview → default behavior (exit)
+    });
+    return () => sub.remove();
+  }, [route]);
 
   const setupMockSession = useCallback(() => {
     setRawUser({ id: 'mock-u', email: 'tom@finvault.com', profile: { firstName: 'Tom', lastName: 'Bomeke' } });
@@ -343,7 +368,8 @@ export default function App() {
     initializeGoals();
   }, [initializeCards, initializeGoals]);
 
-  const API_URL = 'http://192.168.0.6:8000';
+  // Configure via apps/mobile/.env → EXPO_PUBLIC_API_URL=http://<your-lan-ip>:8000
+  const API_URL = process.env.EXPO_PUBLIC_API_URL || 'http://192.168.0.6:8000';
 
   const fetchWallets = useCallback(async () => {
     if (!token || token === 'mock-token') return;
@@ -481,7 +507,7 @@ export default function App() {
   const handleUpgradePlan = async (newPlan: string) => {
     if (!token || token === 'mock-token') {
       setRawUser((prev: any) => prev ? { ...prev, plan: newPlan } : null);
-      fire('Gelukt', `Welkom bij FinVault ${newPlan}!`, 'success');
+      fire('Plan updated', `Welcome to FinVault ${newPlan}!`, 'success');
       return;
     }
     try {
@@ -493,10 +519,10 @@ export default function App() {
       if (res.ok) {
         const updated = await res.json();
         setRawUser(updated);
-        fire('Gelukt', `Welkom bij FinVault ${newPlan}!`, 'success');
+        fire('Plan updated', `Welcome to FinVault ${newPlan}!`, 'success');
       }
     } catch {
-      fire('Fout', 'Abonnement wijzigen mislukt.', 'warn');
+      fire('Plan change failed', 'Could not update your plan. Try again later.', 'warn');
     }
   };
 
@@ -769,11 +795,21 @@ export default function App() {
             ))}
           </View>
 
-          <TouchableOpacity style={styles.submitBtn} onPress={handleDeposit} disabled={depositLoading || !depositAmt}>
+          <TouchableOpacity
+            style={[styles.submitBtn, (depositLoading || !depositAmt) && { opacity: 0.5 }]}
+            onPress={handleDeposit}
+            disabled={depositLoading || !depositAmt}
+            accessibilityRole="button"
+            accessibilityLabel="Deposit"
+            accessibilityState={{ disabled: depositLoading || !depositAmt, busy: depositLoading }}
+          >
             <Text style={styles.submitText}>{depositLoading ? 'Processing…' : 'Deposit'}</Text>
           </TouchableOpacity>
         </View>
       </MobileSheet>
+
+      {/* Toast notifications overlay */}
+      <ToastHost toasts={toasts} onDismiss={dismiss} />
     </SafeAreaView>
   );
 }

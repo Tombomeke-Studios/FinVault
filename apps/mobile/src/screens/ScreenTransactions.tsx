@@ -44,7 +44,13 @@ export function ScreenTransactions({ data, onExport }: TransactionsProps) {
           <Text style={styles.title}>Activity</Text>
           <Text style={styles.subtitle}>Your ledger transactions.</Text>
         </View>
-        <TouchableOpacity style={styles.exportBtn} onPress={onExport}>
+        <TouchableOpacity
+          style={styles.exportBtn}
+          onPress={onExport}
+          hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+          accessibilityRole="button"
+          accessibilityLabel="Export transactions"
+        >
           <Icon name="download" size={16} color={THEME.colors.text} />
         </TouchableOpacity>
       </View>
@@ -78,10 +84,13 @@ export function ScreenTransactions({ data, onExport }: TransactionsProps) {
       {/* Categories */}
       <View style={styles.categories}>
         {(['all', 'deposit', 'transfer'] as const).map(c => (
-          <TouchableOpacity key={c} onPress={() => setCat(c)} style={[
-            styles.catBtn,
-            cat === c ? styles.catBtnActive : null,
-          ]}>
+          <TouchableOpacity
+            key={c}
+            onPress={() => setCat(c)}
+            style={[styles.catBtn, cat === c ? styles.catBtnActive : null]}
+            accessibilityRole="tab"
+            accessibilityState={{ selected: cat === c }}
+          >
             <Text style={[styles.catText, cat === c ? styles.catTextActive : null]}>
               {c === 'all' ? 'All' : c === 'deposit' ? 'Deposits' : 'Transfers'}
             </Text>

@@ -1,5 +1,5 @@
-import React from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
+import React, { useState } from 'react';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Switch } from 'react-native';
 import { Icon } from '../components/Icon';
 import { Avatar } from '../components/UI';
 import { THEME } from '../theme';
@@ -23,6 +23,9 @@ const PRESETS: Record<string, ThemeConfig> = {
 };
 
 export function ScreenSettings({ data, theme, setTheme, onLogout, fire, openUpgrade }: SettingsProps) {
+  const [biometric, setBiometric] = useState(true);
+  const [pushNotifs, setPushNotifs] = useState(true);
+
   const selectPreset = (name: string, p: ThemeConfig) => {
     setTheme(p);
     fire('Theme updated', `Theme preset changed to ${name}!`, 'success');
@@ -86,9 +89,15 @@ export function ScreenSettings({ data, theme, setTheme, onLogout, fire, openUpgr
         <View style={styles.optionRow}>
           <View style={styles.optionInfo}>
             <Icon name="lock" size={16} color={THEME.colors.text2} />
-            <Text style={styles.optionText}>Secure Login biometric authentication</Text>
+            <Text style={styles.optionText}>Biometric sign-in (Face ID)</Text>
           </View>
-          <Icon name="chevRight" size={16} color={THEME.colors.text3} />
+          <Switch
+            value={biometric}
+            onValueChange={v => { setBiometric(v); fire(v ? 'Biometrics enabled' : 'Biometrics disabled', v ? 'Face ID will be used at sign-in.' : 'You will sign in with your password.', 'success'); }}
+            trackColor={{ false: THEME.colors.surfaceHi, true: THEME.colors.accent }}
+            thumbColor="#fff"
+            accessibilityLabel="Biometric sign-in"
+          />
         </View>
 
         <View style={styles.optionRow}>
@@ -96,20 +105,30 @@ export function ScreenSettings({ data, theme, setTheme, onLogout, fire, openUpgr
             <Icon name="bell" size={16} color={THEME.colors.text2} />
             <Text style={styles.optionText}>Push transaction notifications</Text>
           </View>
-          <Icon name="chevRight" size={16} color={THEME.colors.text3} />
+          <Switch
+            value={pushNotifs}
+            onValueChange={v => { setPushNotifs(v); fire(v ? 'Notifications on' : 'Notifications off', v ? 'You will be notified about every transaction.' : 'Transaction notifications muted.', 'success'); }}
+            trackColor={{ false: THEME.colors.surfaceHi, true: THEME.colors.accent }}
+            thumbColor="#fff"
+            accessibilityLabel="Push transaction notifications"
+          />
         </View>
 
-        <View style={styles.optionRow}>
+        <View style={[styles.optionRow, { borderBottomWidth: 0 }]}>
           <View style={styles.optionInfo}>
-            <Icon name="shield" size={16} color={THEME.colors.text2} />
-            <Text style={styles.optionText}>ISO 27001 deposits certification</Text>
+            <Icon name="shield" size={16} color={THEME.colors.accent} />
+            <Text style={styles.optionText}>Deposits protected · ISO 27001 certified</Text>
           </View>
-          <Icon name="chevRight" size={16} color={THEME.colors.text3} />
         </View>
       </View>
 
       {/* Logout button */}
-      <TouchableOpacity style={styles.logoutBtn} onPress={onLogout}>
+      <TouchableOpacity
+        style={styles.logoutBtn}
+        onPress={onLogout}
+        accessibilityRole="button"
+        accessibilityLabel="Sign out of FinVault"
+      >
         <Icon name="logout" size={16} color={THEME.colors.neg} />
         <Text style={styles.logoutText}>Sign out of FinVault</Text>
       </TouchableOpacity>

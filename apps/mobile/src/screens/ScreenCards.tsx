@@ -1,11 +1,44 @@
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Switch, TextInput } from 'react-native';
+import React, { useState, useRef, useEffect } from 'react';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Switch, TextInput, Animated, Pressable } from 'react-native';
 import { Icon } from '../components/Icon';
-import { BankCard } from '../components/BankCard';
+import { BankCard, CARD_SCHEMES } from '../components/BankCard';
 import { MobileCardDetail, LimitsSheet, MobileSheet } from '../components/MobileExtras';
+import { useReducedMotion } from '../components/Motion';
 import { THEME } from '../theme';
 import { money, Ring } from '../components/UI';
 import type { AppData } from '../../App';
+
+/* Animated selection state for the stacked card list. */
+function CardStackItem({ active, onPress, label, children }: {
+  active: boolean;
+  onPress: () => void;
+  label: string;
+  children: React.ReactNode;
+}) {
+  const anim = useRef(new Animated.Value(active ? 1 : 0)).current;
+  const reduced = useReducedMotion();
+
+  useEffect(() => {
+    if (reduced) { anim.setValue(active ? 1 : 0); return; }
+    Animated.spring(anim, { toValue: active ? 1 : 0, tension: 55, friction: 10, useNativeDriver: true }).start();
+  }, [active, reduced]);
+
+  return (
+    <Pressable
+      onPress={onPress}
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      accessibilityState={{ selected: active }}
+    >
+      <Animated.View style={{
+        opacity: anim.interpolate({ inputRange: [0, 1], outputRange: [0.55, 1] }),
+        transform: [{ scale: anim.interpolate({ inputRange: [0, 1], outputRange: [0.95, 1] }) }],
+      }}>
+        {children}
+      </Animated.View>
+    </Pressable>
+  );
+}
 
 interface CardsProps {
   data: AppData;
@@ -172,20 +205,22 @@ export function ScreenCards({ data, fire, cards, setCards, token, apiUrl, naviga
         {/* Card visual stack */}
         <View style={styles.cardContainer}>
           {cards.map((c: any, i: number) => (
-            <TouchableOpacity key={c.id} activeOpacity={0.9} onPress={() => setSelCardIdx(i)} style={[
-              styles.cardWrapper,
-              i === selCardIdx ? styles.cardActive : styles.cardInactive
-            ]}>
+            <CardStackItem
+              key={c.id}
+              active={i === selCardIdx}
+              onPress={() => setSelCardIdx(i)}
+              label={`${c.name} card ending in ${c.last4}`}
+            >
               <BankCard card={c} />
-            </TouchableOpacity>
+            </CardStackItem>
           ))}
         </View>
 
         {/* Spent Progress ring & details indicator */}
         <View style={[styles.cardBg, styles.spendCard]}>
           <View style={styles.ringWrapper}>
-            <Ring pct={Math.min(100, (activeCard.monthSpend / activeCard.limit) * 100)} size={82} thickness={8}>
-              <Text style={styles.ringPct}>{Math.round(Math.min(100, (activeCard.monthSpend / activeCard.limit) * 100))}%</Text>
+            <Ring pct={activeCard.limit > 0 ? Math.min(100, (activeCard.monthSpend / activeCard.limit) * 100) : 0} size={82} thickness={8}>
+              <Text style={styles.ringPct}>{activeCard.limit > 0 ? Math.round(Math.min(100, (activeCard.monthSpend / activeCard.limit) * 100)) : 0}%</Text>
             </Ring>
           </View>
           <View style={styles.spendInfo}>
@@ -295,14 +330,21 @@ export function ScreenCards({ data, fire, cards, setCards, token, apiUrl, naviga
 
           <Text style={styles.label}>Card Type</Text>
           <View style={styles.quickChips}>
-            {['physical', 'virtual'].map(k => (
+            {(['physical', 'virtual'] as const).map(k => (
               <TouchableOpacity
                 key={k}
                 style={[styles.typeBtn, newCardKind === k && styles.typeBtnActive]}
-                onPress={() => setNewCardKind(k as any)}
+                onPress={() => setNewCardKind(k)}
+                accessibilityRole="button"
+                accessibilityState={{ selected: newCardKind === k }}
               >
+                <Icon
+                  name={k === 'physical' ? 'card' : 'smartphone'}
+                  size={15}
+                  color={newCardKind === k ? THEME.colors.accent : THEME.colors.text2}
+                />
                 <Text style={[styles.typeBtnText, newCardKind === k && styles.typeBtnTextActive]}>
-                  {k === 'physical' ? '◆ Physical' : '⬡ Virtual'}
+                  {k === 'physical' ? 'Physical' : 'Virtual'}
                 </Text>
               </TouchableOpacity>
             ))}
@@ -310,23 +352,35 @@ export function ScreenCards({ data, fire, cards, setCards, token, apiUrl, naviga
 
           <Text style={styles.label}>Card Design & Color</Text>
           <View style={styles.quickChipsGrid}>
-            {['metal', 'violet', 'cyan', 'gold', 'accent'].map(sc => (
-              <TouchableOpacity
-                key={sc}
-                style={[styles.colorChip, newCardScheme === sc && styles.colorChipActive]}
-                onPress={() => setNewCardScheme(sc)}
-              >
-                <Text style={[styles.colorChipText, newCardScheme === sc && styles.colorChipTextActive]}>
-                  {sc}
-                </Text>
-              </TouchableOpacity>
-            ))}
+            {Object.keys(CARD_SCHEMES).map(sc => {
+              const scheme = CARD_SCHEMES[sc];
+              const selected = newCardScheme === sc;
+              return (
+                <TouchableOpacity
+                  key={sc}
+                  style={[styles.colorChip, selected && styles.colorChipActive]}
+                  onPress={() => setNewCardScheme(sc)}
+                  accessibilityRole="button"
+                  accessibilityLabel={`${sc} card design`}
+                  accessibilityState={{ selected }}
+                >
+                  <View style={[styles.colorPreview, { backgroundColor: scheme.bg, borderColor: scheme.accent }]}>
+                    {selected && <Icon name="check" size={12} color={scheme.accent} />}
+                  </View>
+                  <Text style={[styles.colorChipText, selected && styles.colorChipTextActive]}>
+                    {sc}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
           </View>
 
           <TouchableOpacity
             style={[styles.submitBtn, !newCardName && { opacity: 0.5 }]}
             onPress={handleOrderCard}
             disabled={!newCardName}
+            accessibilityRole="button"
+            accessibilityState={{ disabled: !newCardName }}
           >
             <Text style={styles.submitBtnText}>Order Card</Text>
           </TouchableOpacity>
@@ -378,17 +432,6 @@ const styles = StyleSheet.create({
   },
   cardContainer: {
     gap: 12,
-  },
-  cardWrapper: {
-    width: '100%',
-  },
-  cardActive: {
-    opacity: 1,
-    transform: [{ scale: 1 }],
-  },
-  cardInactive: {
-    opacity: 0.5,
-    transform: [{ scale: 0.95 }],
   },
   cardBg: {
     backgroundColor: THEME.colors.surface,
@@ -506,12 +549,15 @@ const styles = StyleSheet.create({
   },
   typeBtn: {
     flex: 1,
+    flexDirection: 'row',
+    gap: 7,
     backgroundColor: THEME.colors.surface2,
     borderWidth: 1,
     borderColor: THEME.colors.line,
     borderRadius: THEME.radius.regular,
     paddingVertical: 12,
     alignItems: 'center',
+    justifyContent: 'center',
   },
   typeBtnActive: {
     borderColor: THEME.colors.accent,
@@ -535,6 +581,15 @@ const styles = StyleSheet.create({
     borderRadius: THEME.radius.regular,
     paddingVertical: 10,
     alignItems: 'center',
+    gap: 6,
+  },
+  colorPreview: {
+    width: 34,
+    height: 22,
+    borderRadius: 5,
+    borderWidth: 1.5,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   colorChipActive: {
     borderColor: THEME.colors.accent,

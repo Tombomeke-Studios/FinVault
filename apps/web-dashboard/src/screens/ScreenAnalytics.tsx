@@ -164,7 +164,7 @@ export function ScreenAnalytics({ compact, data }: { compact: boolean; data: App
             <p style={{ marginTop: 12, color: 'var(--text-2)', fontSize: '0.9rem' }}>
               {total > budget
                 ? <><strong style={{ color: 'var(--neg)' }}>{money(total - budget).replace('.00','')} over budget</strong> this month.</>
-                : <>You're <strong style={{ color: 'var(--pos)' }}>{money(budget - total).replace('.00','')} under budget</strong> with {31 - new Date().getDate()} days left.</>
+                : <>You're <strong style={{ color: 'var(--pos)' }}>{money(budget - total).replace('.00','')} under budget</strong> with {new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).getDate() - new Date().getDate()} days left.</>
               }
             </p>
           </div>

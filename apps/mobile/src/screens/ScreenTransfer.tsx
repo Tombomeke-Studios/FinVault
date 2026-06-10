@@ -55,10 +55,20 @@ export function ScreenTransfer({ data, onTransfer, onRequest }: TransferProps) {
 
       {/* Tabs */}
       <View style={styles.tabs}>
-        <TouchableOpacity style={[styles.tab, mode === 'send' ? styles.tabActive : null]} onPress={() => setMode('send')}>
+        <TouchableOpacity
+          style={[styles.tab, mode === 'send' ? styles.tabActive : null]}
+          onPress={() => setMode('send')}
+          accessibilityRole="tab"
+          accessibilityState={{ selected: mode === 'send' }}
+        >
           <Text style={[styles.tabText, mode === 'send' ? styles.tabTextActive : null]}>SEND MONEY</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={[styles.tab, mode === 'request' ? styles.tabActive : null]} onPress={() => setMode('request')}>
+        <TouchableOpacity
+          style={[styles.tab, mode === 'request' ? styles.tabActive : null]}
+          onPress={() => setMode('request')}
+          accessibilityRole="tab"
+          accessibilityState={{ selected: mode === 'request' }}
+        >
           <Text style={[styles.tabText, mode === 'request' ? styles.tabTextActive : null]}>REQUEST MONEY</Text>
         </TouchableOpacity>
       </View>
@@ -87,7 +97,7 @@ export function ScreenTransfer({ data, onTransfer, onRequest }: TransferProps) {
         <View>
           <Text style={styles.label}>{mode === 'send' ? 'Recipient email' : 'Payer email'}</Text>
           <View style={styles.inputWrapper}>
-            <Icon name="search" size={16} color={THEME.colors.text3} style={styles.inputIcon} />
+            <Icon name="user" size={16} color={THEME.colors.text3} style={styles.inputIcon} />
             <TextInput
               style={[styles.input, { paddingLeft: 42 }]}
               value={email}
@@ -96,6 +106,8 @@ export function ScreenTransfer({ data, onTransfer, onRequest }: TransferProps) {
               placeholderTextColor={THEME.colors.text3}
               keyboardType="email-address"
               autoCapitalize="none"
+              autoComplete="email"
+              textContentType="emailAddress"
             />
           </View>
         </View>
@@ -126,7 +138,13 @@ export function ScreenTransfer({ data, onTransfer, onRequest }: TransferProps) {
         </View>
 
         {/* Submit button */}
-        <TouchableOpacity style={styles.submitBtn} onPress={submit} disabled={loading}>
+        <TouchableOpacity
+          style={[styles.submitBtn, loading && { opacity: 0.7 }]}
+          onPress={submit}
+          disabled={loading}
+          accessibilityRole="button"
+          accessibilityState={{ disabled: loading, busy: loading }}
+        >
           <Icon name="send" size={16} color={THEME.colors.onAccent} />
           <Text style={styles.submitText}>
             {loading ? 'Processing…' : mode === 'send' ? `Send ${amt ? money(parseFloat(amt)) : 'Funds'}` : 'Send Request'}

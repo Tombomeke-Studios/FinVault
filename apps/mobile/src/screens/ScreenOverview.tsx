@@ -1,12 +1,11 @@
-import React, { useRef, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, Pressable, Animated, Dimensions, TouchableOpacity } from 'react-native';
+import React from 'react';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
 import { Icon } from '../components/Icon';
 import { money, Sparkline, relTime, CategoryIcon, Ring, catColor, Delta } from '../components/UI';
 import { BankCard } from '../components/BankCard';
+import { PressableScale, FadeSlideIn, AnimatedProgressBar } from '../components/Motion';
 import { THEME } from '../theme';
 import type { AppData } from '../../App';
-
-const { width: SCREEN_W } = Dimensions.get('window');
 
 interface OverviewProps {
   navigate: (r: string) => void;
@@ -21,18 +20,10 @@ const QUICK_ACTIONS = [
   { icon: 'bolt', label: 'Bills',   primary: false, route: 'transfer' },
 ];
 
-function SpringBtn({ onPress, style, iconStyle, children }: { onPress: () => void; style?: any; iconStyle?: any; children: React.ReactNode }) {
-  const scale = useRef(new Animated.Value(1)).current;
-  const onIn  = () => Animated.spring(scale, { toValue: 0.91, useNativeDriver: true, speed: 50, bounciness: 4 }).start();
-  const onOut = () => Animated.spring(scale, { toValue: 1,    useNativeDriver: true, speed: 50, bounciness: 6 }).start();
-  return (
-    <Pressable onPress={onPress} onPressIn={onIn} onPressOut={onOut} style={style}>
-      <Animated.View style={[iconStyle, { transform: [{ scale }] }]}>
-        {children}
-      </Animated.View>
-    </Pressable>
-  );
-}
+// Account-card width + gap; keeps the horizontal carousel snapping exactly
+// one card per swipe.
+const ACCOUNT_CARD_W = 222;
+const ACCOUNT_CARD_GAP = 12;
 
 export function ScreenOverview({ navigate, data, onTopup }: OverviewProps) {
 
@@ -53,16 +44,11 @@ export function ScreenOverview({ navigate, data, onTopup }: OverviewProps) {
   const hour = new Date().getHours();
   const greeting = hour < 12 ? 'Good morning' : hour < 18 ? 'Good afternoon' : 'Good evening';
 
-  const heroEntrance = useRef(new Animated.Value(0)).current;
-  useEffect(() => {
-    Animated.spring(heroEntrance, { toValue: 1, tension: 60, friction: 9, useNativeDriver: true }).start();
-  }, []);
-
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
 
       {/* ── Greeting ── */}
-      <View style={styles.greeting}>
+      <FadeSlideIn style={styles.greeting} distance={10}>
         <View>
           <Text style={styles.greetingLabel}>{greeting}</Text>
           <Text style={styles.greetingName}>{data.user.firstName}</Text>
@@ -71,10 +57,10 @@ export function ScreenOverview({ navigate, data, onTopup }: OverviewProps) {
           <Icon name="sparkle" size={11} color={THEME.colors.accent} />
           <Text style={styles.planText}>{data.user.plan.replace('FinVault ', '')}</Text>
         </View>
-      </View>
+      </FadeSlideIn>
 
       {/* ── Hero balance card ── */}
-      <Animated.View style={[styles.heroCard, { opacity: heroEntrance, transform: [{ translateY: heroEntrance.interpolate({ inputRange: [0, 1], outputRange: [20, 0] }) }] }]}>
+      <FadeSlideIn delay={40} style={styles.heroCard}>
         {/* Glow overlay at top-right */}
         <View style={styles.heroGlow} />
 
@@ -116,33 +102,38 @@ export function ScreenOverview({ navigate, data, onTopup }: OverviewProps) {
         <View style={styles.sparkWrap}>
           <Sparkline data={balanceTrend} h={72} />
         </View>
-      </Animated.View>
+      </FadeSlideIn>
 
       {/* ── Quick actions ── */}
-      <View style={styles.quickRow}>
+      <FadeSlideIn delay={80} style={styles.quickRow}>
         {QUICK_ACTIONS.map(a => (
-          <SpringBtn
+          <PressableScale
             key={a.label}
             onPress={a.route ? () => navigate(a.route) : onTopup}
             style={styles.qaction}
+            innerStyle={styles.qactionInner}
+            scaleTo={0.91}
+            accessibilityLabel={a.label}
           >
             <View style={[styles.qactionIcon, a.primary ? styles.qactionIconPrimary : styles.qactionIconGhost]}>
               <Icon name={a.icon} size={21} color={a.primary ? THEME.colors.onAccent : THEME.colors.text} />
             </View>
             <Text style={styles.qactionLabel}>{a.label}</Text>
-          </SpringBtn>
+          </PressableScale>
         ))}
-      </View>
+      </FadeSlideIn>
 
       {/* ── Accounts horizontal scroll ── */}
-      <View style={styles.section}>
+      <FadeSlideIn delay={120} style={styles.section}>
         <Text style={styles.sectionTitle}>Accounts</Text>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.hScroll} snapToInterval={238} decelerationRate="fast">
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.hScroll} snapToInterval={ACCOUNT_CARD_W + ACCOUNT_CARD_GAP} decelerationRate="fast">
           {wallets.map((wl: any) => {
             const accentCol = wl.type === 'savings' ? '#a78bfa' : wl.type === 'travel' ? '#38bdf8' : THEME.colors.accent;
             return (
               <TouchableOpacity key={wl.id} activeOpacity={0.82} onPress={() => navigate(`account:${wl.id}`)}
                 style={[styles.accountCard, { borderTopColor: accentCol }]}
+                accessibilityRole="button"
+                accessibilityLabel={`${wl.name || 'Account'}, balance ${money(wl.balance, wl.currency)}`}
               >
                 <View style={styles.accTop}>
                   <View style={styles.accNameRow}>
@@ -166,13 +157,13 @@ export function ScreenOverview({ navigate, data, onTopup }: OverviewProps) {
             );
           })}
         </ScrollView>
-      </View>
+      </FadeSlideIn>
 
       {/* ── Recent activity ── */}
-      <View style={styles.card}>
+      <FadeSlideIn delay={160} style={styles.card}>
         <View style={styles.cardHeader}>
           <Text style={styles.sectionTitle}>Recent activity</Text>
-          <TouchableOpacity onPress={() => navigate('transactions')}>
+          <TouchableOpacity onPress={() => navigate('transactions')} accessibilityRole="button" accessibilityLabel="See all transactions" hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
             <Text style={styles.seeAll}>See all</Text>
           </TouchableOpacity>
         </View>
@@ -198,14 +189,14 @@ export function ScreenOverview({ navigate, data, onTopup }: OverviewProps) {
           })}
           {recent.length === 0 && <Text style={styles.emptyText}>No recent activity yet.</Text>}
         </View>
-      </View>
+      </FadeSlideIn>
 
       {/* ── Spending breakdown ── */}
       {topCats.length > 0 && (
-        <View style={styles.card}>
+        <FadeSlideIn delay={200} style={styles.card}>
           <View style={styles.cardHeader}>
             <Text style={styles.sectionTitle}>Spending</Text>
-            <TouchableOpacity onPress={() => navigate('analytics')}>
+            <TouchableOpacity onPress={() => navigate('analytics')} accessibilityRole="button" accessibilityLabel="Open analytics" hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
               <Text style={styles.seeAll}>Analytics</Text>
             </TouchableOpacity>
           </View>
@@ -221,39 +212,37 @@ export function ScreenOverview({ navigate, data, onTopup }: OverviewProps) {
                     <View style={{ flex: 1 }}>
                       <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 5 }}>
                         <Text style={styles.catName}>{c.label}</Text>
-                        <Text style={styles.catAmt}>{money(c.amount).replace('.00', '')}</Text>
+                        <Text style={styles.catAmt}>{money(c.amount, 'EUR', { whole: true })}</Text>
                       </View>
-                      <View style={styles.progressBg}>
-                        <View style={[styles.progressFill, { width: `${pct}%` as any, backgroundColor: catColor(c.hue) }]} />
-                      </View>
+                      <AnimatedProgressBar pct={pct} color={catColor(c.hue)} />
                     </View>
                   </View>
                 </View>
               );
             })}
           </View>
-        </View>
+        </FadeSlideIn>
       )}
 
       {/* ── Bank card preview ── */}
       {card && (
-        <View style={styles.card}>
+        <FadeSlideIn delay={240} style={styles.card}>
           <View style={styles.cardHeader}>
             <Text style={styles.sectionTitle}>My card</Text>
-            <TouchableOpacity onPress={() => navigate('cards')}>
+            <TouchableOpacity onPress={() => navigate('cards')} accessibilityRole="button" accessibilityLabel="Manage cards" hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
               <Text style={styles.seeAll}>Manage</Text>
             </TouchableOpacity>
           </View>
           <BankCard card={card} />
-        </View>
+        </FadeSlideIn>
       )}
 
       {/* ── Savings goals ── */}
       {goalsPreview.length > 0 && (
-        <View style={styles.card}>
+        <FadeSlideIn delay={280} style={styles.card}>
           <View style={styles.cardHeader}>
             <Text style={styles.sectionTitle}>Goals</Text>
-            <TouchableOpacity onPress={() => navigate('savings')}>
+            <TouchableOpacity onPress={() => navigate('savings')} accessibilityRole="button" accessibilityLabel="See all goals" hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
               <Text style={styles.seeAll}>See all</Text>
             </TouchableOpacity>
           </View>
@@ -270,16 +259,14 @@ export function ScreenOverview({ navigate, data, onTopup }: OverviewProps) {
                       <Text style={styles.goalName}>{g.name}</Text>
                       <Text style={[styles.goalPct, { color: catColor(g.hue) }]}>{pct}%</Text>
                     </View>
-                    <View style={[styles.progressBg, { marginTop: 6 }]}>
-                      <View style={[styles.progressFill, { width: `${pct}%` as any, backgroundColor: catColor(g.hue) }]} />
-                    </View>
-                    <Text style={styles.goalSub}>{money(g.saved).replace('.00', '')} of {money(g.target).replace('.00', '')}</Text>
+                    <AnimatedProgressBar pct={pct} color={catColor(g.hue)} style={{ marginTop: 6 }} />
+                    <Text style={styles.goalSub}>{money(g.saved, 'EUR', { whole: true })} of {money(g.target, 'EUR', { whole: true })}</Text>
                   </View>
                 </View>
               );
             })}
           </View>
-        </View>
+        </FadeSlideIn>
       )}
     </ScrollView>
   );
@@ -311,7 +298,8 @@ const styles = StyleSheet.create({
 
   /* quick actions */
   quickRow: { flexDirection: 'row', backgroundColor: THEME.colors.surface, borderRadius: THEME.radius.xl, borderWidth: 1, borderColor: THEME.colors.line, padding: 8 },
-  qaction: { flex: 1, alignItems: 'center', gap: 7, paddingVertical: 10 },
+  qaction: { flex: 1, paddingVertical: 10 },
+  qactionInner: { alignItems: 'center', gap: 7 },
   qactionIcon: { width: 60, height: 60, borderRadius: THEME.radius.xl, justifyContent: 'center', alignItems: 'center' },
   qactionIconPrimary: { backgroundColor: THEME.colors.accent, shadowColor: THEME.colors.accent, shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.4, shadowRadius: 12, elevation: 8 },
   qactionIconGhost: { backgroundColor: THEME.colors.surface2, borderWidth: 1, borderColor: THEME.colors.line },
@@ -352,8 +340,6 @@ const styles = StyleSheet.create({
   catDot: { flexShrink: 0 },
   catName: { fontSize: 13, fontWeight: '600', color: THEME.colors.text2 },
   catAmt: { fontSize: 13, fontWeight: 'bold', color: THEME.colors.text },
-  progressBg: { height: 8, borderRadius: 99, backgroundColor: THEME.colors.surfaceHi, overflow: 'hidden' },
-  progressFill: { height: '100%', borderRadius: 99 },
 
   /* goals */
   goalRow: { flexDirection: 'row', alignItems: 'center', gap: 14 },

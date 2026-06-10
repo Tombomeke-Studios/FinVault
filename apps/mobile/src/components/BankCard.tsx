@@ -16,7 +16,11 @@ const SCHEMES: Record<string, { bg: string; accent: string; glow: string }> = {
   metal:  { bg: '#1a1040', accent: '#a78bfa', glow: 'rgba(167,139,250,0.35)' },
   cyan:   { bg: '#0c3650', accent: '#34d399', glow: 'rgba(52,211,153,0.35)' },
   violet: { bg: '#2d1b69', accent: '#c084fc', glow: 'rgba(192,132,252,0.35)' },
+  gold:   { bg: '#3a2a08', accent: '#fbbf24', glow: 'rgba(251,191,36,0.35)' },
+  accent: { bg: '#0b3328', accent: '#34d399', glow: 'rgba(52,211,153,0.35)' },
 };
+
+export const CARD_SCHEMES = SCHEMES;
 
 export function BankCard({ card, revealed = false }: CardProps) {
   const sc = SCHEMES[card.scheme] || SCHEMES.metal;

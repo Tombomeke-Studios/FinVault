@@ -1,11 +1,12 @@
 import React, { useState, useRef, useEffect } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
-  Animated, Pressable, TextInput, Alert, ActivityIndicator,
+  Animated, TextInput, Alert, ActivityIndicator,
 } from 'react-native';
 import { Icon } from '../components/Icon';
 import { money, relTime, CategoryIcon } from '../components/UI';
 import { MobileSheet } from '../components/MobileExtras';
+import { PressableScale } from '../components/Motion';
 import { THEME } from '../theme';
 import type { AppData } from '../../App';
 
@@ -14,18 +15,6 @@ interface AccountDashboardProps {
   data: AppData;
   navigate: (r: string) => void;
   onOwnTransfer: (fromWalletId: string, toWalletId: string, amount: number, description: string) => Promise<void>;
-}
-
-/* ── spring-press button ── */
-function SpringBtn({ onPress, children, style }: { onPress: () => void; children: React.ReactNode; style?: any }) {
-  const scale = useRef(new Animated.Value(1)).current;
-  const onIn  = () => Animated.spring(scale, { toValue: 0.94, useNativeDriver: true, speed: 50, bounciness: 4 }).start();
-  const onOut = () => Animated.spring(scale, { toValue: 1,    useNativeDriver: true, speed: 50, bounciness: 6 }).start();
-  return (
-    <Pressable onPress={onPress} onPressIn={onIn} onPressOut={onOut}>
-      <Animated.View style={[style, { transform: [{ scale }] }]}>{children}</Animated.View>
-    </Pressable>
-  );
 }
 
 /* ── per-type accent colours ── */
@@ -183,23 +172,25 @@ export function ScreenAccountDashboard({ walletId, data, navigate, onOwnTransfer
 
         {/* ── Action buttons ── */}
         <View style={styles.actionsRow}>
-          <SpringBtn
+          <PressableScale
             onPress={() => { setFromWalletId(otherWallets[0]?.id || ''); setTransferOpen(true); }}
-            style={[styles.actionBtn, styles.actionBtnPrimary, { backgroundColor: ac.main, shadowColor: ac.main }]}
+            style={{ flex: 1 }}
+            innerStyle={[styles.actionBtn, styles.actionBtnPrimary, { backgroundColor: ac.main, shadowColor: ac.main }]}
+            accessibilityLabel="Add money to this account"
           >
             <Icon name="arrowDownLeft" size={17} color={THEME.colors.onAccent} />
             <Text style={[styles.actionBtnText, { color: THEME.colors.onAccent }]}>Add Money</Text>
-          </SpringBtn>
+          </PressableScale>
 
-          <SpringBtn onPress={() => navigate('transfer')} style={[styles.actionBtn, styles.actionBtnGhost]}>
+          <PressableScale onPress={() => navigate('transfer')} style={{ flex: 1 }} innerStyle={[styles.actionBtn, styles.actionBtnGhost]} accessibilityLabel="Send money">
             <Icon name="send" size={17} color={THEME.colors.text} />
             <Text style={styles.actionBtnTextGhost}>Send</Text>
-          </SpringBtn>
+          </PressableScale>
 
-          <SpringBtn onPress={() => navigate('transactions')} style={[styles.actionBtn, styles.actionBtnGhost]}>
+          <PressableScale onPress={() => navigate('transactions')} style={{ flex: 1 }} innerStyle={[styles.actionBtn, styles.actionBtnGhost]} accessibilityLabel="View account activity">
             <Icon name="list" size={17} color={THEME.colors.text} />
             <Text style={styles.actionBtnTextGhost}>Activity</Text>
-          </SpringBtn>
+          </PressableScale>
         </View>
 
         {/* ── Transaction feed ── */}
@@ -418,7 +409,7 @@ const styles = StyleSheet.create({
 
   /* ── actions ── */
   actionsRow: { flexDirection: 'row', gap: 10 },
-  actionBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7, paddingVertical: 13, borderRadius: 16 },
+  actionBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7, paddingVertical: 13, borderRadius: 16 },
   actionBtnPrimary: { shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.38, shadowRadius: 14, elevation: 8 },
   actionBtnGhost: { backgroundColor: THEME.colors.surface, borderWidth: 1, borderColor: THEME.colors.line },
   actionBtnText: { fontSize: 13, fontWeight: '700' },

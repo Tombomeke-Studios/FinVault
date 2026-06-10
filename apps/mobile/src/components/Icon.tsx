@@ -1,5 +1,5 @@
 import React from 'react';
-import { Feather } from '@expo/vector-icons';
+import { Feather, MaterialCommunityIcons } from '@expo/vector-icons';
 
 interface IconProps {
   name: string;
@@ -8,6 +8,12 @@ interface IconProps {
   style?: any;
   stroke?: number;
 }
+
+// Icons Feather doesn't ship — rendered via MaterialCommunityIcons instead.
+const MCI_MAPPING: Record<string, keyof typeof MaterialCommunityIcons.glyphMap> = {
+  flame: 'fire',
+  faceId: 'face-recognition',
+};
 
 const MAPPING: Record<string, keyof typeof Feather.glyphMap> = {
   home: 'home',
@@ -48,9 +54,24 @@ const MAPPING: Record<string, keyof typeof Feather.glyphMap> = {
   cart: 'shopping-cart',
   coffee: 'coffee',
   bag: 'shopping-bag',
+  trend: 'trending-up',
+  target: 'crosshair',
+  clock: 'clock',
+  gift: 'gift',
+  globe: 'globe',
+  user: 'user',
+  fingerprint: 'key',
+  alertTriangle: 'alert-triangle',
+  info: 'info',
+  calendar: 'calendar',
+  percent: 'percent',
+  moon: 'moon',
+  smartphone: 'smartphone',
 };
 
 export function Icon({ name, size = 20, color = '#f7f7f9', style }: IconProps) {
+  const mci = MCI_MAPPING[name];
+  if (mci) return <MaterialCommunityIcons name={mci} size={size} color={color} style={style} />;
   const iconName = MAPPING[name] || 'help-circle';
   return <Feather name={iconName} size={size} color={color} style={style} />;
 }
