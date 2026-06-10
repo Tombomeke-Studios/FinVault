@@ -1,48 +1,65 @@
 # FinVault TODO
 
-Living checklist — keep this current while working. Newest work at the top.
+Single source of truth for all tasks and progress (CLAUDE.md contains **no** to-dos).
+Workflow rules live in [CLAUDE.md](CLAUDE.md#workflow-rules); short version:
 
-## In progress — `feature/security-and-session`
+- Tasks are **grouped per branch**. Pick a group, work it top to bottom.
+- **Definition of done per item:** code + one small commit + docs updated + tests
+  written + this file ticked. Only then start the next item.
+- **Branch group complete → push → PR → CI green** (`validate.yml`). Red PR ≠ done.
 
-- [x] Backend security: protect `/users/profile-by-email` with `X-Service-Secret` (was public via gateway → user enumeration + PII leak)
-- [x] Backend security: hash refresh tokens at rest (sha256), `/auth/refresh` rotation + `/auth/logout` revocation
-- [x] Backend security: generic login error message (no attempt-count / account-existence leak), bcrypt rounds 10 → 12
-- [x] Backend security: warn on JWT fallback secret, configurable CORS origins, rate-limit map cleanup
-- [x] Add root `.env.example` documenting all env vars
-- [x] Mobile: persistent session (expo-secure-store) — auto-login on relaunch, refresh-token flow, server-side revoke on sign-out
-- [x] Mobile: "Security activity" view in Settings (uses `/api/users/audit-logs`, mock fallback in demo mode)
+## Branch: `feature/security-and-session` — ✅ complete, ready for PR
+
+- [x] Backend: protect `/users/profile-by-email` with `X-Service-Secret` (was public via gateway → user enumeration + PII leak)
+- [x] Backend: hash refresh tokens at rest (sha256), `/auth/refresh` rotation + `/auth/logout` revocation
+- [x] Backend: generic login error (no attempt-count / account-existence leak), bcrypt 10 → 12
+- [x] Backend: fallback-secret warnings, configurable CORS origins, rate-limit map cleanup
+- [x] Root `.env.example` documenting all env vars
+- [x] Mobile: persistent session (expo-secure-store) — auto-login, silent refresh, server-side revoke on sign-out
+- [x] Mobile: "Security activity" view in Settings (`/api/users/audit-logs`, mock fallback offline)
 - [x] Docs: `docs/architecture.md`, `docs/design-system.md`, `docs/security.md`
-- [ ] Web: adopt refresh-token flow (localStorage → consider httpOnly approach) — *moved to backlog*
+- [ ] Push branch + open PR, verify CI green *(needs remote push approval)*
 
-## Backlog / known gaps
+## Backlog — ungrouped (assign to a branch group when picked up)
 
-- [ ] Mobile: theming engine — Settings presets only fire a toast today; mobile is dark-only (web has full `data-*` theming)
-- [ ] Mobile: transactions screen lacks per-wallet filter (web has `?walletId=` filter banner)
-- [ ] Mobile: "Request money" tab is simulated (fires toast only) — backend has payment-request (Tikkie) schemas
-- [ ] Mobile: virtualize transaction list if it grows (currently fine for demo volumes)
-- [ ] Card "limits & controls" toggles (contactless/foreign) are client-side only — no backend fields
-- [ ] Savings goal "due date" is free text — consider a date picker
+**Candidate group: `feature/web-session-hardening`**
+- [ ] Web: adopt refresh-token flow (localStorage → in-memory token + refresh, or httpOnly cookie)
+- [ ] Web: sign-out should revoke the refresh token server-side (parity with mobile)
+
+**Candidate group: `feature/mobile-feature-parity`**
+- [ ] Mobile: per-wallet filter on the transactions screen (web has `?walletId=` filter banner)
+- [ ] Mobile: wire "Request money" tab to the payment-request backend (currently toast-only)
+- [ ] Mobile: real biometrics via `expo-local-authentication` (Face ID button is simulated)
+
+**Candidate group: `feature/mobile-theming`**
+- [ ] Mobile theming engine — Settings presets currently only fire a toast; app is dark-only
+
+**Smaller / unscheduled**
+- [ ] Backend: tests for `/auth/refresh` rotation + replay-revocation and `/auth/logout`
+- [ ] Card "limits & controls" toggles (contactless/foreign) are client-side only — add backend fields
+- [ ] Savings goal "due date" is free text — date picker
 - [ ] Invoice service has no frontend surface yet
+- [ ] Virtualize mobile transaction list if data volumes grow
+- [ ] Rate limiting is per-instance in-memory — Redis when running replicas
 
 ## Done — UI/UX pass on `(ui/uix)-Rebase-of-UI` (2026-06-10, commit c522017)
 
-- [x] **money() corruption**: nl-NL `€ 4.000,00` was rendered as `€ 40,00` by `.replace('.00','')` call sites → `{ whole: true }` Intl option
+- [x] **money() corruption**: nl-NL `€ 4.000,00` rendered as `€ 40,00` via `.replace('.00','')` → `{ whole: true }` Intl option
 - [x] **Broken icons**: trend/target/clock/flame/gift/globe unmapped (rendered "?") → mapped, flame via MaterialCommunityIcons
 - [x] **Copy buttons** in card details now really copy (expo-clipboard)
 - [x] **Card schemes**: gold/accent offered but missing in BankCard → added
-- [x] Toast system replaces blocking Alert.alert for feedback (animated, auto-dismiss, a11y live region)
-- [x] MobileSheet: spring slide-up + fading scrim + drag-to-dismiss + KeyboardAvoidingView + inner ScrollView
-- [x] Motion.tsx: PressableScale / FadeSlideIn / AnimatedProgressBar, all Reduce-Motion aware; deduped SpringBtn copies
-- [x] Android hardware back → returns to Home instead of exiting
-- [x] Staggered entrances (Overview, Savings), animated card selection (Cards), animated progress fills
-- [x] Plan upgrade sheet: Dutch → English, ✓-text → check icons, white-on-emerald contrast fixed
-- [x] Settings: fake chevron rows → real Switch toggles; sign-out a11y
-- [x] Auth: autofill/textContentType, password show/hide a11y + hitSlop, submit spinner, card entrance animation
-- [x] Accounts carousel snap interval fixed (238 → 234); Sparkline measures container width
-- [x] Cash-flow "out" bars visible color; analytics days-left uses real month length (mobile + web)
-- [x] API URL via `EXPO_PUBLIC_API_URL`
-- [x] Card details auto-hide sensitive data when sheet closes
-- [x] Goals: empty state with CTA; 44px touch targets; disabled-state opacities everywhere
+- [x] Toast system replaces blocking Alert.alert (animated, auto-dismiss, a11y live region)
+- [x] MobileSheet: spring slide-up + scrim fade + drag-to-dismiss + keyboard-aware + scrollable
+- [x] Motion.tsx: PressableScale / FadeSlideIn / AnimatedProgressBar, Reduce-Motion aware; deduped SpringBtn copies
+- [x] Android hardware back → Home instead of app exit
+- [x] Staggered entrances, animated card selection, animated progress fills
+- [x] Plan sheet: Dutch → English, check icons, on-accent contrast fix
+- [x] Settings: fake chevron rows → real switches
+- [x] Auth: autofill props, password-toggle a11y, submit spinner, entrance animation
+- [x] Carousel snap 238 → 234; Sparkline measures container; cash-flow "out" bars visible
+- [x] Analytics days-left uses real month length (mobile + web)
+- [x] `EXPO_PUBLIC_API_URL`; sensitive card data auto-hides on sheet close
+- [x] Goals empty state + CTA; 44px touch targets; disabled-state visuals
 
 ## Done — earlier web feedback round (archived)
 
