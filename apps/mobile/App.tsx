@@ -14,6 +14,7 @@ import { money } from './src/components/UI';
 import { MobileSheet } from './src/components/MobileExtras';
 import { ToastHost, useToasts } from './src/components/Toast';
 import { Icon } from './src/components/Icon';
+import { saveSession, loadSession, clearSession, tryRefreshSession, revokeSession } from './src/session';
 import { THEME } from './src/theme';
 
 export interface ThemeConfig {
@@ -292,6 +293,7 @@ const upgStyles = StyleSheet.create({
 export default function App() {
   // --- Auth State ---
   const [token, setToken] = useState<string | null>(null);
+  const [restoring, setRestoring] = useState(true); // true while loading the stored session
   const [rawUser, setRawUser] = useState<any>(null);
   const [wallets, setWallets] = useState<Wallet[]>([]);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
@@ -371,6 +373,15 @@ export default function App() {
   // Configure via apps/mobile/.env → EXPO_PUBLIC_API_URL=http://<your-lan-ip>:8000
   const API_URL = process.env.EXPO_PUBLIC_API_URL || 'http://192.168.0.6:8000';
 
+  // Restore the persisted session once on launch (keystore-backed).
+  useEffect(() => {
+    let cancelled = false;
+    loadSession().then(({ accessToken }) => {
+      if (!cancelled && accessToken) setToken(accessToken);
+    }).finally(() => { if (!cancelled) setRestoring(false); });
+    return () => { cancelled = true; };
+  }, []);
+
   const fetchWallets = useCallback(async () => {
     if (!token || token === 'mock-token') return;
     try {
@@ -428,7 +439,14 @@ export default function App() {
         fetchCards();
         fetchGoals();
       } else {
-        setToken(null);
+        // Access token expired/invalid — try one silent refresh before signing out.
+        const refreshed = await tryRefreshSession(API_URL);
+        if (refreshed) {
+          setToken(refreshed);
+        } else {
+          await clearSession();
+          setToken(null);
+        }
       }
     } catch {
       setupMockSession();
@@ -452,6 +470,7 @@ export default function App() {
       });
       if (res.ok) {
         const data = await res.json();
+        await saveSession(data.accessToken, data.refreshToken);
         setToken(data.accessToken);
         setAuthSuccess('Welcome back!');
       } else {
@@ -461,6 +480,7 @@ export default function App() {
     } catch {
       // Offline fallback
       if (email === 'admin@finvault.com' || email === 'tom@finvault.com') {
+        await saveSession('mock-token');
         setToken('mock-token');
         setupMockSession();
         setAuthSuccess('Welcome back (Demo mode)!');
@@ -474,6 +494,7 @@ export default function App() {
     setAuthError('');
     setAuthSuccess('');
     setRawUser(null);
+    saveSession('mock-token');
     setToken('mock-token');
     setupMockSession();
     setAuthSuccess('Face ID scan successful!');
@@ -497,7 +518,11 @@ export default function App() {
     }
   };
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    if (token && token !== 'mock-token') {
+      await revokeSession(API_URL); // best-effort server-side revocation
+    }
+    await clearSession();
     setToken(null);
     setRawUser(null);
     setCards([]);
@@ -718,8 +743,15 @@ export default function App() {
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle="light-content" />
 
-      {/* Auth Screen or Main application shell */}
-      {!token ? (
+      {/* Session restore splash, Auth screen, or Main application shell */}
+      {restoring ? (
+        <View style={styles.splash}>
+          <View style={styles.splashLogo}>
+            <Icon name="shield" size={26} color={THEME.colors.onAccent} />
+          </View>
+          <Text style={styles.splashText}>FinVault</Text>
+        </View>
+      ) : !token ? (
         <ScreenAuth
           onLogin={handleLogin}
           onRegister={handleRegister}
@@ -819,6 +851,26 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: THEME.colors.bg,
     paddingTop: Platform.OS === 'android' ? (StatusBar.currentHeight || 24) : 0,
+  },
+  splash: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 14,
+  },
+  splashLogo: {
+    width: 56,
+    height: 56,
+    borderRadius: 16,
+    backgroundColor: THEME.colors.accent,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  splashText: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: THEME.colors.text,
+    letterSpacing: -0.4,
   },
   sheetForm: {
     gap: 16,
