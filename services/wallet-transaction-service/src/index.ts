@@ -8,7 +8,7 @@ import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import { PrismaClient } from '../generated/prisma/index.js';
-import { publishEvent, requireAuth, extractTokenFromRequest, computeTransactionHash, consumeRabbitQueue } from 'shared';
+import { publishEvent, requireAuth, extractTokenFromRequest, computeTransactionHash, consumeRabbitQueue, SERVICE_SECRET } from 'shared';
 import { validateSEPAXML } from './sepa-validator.js';
 
 const prisma = new PrismaClient();
@@ -280,7 +280,7 @@ async function createDefaultWalletsAndCardsForUser(userId: string, email: string
         holder = 'FinVault Administrator';
       } else {
         try {
-          const profileRes = await fetch(`${ACCOUNT_SERVICE_URL}/users/profile-by-email?email=${encodeURIComponent(email)}`);
+          const profileRes = await fetch(`${ACCOUNT_SERVICE_URL}/users/profile-by-email?email=${encodeURIComponent(email)}`, { headers: { 'X-Service-Secret': SERVICE_SECRET } });
           if (profileRes.ok) {
             const profileData = await profileRes.json();
             if (profileData.profile) {
@@ -890,6 +890,13 @@ app.get('/transactions', requireAuth, async (req, res) => {
 });
 
 // Own-wallet Transfer — move money between user's own accounts (no email required)
+// Wallet has no `name` column — display names are derived from the type.
+function walletLabel(type: string): string {
+  if (type === 'savings') return 'Savings Vault';
+  if (type === 'travel') return 'Travel Multi-Currency';
+  return 'Everyday Checking';
+}
+
 app.post('/transactions/own-transfer', requireAuth, async (req, res) => {
   const { fromWalletId, toWalletId, amount, description } = req.body;
   const userId = (req as any).user.userId;
@@ -945,7 +952,7 @@ app.post('/transactions/own-transfer', requireAuth, async (req, res) => {
           currency: fromWallet.currency,
           status: 'confirmed',
           type: 'transfer',
-          description: description || `Transfer: ${fromWallet.name || fromWallet.type} → ${toWallet.name || toWallet.type}`,
+          description: description || `Transfer: ${walletLabel(fromWallet.type)} → ${walletLabel(toWallet.type)}`,
           integrityHash
         }
       });
@@ -1028,7 +1035,7 @@ app.post('/transactions/transfer', requireAuth, async (req, res) => {
     // 2. Find receiver via Account Service
     let receiverUserId: string | null = null;
     try {
-      const response = await fetch(`${ACCOUNT_SERVICE_URL}/users/profile-by-email?email=${encodeURIComponent(receiverEmail)}`);
+      const response = await fetch(`${ACCOUNT_SERVICE_URL}/users/profile-by-email?email=${encodeURIComponent(receiverEmail)}`, { headers: { 'X-Service-Secret': SERVICE_SECRET } });
       if (response.ok) {
         const data = await response.json();
         receiverUserId = data.id;
@@ -2073,7 +2080,7 @@ async function healSeedAccountsWithRetry(retries = 10, delayMs = 3000) {
   for (const email of seedEmails) {
     for (let attempt = 1; attempt <= retries; attempt++) {
       try {
-        const res = await fetch(`${ACCOUNT_SERVICE_URL}/users/profile-by-email?email=${encodeURIComponent(email)}`);
+        const res = await fetch(`${ACCOUNT_SERVICE_URL}/users/profile-by-email?email=${encodeURIComponent(email)}`, { headers: { 'X-Service-Secret': SERVICE_SECRET } });
         if (res.ok) {
           const user = await res.json();
           console.log(`[Wallet Service Startup] Reconciling seed account wallets/cards for ${email}`);

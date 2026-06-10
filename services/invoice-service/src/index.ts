@@ -8,12 +8,13 @@ import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import { PrismaClient } from '../generated/prisma/index.js';
-import { 
-  publishEvent, 
-  requireAuth, 
-  validateBody, 
-  PaymentRequestSchema, 
-  MandateSchema 
+import {
+  publishEvent,
+  requireAuth,
+  validateBody,
+  PaymentRequestSchema,
+  MandateSchema,
+  SERVICE_SECRET
 } from 'shared';
 import { generateReceiptPdf } from './pdf-generator.js';
 
@@ -346,7 +347,7 @@ app.post('/mandates', requireAuth, async (req, res) => {
 
   try {
     // Resolve payee userId via Account Service
-    const userRes = await fetch(`${ACCOUNT_SERVICE_URL}/users/profile-by-email?email=${encodeURIComponent(payeeEmail)}`);
+    const userRes = await fetch(`${ACCOUNT_SERVICE_URL}/users/profile-by-email?email=${encodeURIComponent(payeeEmail)}`, { headers: { 'X-Service-Secret': SERVICE_SECRET } });
     if (!userRes.ok) {
       return res.status(404).json({ error: `No FinVault user found with email: ${payeeEmail}` });
     }

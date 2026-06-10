@@ -10,7 +10,7 @@ import helmet from 'helmet';
 import { PrismaClient } from '../generated/prisma/index.js';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
-import { publishEvent, validateBody, LoginSchema, RegisterSchema } from 'shared';
+import { publishEvent, validateBody, LoginSchema, RegisterSchema, requireServiceSecret } from 'shared';
 
 const prisma = new PrismaClient();
 const app = express();
@@ -317,8 +317,10 @@ app.put('/users/plan', authenticateToken, async (req, res) => {
   }
 });
 
-// Internal endpoint for other microservices (e.g. wallet-service) to lookup a user by email
-app.get('/users/profile-by-email', async (req, res) => {
+// Internal endpoint for other microservices (e.g. wallet-service) to lookup a user by email.
+// Guarded by X-Service-Secret: it is reachable through the public gateway (/api/users/*),
+// so without the guard it leaks profile PII and allows user enumeration.
+app.get('/users/profile-by-email', requireServiceSecret, async (req, res) => {
   const email = req.query.email as string;
   if (!email) {
     return res.status(400).json({ error: 'Email parameter required' });
