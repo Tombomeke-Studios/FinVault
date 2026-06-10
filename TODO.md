@@ -4,11 +4,11 @@ Living checklist — keep this current while working. Newest work at the top.
 
 ## In progress — `feature/security-and-session`
 
-- [ ] Backend security: protect `/users/profile-by-email` with `X-Service-Secret` (currently public via gateway → user enumeration + PII leak)
-- [ ] Backend security: hash refresh tokens at rest (sha256), add `/auth/refresh` rotation + `/auth/logout` revocation
-- [ ] Backend security: generic login error message (stop leaking attempt count & account existence), bcrypt rounds 10 → 12
-- [ ] Backend security: warn on JWT fallback secret, configurable CORS origins, rate-limit map cleanup
-- [ ] Add root `.env.example` documenting all env vars
+- [x] Backend security: protect `/users/profile-by-email` with `X-Service-Secret` (was public via gateway → user enumeration + PII leak)
+- [x] Backend security: hash refresh tokens at rest (sha256), `/auth/refresh` rotation + `/auth/logout` revocation
+- [x] Backend security: generic login error message (no attempt-count / account-existence leak), bcrypt rounds 10 → 12
+- [x] Backend security: warn on JWT fallback secret, configurable CORS origins, rate-limit map cleanup
+- [x] Add root `.env.example` documenting all env vars
 - [ ] Mobile: persistent session (expo-secure-store) — auto-login on relaunch, refresh-token flow, server-side revoke on sign-out
 - [ ] Mobile: "Security activity" view in Settings (uses `/api/users/audit-logs`, mock fallback in demo mode)
 - [ ] Docs: `docs/architecture.md`, `docs/design-system.md`, `docs/security.md`

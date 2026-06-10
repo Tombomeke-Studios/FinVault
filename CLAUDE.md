@@ -51,11 +51,11 @@ Fintech banking demo: Expo mobile app + Vite web dashboard + Node microservices.
   card scheme fixes, analytics days-in-month fix (also web), Sparkline responsive width.
 
 **In progress — branch `feature/security-and-session`:**
-- [ ] Backend: lock down `/users/profile-by-email` (X-Service-Secret) — PII leak via gateway
-- [ ] Backend: hash refresh tokens at rest + `/auth/refresh` rotation + `/auth/logout` revocation
-- [ ] Backend: generic login error (no attempt count / user-existence leak), bcrypt 12
-- [ ] Backend: JWT fallback-secret warning, configurable CORS, rate-limit map cleanup
-- [ ] Root: `.env.example`
-- [ ] Mobile: persistent session via expo-secure-store (installed) + auto-login + refresh + revoke on logout
+- [x] Backend: lock down `/users/profile-by-email` (X-Service-Secret) — commit 28873aa
+- [x] Backend: hashed refresh tokens + `/auth/refresh` rotation + `/auth/logout` — b206134
+- [x] Backend: generic login error, bcrypt 12, cleanup intervals — d1c7fa5
+- [x] Backend: secret-fallback warnings (shared), gateway CORS allowlist — 974fdfb, 209dcd5
+- [x] Root: `.env.example` — 209dcd5
+- [ ] Mobile: persistent session via expo-secure-store (installed) + auto-login + refresh + revoke on logout  ← NEXT
 - [ ] Mobile: Security activity (audit log) view in Settings
 - [ ] Docs: `docs/` folder (architecture, design-system, security), keep TODO.md current
