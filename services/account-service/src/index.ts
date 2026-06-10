@@ -7,6 +7,7 @@ dotenv.config({ path: path.resolve(__dirname, '../../../.env') });
 import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
+import crypto from 'crypto';
 import { PrismaClient } from '../generated/prisma/index.js';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
@@ -16,6 +17,29 @@ const prisma = new PrismaClient();
 const app = express();
 const PORT = process.env.PORT || 8001;
 const JWT_SECRET = process.env.JWT_SECRET || 'finvault-super-secret-key-98765';
+const BCRYPT_ROUNDS = 12;
+
+// Refresh tokens are stored hashed — a database leak must not yield usable tokens.
+const hashToken = (token: string) => crypto.createHash('sha256').update(token).digest('hex');
+
+const REFRESH_TOKEN_DAYS = 7;
+
+async function issueTokenPair(user: { id: string; email: string; accountType: string }) {
+  const accessToken = jwt.sign(
+    { userId: user.id, email: user.email, accountType: user.accountType },
+    JWT_SECRET,
+    { expiresIn: '1h' }
+  );
+  const refreshToken = jwt.sign({ userId: user.id }, JWT_SECRET, { expiresIn: `${REFRESH_TOKEN_DAYS}d` });
+
+  const expiresAt = new Date();
+  expiresAt.setDate(expiresAt.getDate() + REFRESH_TOKEN_DAYS);
+  await prisma.refreshToken.create({
+    data: { userId: user.id, tokenHash: hashToken(refreshToken), expiresAt }
+  });
+
+  return { accessToken, refreshToken };
+}
 
 app.use(helmet());
 app.use(cors());
@@ -221,27 +245,7 @@ app.post('/auth/login', async (req, res) => {
     // Successful login: reset failed counter
     failedLoginAttemptsByEmail.delete(email);
 
-    const accessToken = jwt.sign(
-      { userId: user.id, email: user.email, accountType: user.accountType },
-      JWT_SECRET,
-      { expiresIn: '1h' }
-    );
-    const refreshToken = jwt.sign(
-      { userId: user.id },
-      JWT_SECRET,
-      { expiresIn: '7d' }
-    );
-
-    // Save refresh token
-    const expiresAt = new Date();
-    expiresAt.setDate(expiresAt.getDate() + 7);
-    await prisma.refreshToken.create({
-      data: {
-        userId: user.id,
-        tokenHash: refreshToken,
-        expiresAt
-      }
-    });
+    const { accessToken, refreshToken } = await issueTokenPair(user);
 
     await logAudit(user.id, 'User login successful', req);
 
@@ -258,6 +262,78 @@ app.post('/auth/login', async (req, res) => {
   } catch (error: any) {
     console.error('Login error:', error);
     res.status(500).json({ error: 'Login failed', message: error.message });
+  }
+});
+
+// Exchange a valid refresh token for a fresh token pair (rotation: the used
+// refresh token is revoked, so a stolen-and-replayed token is detectable).
+app.post('/auth/refresh', async (req, res) => {
+  const { refreshToken } = req.body || {};
+  if (!refreshToken || typeof refreshToken !== 'string') {
+    return res.status(400).json({ error: 'refreshToken is required' });
+  }
+
+  try {
+    let decoded: any;
+    try {
+      decoded = jwt.verify(refreshToken, JWT_SECRET);
+    } catch {
+      return res.status(401).json({ error: 'Invalid or expired refresh token' });
+    }
+
+    const stored = await prisma.refreshToken.findFirst({
+      where: {
+        tokenHash: hashToken(refreshToken),
+        userId: decoded.userId,
+        revoked: false,
+        expiresAt: { gt: new Date() }
+      }
+    });
+    if (!stored) {
+      // Token replay or already rotated — revoke everything for this user as a precaution.
+      await prisma.refreshToken.updateMany({ where: { userId: decoded.userId }, data: { revoked: true } });
+      await logAudit(decoded.userId, 'Refresh token reuse detected — all sessions revoked', req);
+      return res.status(401).json({ error: 'Refresh token no longer valid. Please sign in again.' });
+    }
+
+    const user = await prisma.user.findUnique({ where: { id: decoded.userId } });
+    if (!user || user.status === 'frozen') {
+      return res.status(403).json({ error: 'Account unavailable' });
+    }
+
+    await prisma.refreshToken.update({ where: { id: stored.id }, data: { revoked: true } });
+    const pair = await issueTokenPair(user);
+
+    await logAudit(user.id, 'Session refreshed (token rotation)', req);
+    res.status(200).json(pair);
+  } catch (error: any) {
+    console.error('Refresh error:', error);
+    res.status(500).json({ error: 'Token refresh failed' });
+  }
+});
+
+// Revoke the supplied refresh token (sign-out). Idempotent.
+app.post('/auth/logout', async (req, res) => {
+  const { refreshToken } = req.body || {};
+  if (!refreshToken || typeof refreshToken !== 'string') {
+    return res.status(400).json({ error: 'refreshToken is required' });
+  }
+
+  try {
+    const result = await prisma.refreshToken.updateMany({
+      where: { tokenHash: hashToken(refreshToken), revoked: false },
+      data: { revoked: true }
+    });
+    if (result.count > 0) {
+      try {
+        const decoded: any = jwt.decode(refreshToken);
+        if (decoded?.userId) await logAudit(decoded.userId, 'User signed out (refresh token revoked)', req);
+      } catch { /* audit best-effort */ }
+    }
+    res.status(204).end();
+  } catch (error: any) {
+    console.error('Logout error:', error);
+    res.status(500).json({ error: 'Logout failed' });
   }
 });
 
