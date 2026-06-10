@@ -9,10 +9,10 @@ Living checklist — keep this current while working. Newest work at the top.
 - [x] Backend security: generic login error message (no attempt-count / account-existence leak), bcrypt rounds 10 → 12
 - [x] Backend security: warn on JWT fallback secret, configurable CORS origins, rate-limit map cleanup
 - [x] Add root `.env.example` documenting all env vars
-- [ ] Mobile: persistent session (expo-secure-store) — auto-login on relaunch, refresh-token flow, server-side revoke on sign-out
-- [ ] Mobile: "Security activity" view in Settings (uses `/api/users/audit-logs`, mock fallback in demo mode)
-- [ ] Docs: `docs/architecture.md`, `docs/design-system.md`, `docs/security.md`
-- [ ] Web: adopt refresh-token flow (localStorage → consider httpOnly approach) — *stretch*
+- [x] Mobile: persistent session (expo-secure-store) — auto-login on relaunch, refresh-token flow, server-side revoke on sign-out
+- [x] Mobile: "Security activity" view in Settings (uses `/api/users/audit-logs`, mock fallback in demo mode)
+- [x] Docs: `docs/architecture.md`, `docs/design-system.md`, `docs/security.md`
+- [ ] Web: adopt refresh-token flow (localStorage → consider httpOnly approach) — *moved to backlog*
 
 ## Backlog / known gaps
 

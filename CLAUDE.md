@@ -56,6 +56,10 @@ Fintech banking demo: Expo mobile app + Vite web dashboard + Node microservices.
 - [x] Backend: generic login error, bcrypt 12, cleanup intervals — d1c7fa5
 - [x] Backend: secret-fallback warnings (shared), gateway CORS allowlist — 974fdfb, 209dcd5
 - [x] Root: `.env.example` — 209dcd5
-- [ ] Mobile: persistent session via expo-secure-store (installed) + auto-login + refresh + revoke on logout  ← NEXT
-- [ ] Mobile: Security activity (audit log) view in Settings
-- [ ] Docs: `docs/` folder (architecture, design-system, security), keep TODO.md current
+- [x] Mobile: persistent session (expo-secure-store, splash, refresh, revoke) — 91e4119
+- [x] Mobile: Security activity (audit log) view in Settings — 46d0da2
+- [x] Docs: `docs/architecture.md`, `docs/security.md`, `docs/design-system.md` — 29d5dc0
+
+**Branch status: complete.** Remaining ideas live in TODO.md → Backlog.
+Next session: consider web refresh-token flow, mobile per-wallet activity filter,
+or wiring "Request money" to the payment-request backend.
