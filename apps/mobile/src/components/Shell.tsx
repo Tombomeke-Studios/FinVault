@@ -140,11 +140,12 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingVertical: 6,
     flex: 1,
-    gap: 3,
+    gap: 4,
+    minHeight: 44,
   },
   navIconWrap: {
-    width: 40,
-    height: 28,
+    width: 48,
+    height: 30,
     borderRadius: THEME.radius.xl,
     justifyContent: 'center',
     alignItems: 'center',
@@ -154,7 +155,8 @@ const styles = StyleSheet.create({
   },
   navText: {
     fontSize: 11,
-    fontWeight: '600',
+    fontWeight: '700',
+    letterSpacing: 0.2,
   },
   floatingBtn: {
     width: 52,

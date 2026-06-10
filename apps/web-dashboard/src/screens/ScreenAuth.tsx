@@ -8,10 +8,11 @@ interface AuthProps {
   onRegister: (firstName: string, lastName: string, email: string, password: string) => Promise<void>;
   authError: string;
   authSuccess: string;
+  initialMode?: 'login' | 'register';
 }
 
-export function ScreenAuth({ compact, onLogin, onRegister, authError, authSuccess }: AuthProps) {
-  const [mode, setMode] = useState<'login' | 'register'>('login');
+export function ScreenAuth({ compact, onLogin, onRegister, authError, authSuccess, initialMode }: AuthProps) {
+  const [mode, setMode] = useState<'login' | 'register'>(initialMode ?? 'login');
   const [email, setEmail] = useState('admin@finvault.com');
   const [pw, setPw] = useState('');
   const [show, setShow] = useState(false);

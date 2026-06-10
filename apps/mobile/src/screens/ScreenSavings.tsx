@@ -417,17 +417,17 @@ export function ScreenSavings({ data, fire, goals, setGoals, wallets, setWallets
           </View>
 
           <Text style={styles.label}>Design Color</Text>
-          <View style={styles.colorChipsGrid}>
+          <View style={styles.colorSwatchRow}>
             {[12, 158, 230, 265, 320].map(h => (
               <TouchableOpacity
                 key={h}
-                style={[styles.colorChip, newHue === h && styles.colorChipActive]}
+                style={[
+                  styles.colorSwatch,
+                  { backgroundColor: `hsl(${h}, 70%, 55%)` },
+                  newHue === h && styles.colorSwatchActive,
+                ]}
                 onPress={() => setNewHue(h)}
-              >
-                <Text style={[styles.colorChipText, newHue === h && styles.colorChipTextActive]}>
-                  Hue {h}
-                </Text>
-              </TouchableOpacity>
+              />
             ))}
           </View>
 
@@ -475,9 +475,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 6,
     backgroundColor: THEME.colors.accent,
-    borderRadius: THEME.radius.xs,
-    paddingVertical: 7,
-    paddingHorizontal: 12,
+    borderRadius: THEME.radius.regular,
+    paddingVertical: 9,
+    paddingHorizontal: 14,
   },
   newGoalBtnText: {
     color: THEME.colors.onAccent,
@@ -492,13 +492,18 @@ const styles = StyleSheet.create({
     borderRadius: THEME.radius.lg,
     borderWidth: 1,
     borderColor: THEME.colors.line,
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 3,
   },
   goalCard: {
     padding: 16,
     gap: 12,
   },
   progressBg: {
-    height: 5,
+    height: 8,
     borderRadius: 99,
     backgroundColor: THEME.colors.surfaceHi,
     overflow: 'hidden',
@@ -644,33 +649,19 @@ const styles = StyleSheet.create({
     borderColor: THEME.colors.accent,
     backgroundColor: 'rgba(52, 211, 153, 0.12)',
   },
-  colorChipsGrid: {
+  colorSwatchRow: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
+    gap: 10,
   },
-  colorChip: {
+  colorSwatch: {
     flex: 1,
-    minWidth: '18%',
-    backgroundColor: THEME.colors.surface2,
-    borderWidth: 1,
-    borderColor: THEME.colors.line,
+    height: 44,
     borderRadius: THEME.radius.regular,
-    paddingVertical: 10,
-    alignItems: 'center',
+    borderWidth: 3,
+    borderColor: 'transparent',
   },
-  colorChipActive: {
-    borderColor: THEME.colors.accent,
-    backgroundColor: 'rgba(52, 211, 153, 0.12)',
-  },
-  colorChipText: {
-    color: THEME.colors.text2,
-    fontSize: 12.5,
-    fontWeight: '600',
-  },
-  colorChipTextActive: {
-    color: THEME.colors.accent,
-    fontWeight: 'bold',
+  colorSwatchActive: {
+    borderColor: THEME.colors.text,
   },
   submitBtn: {
     backgroundColor: THEME.colors.accent,

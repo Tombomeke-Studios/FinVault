@@ -10,6 +10,7 @@ import { ScreenAnalytics } from './screens/ScreenAnalytics';
 import { ScreenSavings } from './screens/ScreenSavings';
 import { ScreenSettings } from './screens/ScreenSettings';
 import { ScreenAccountDashboard } from './screens/ScreenAccountDashboard';
+import { ScreenLanding } from './screens/ScreenLanding';
 import { Sheet, money } from './components/UI';
 import { IOSDevice } from './components/IOSFrame';
 import { Icon } from './components/Icon';
@@ -517,11 +518,18 @@ export default function App() {
   // Auth redirects
   useEffect(() => {
     if (authLoading) return;
-    if (!token) {
-      if (location.pathname !== '/login') navigate('/login', { replace: true });
+    const PUBLIC_PATHS = ['/', '/login'];
+    if (!token || !rawUser) {
+      // Redirect protected routes to login, preserving the intended destination
+      if (!PUBLIC_PATHS.includes(location.pathname)) {
+        navigate('/login', { replace: true, state: { from: location.pathname } });
+      }
     } else if (rawUser) {
+      // After login, send user to their intended destination or the dashboard
       if (location.pathname === '/login' || location.pathname === '/') {
-        navigate('/dashboard', { replace: true });
+        const from = (location.state as any)?.from;
+        const dest = from && !PUBLIC_PATHS.includes(from) ? from : '/dashboard';
+        navigate(dest, { replace: true });
       }
     }
   }, [token, rawUser, authLoading, location.pathname]);
@@ -529,6 +537,7 @@ export default function App() {
   // --- Auth handlers ---
   const handleLogin = async (email: string, password: string) => {
     setAuthError(''); setAuthSuccess('');
+    const DEMO_EMAILS = ['admin@finvault.com', 'tom@finvault.com'];
     try {
       const res = await fetch('/api/auth/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email, password }) });
       const data = await res.json();
@@ -537,15 +546,17 @@ export default function App() {
         setToken(data.accessToken);
         setAuthSuccess('Welcome back!');
       } else {
-        setAuthError(data.error || 'Login failed.');
-        if (email === 'admin@finvault.com' || email === 'tom@finvault.com') {
-          localStorage.setItem('finvault_token', 'mock-token-abc');
-          setToken('mock-token-abc');
-        }
+        // API responded with an error — do not fall back to demo mode
+        setAuthError(data.error || 'Invalid email or password.');
       }
     } catch {
-      localStorage.setItem('finvault_token', 'mock-token-abc');
-      setToken('mock-token-abc');
+      // Backend unreachable — only grant demo access to known demo accounts
+      if (DEMO_EMAILS.includes(email.trim().toLowerCase())) {
+        localStorage.setItem('finvault_token', 'mock-token-abc');
+        setToken('mock-token-abc');
+      } else {
+        setAuthError('Server is unavailable. To explore the demo, use admin@finvault.com');
+      }
     }
   };
 
@@ -573,20 +584,29 @@ export default function App() {
 
   const handleTransfer = async (email: string, amount: number, desc: string, walletId: string) => {
     const wallet = wallets.find(w => w.id === walletId) || wallets[0];
-    if (!wallet) throw new Error('No wallet');
+    if (!wallet) throw new Error('No wallet found.');
+    if (amount <= 0) throw new Error('Amount must be greater than zero.');
+    if (amount > wallet.balance) {
+      fire('Insufficient funds', `Your ${wallet.name || 'account'} balance is ${money(wallet.balance, wallet.currency)}.`, 'warn');
+      return;
+    }
     try {
       const res = await fetch('/api/transactions/transfer', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify({ senderWalletId: walletId, receiverEmail: email, amount, description: desc }) });
       const data = await res.json();
       if (res.ok) { fetchWallets(); fetchTransactions(); }
       else throw new Error(data.error);
-    } catch {
-      const newBal = wallet.balance - amount;
-      setWallets(prev => prev.map(w => w.id === walletId ? { ...w, balance: newBal } : w));
+    } catch (err: any) {
+      if (err?.message && !err.message.includes('fetch')) {
+        fire('Transfer failed', err.message, 'warn');
+        return;
+      }
+      // Demo fallback — backend offline
+      setWallets(prev => prev.map(w => w.id === walletId ? { ...w, balance: w.balance - amount } : w));
       setTransactions(prev => [{
         id: Math.random().toString(), senderWalletId: walletId, receiverWalletId: null,
         amount, currency: wallet.currency, status: 'confirmed', type: 'transfer',
         description: desc, createdAt: new Date().toISOString(), reference: 'TX-' + Math.random().toString(36).slice(2,8).toUpperCase(),
-      }, ...prev]);
+      } as any, ...prev]);
     }
   };
 
@@ -765,8 +785,19 @@ export default function App() {
     return loader;
   }
 
-  // Auth gate — show login screen
+  // Auth gate
   if (!token || !rawUser) {
+    // Show the marketing landing page at root (desktop only — not inside the mobile frame)
+    if (location.pathname === '/' && !isMobileMode) {
+      return (
+        <ScreenLanding
+          onGetStarted={() => navigate('/login', { state: { register: true } })}
+          onLogin={() => navigate('/login')}
+        />
+      );
+    }
+
+    const initialMode: 'login' | 'register' = (location.state as any)?.register ? 'register' : 'login';
     const loginScreen = (
       <ScreenAuth
         compact={compact}
@@ -774,6 +805,7 @@ export default function App() {
         onRegister={handleRegister}
         authError={authError}
         authSuccess={authSuccess}
+        initialMode={initialMode}
       />
     );
     if (isMobileMode) {

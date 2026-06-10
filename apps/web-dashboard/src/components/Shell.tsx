@@ -247,7 +247,7 @@ export function Shell({ route, setRoute, compact, children, onLogout, fire, toas
       </aside>
       <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
         {TopBar}
-        <main style={{ flex: 1, padding: '28px clamp(20px, 3vw, 40px) 48px', maxWidth: 1180, width: '100%', margin: '0 auto' }} key={route}>{children}</main>
+        <main style={{ flex: 1, padding: '28px clamp(20px, 3vw, 40px) 48px', maxWidth: 1180, width: '100%', margin: '0 auto' }} key={route} className="page-enter">{children}</main>
       </div>
       {overlays}
     </div>

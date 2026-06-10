@@ -213,7 +213,7 @@ const styles = StyleSheet.create({
     gap: 4,
     paddingVertical: 4,
     paddingHorizontal: 8,
-    borderRadius: THEME.radius.xs,
+    borderRadius: THEME.radius.pill,
   },
   deltaText: {
     fontSize: 12,

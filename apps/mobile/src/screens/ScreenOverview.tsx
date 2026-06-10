@@ -292,12 +292,12 @@ const styles = StyleSheet.create({
   /* greeting */
   greeting: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end' },
   greetingLabel: { fontSize: 12, color: THEME.colors.text3, fontWeight: '600', letterSpacing: 0.3 },
-  greetingName: { fontSize: 26, fontWeight: 'bold', color: THEME.colors.text, marginTop: 2, letterSpacing: -0.5 },
+  greetingName: { fontSize: 30, fontWeight: 'bold', color: THEME.colors.text, marginTop: 2, letterSpacing: -0.6 },
   planBadge: { flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: THEME.colors.accentSoft, borderColor: THEME.colors.accentLine, borderWidth: 1, borderRadius: 99, paddingVertical: 4, paddingHorizontal: 10 },
   planText: { color: THEME.colors.accent, fontSize: 11, fontWeight: 'bold' },
 
   /* hero card */
-  heroCard: { backgroundColor: THEME.colors.surface, borderRadius: THEME.radius.xl, borderWidth: 1, borderColor: THEME.colors.line, padding: 20, gap: 16, overflow: 'hidden', position: 'relative' },
+  heroCard: { backgroundColor: THEME.colors.surface, borderRadius: THEME.radius.xl, borderWidth: 1, borderColor: THEME.colors.line, padding: 20, gap: 16, overflow: 'hidden', position: 'relative', elevation: 4, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.14, shadowRadius: 8 },
   heroGlow: { position: 'absolute', top: -60, right: -60, width: 200, height: 200, borderRadius: 100, backgroundColor: THEME.colors.accentSoft },
   heroTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
   heroLabel: { fontSize: 11, fontWeight: '700', textTransform: 'uppercase', color: THEME.colors.text3, letterSpacing: 1.2 },
@@ -312,16 +312,16 @@ const styles = StyleSheet.create({
   /* quick actions */
   quickRow: { flexDirection: 'row', backgroundColor: THEME.colors.surface, borderRadius: THEME.radius.xl, borderWidth: 1, borderColor: THEME.colors.line, padding: 8 },
   qaction: { flex: 1, alignItems: 'center', gap: 7, paddingVertical: 10 },
-  qactionIcon: { width: 52, height: 52, borderRadius: THEME.radius.xl, justifyContent: 'center', alignItems: 'center' },
+  qactionIcon: { width: 60, height: 60, borderRadius: THEME.radius.xl, justifyContent: 'center', alignItems: 'center' },
   qactionIconPrimary: { backgroundColor: THEME.colors.accent, shadowColor: THEME.colors.accent, shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.4, shadowRadius: 12, elevation: 8 },
   qactionIconGhost: { backgroundColor: THEME.colors.surface2, borderWidth: 1, borderColor: THEME.colors.line },
-  qactionLabel: { fontSize: 11, fontWeight: '600', color: THEME.colors.text2 },
+  qactionLabel: { fontSize: 12, fontWeight: '600', color: THEME.colors.text2, letterSpacing: 0.2 },
 
   /* accounts */
   section: { gap: 10 },
-  sectionTitle: { fontSize: 17, fontWeight: 'bold', color: THEME.colors.text },
+  sectionTitle: { fontSize: 17, fontWeight: 'bold', color: THEME.colors.text, letterSpacing: -0.3 },
   hScroll: { gap: 12, paddingRight: 16 },
-  accountCard: { width: 222, backgroundColor: THEME.colors.surface, borderWidth: 1, borderColor: THEME.colors.line, borderRadius: THEME.radius.lg, padding: 16, gap: 10, borderTopWidth: 3 },
+  accountCard: { width: 222, backgroundColor: THEME.colors.surface, borderWidth: 1, borderColor: THEME.colors.line, borderRadius: THEME.radius.lg, padding: 16, gap: 10, borderTopWidth: 3, elevation: 2, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.1, shadowRadius: 3 },
   accTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   accNameRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   accName: { fontSize: 13, fontWeight: '600', color: THEME.colors.text },
@@ -334,7 +334,7 @@ const styles = StyleSheet.create({
   apyText: { fontSize: 10, color: THEME.colors.accent, fontWeight: 'bold' },
 
   /* card */
-  card: { backgroundColor: THEME.colors.surface, borderRadius: THEME.radius.lg, borderWidth: 1, borderColor: THEME.colors.line, padding: 16, gap: 14 },
+  card: { backgroundColor: THEME.colors.surface, borderRadius: THEME.radius.lg, borderWidth: 1, borderColor: THEME.colors.line, padding: 16, gap: 14, elevation: 2, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.1, shadowRadius: 3 },
   cardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   seeAll: { fontSize: 13, color: THEME.colors.accent, fontWeight: 'bold' },
 
@@ -352,7 +352,7 @@ const styles = StyleSheet.create({
   catDot: { flexShrink: 0 },
   catName: { fontSize: 13, fontWeight: '600', color: THEME.colors.text2 },
   catAmt: { fontSize: 13, fontWeight: 'bold', color: THEME.colors.text },
-  progressBg: { height: 5, borderRadius: 99, backgroundColor: THEME.colors.surfaceHi, overflow: 'hidden' },
+  progressBg: { height: 8, borderRadius: 99, backgroundColor: THEME.colors.surfaceHi, overflow: 'hidden' },
   progressFill: { height: '100%', borderRadius: 99 },
 
   /* goals */

@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Platform } from 'react-native';
 import { Icon } from '../components/Icon';
 import { money, catColor, Donut, Bars, CategoryIcon, Delta } from '../components/UI';
 import { THEME } from '../theme';
@@ -195,15 +195,15 @@ const styles = StyleSheet.create({
   header: { paddingBottom: 4 },
   title: { fontSize: 24, fontWeight: 'bold', color: THEME.colors.text },
   subtitle: { fontSize: 13, color: THEME.colors.text3, marginTop: 2 },
-  card: { backgroundColor: THEME.colors.surface, borderRadius: THEME.radius.lg, borderWidth: 1, borderColor: THEME.colors.line },
+  card: { backgroundColor: THEME.colors.surface, borderRadius: THEME.radius.lg, borderWidth: 1, borderColor: THEME.colors.line, elevation: 2, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.1, shadowRadius: 3 },
   statsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
-  statCard: { flex: 1, flexBasis: '47%', padding: 14 },
+  statCard: { flex: 1, flexBasis: '47%', padding: 16 },
   statHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   statLabel: { fontSize: 11, fontWeight: 'bold', color: THEME.colors.text3, textTransform: 'uppercase', letterSpacing: 0.8 },
-  statValue: { fontSize: 20, fontWeight: 'bold', color: THEME.colors.text, marginTop: 8, fontFamily: 'monospace' },
+  statValue: { fontSize: 20, fontWeight: 'bold', color: THEME.colors.text, marginTop: 8, fontFamily: Platform.select({ ios: 'Menlo', android: 'monospace' }) },
   statSub: { fontSize: 11, color: THEME.colors.text3 },
   section: { padding: 16 },
-  sectionTitle: { fontSize: 16, fontWeight: 'bold', color: THEME.colors.text, marginBottom: 14 },
+  sectionTitle: { fontSize: 16, fontWeight: 'bold', color: THEME.colors.text, marginBottom: 14, letterSpacing: -0.2 },
   donutRow: { flexDirection: 'row', alignItems: 'center', gap: 16 },
   donutTotal: { fontSize: 16, fontWeight: 'bold', color: THEME.colors.text, textAlign: 'center' },
   donutSub: { fontSize: 10, color: THEME.colors.text3, textAlign: 'center' },

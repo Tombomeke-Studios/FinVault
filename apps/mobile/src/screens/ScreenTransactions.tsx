@@ -32,7 +32,12 @@ export function ScreenTransactions({ data, onExport }: TransactionsProps) {
   const monthOut = useMemo(() => filtered.filter(t => getDisplayAmt(t) < 0).reduce((s, t) => s + getDisplayAmt(t), 0), [filtered]);
 
   return (
-    <View style={styles.container}>
+    <ScrollView
+      style={styles.container}
+      contentContainerStyle={styles.outerContent}
+      showsVerticalScrollIndicator={false}
+      keyboardShouldPersistTaps="handled"
+    >
       {/* Header */}
       <View style={styles.header}>
         <View>
@@ -70,31 +75,28 @@ export function ScreenTransactions({ data, onExport }: TransactionsProps) {
         </View>
       </View>
 
-      {/* Categories slider */}
+      {/* Categories */}
       <View style={styles.categories}>
-        {['all', 'deposit', 'transfer'].map(c => (
+        {(['all', 'deposit', 'transfer'] as const).map(c => (
           <TouchableOpacity key={c} onPress={() => setCat(c)} style={[
             styles.catBtn,
-            cat === c ? styles.catBtnActive : null
+            cat === c ? styles.catBtnActive : null,
           ]}>
-            <Text style={[
-              styles.catText,
-              cat === c ? styles.catTextActive : null
-            ]}>
-              {c.toUpperCase()}
+            <Text style={[styles.catText, cat === c ? styles.catTextActive : null]}>
+              {c === 'all' ? 'All' : c === 'deposit' ? 'Deposits' : 'Transfers'}
             </Text>
           </TouchableOpacity>
         ))}
       </View>
 
       {/* Transactions list */}
-      <ScrollView contentContainerStyle={styles.list} showsVerticalScrollIndicator={false}>
+      <View style={styles.list}>
         {filtered.map(t => {
           const displayCat = t.type === 'deposit' ? 'deposit' : 'transfer';
           const amt = getDisplayAmt(t);
           return (
             <View key={t.id} style={[styles.card, styles.txCard]}>
-              <CategoryIcon cat={displayCat} size={36} />
+              <CategoryIcon cat={displayCat} size={40} />
               <View style={styles.txMeta}>
                 <Text style={styles.txDesc} numberOfLines={1}>{t.description}</Text>
                 <Text style={styles.txTime}>{relTime(new Date(t.createdAt).getTime())}</Text>
@@ -105,9 +107,14 @@ export function ScreenTransactions({ data, onExport }: TransactionsProps) {
             </View>
           );
         })}
-        {filtered.length === 0 && <Text style={styles.emptyText}>No matching transactions found.</Text>}
-      </ScrollView>
-    </View>
+        {filtered.length === 0 && (
+          <View style={styles.emptyState}>
+            <Icon name="search" size={32} color={THEME.colors.text3} />
+            <Text style={styles.emptyText}>No matching transactions found.</Text>
+          </View>
+        )}
+      </View>
+    </ScrollView>
   );
 }
 
@@ -116,11 +123,15 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: THEME.colors.bg,
   },
+  outerContent: {
+    paddingBottom: 88,
+  },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     padding: 16,
+    paddingBottom: 12,
   },
   title: {
     fontSize: 24,
@@ -153,6 +164,11 @@ const styles = StyleSheet.create({
     borderRadius: THEME.radius.regular,
     borderWidth: 1,
     borderColor: THEME.colors.line,
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 3,
   },
   summaryCard: {
     flex: 1,
@@ -166,7 +182,7 @@ const styles = StyleSheet.create({
     letterSpacing: 1,
   },
   sumVal: {
-    fontSize: 16,
+    fontSize: 18,
     fontWeight: 'bold',
     marginTop: 6,
   },
@@ -201,8 +217,8 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   catBtn: {
-    paddingVertical: 6,
-    paddingHorizontal: 12,
+    paddingVertical: 9,
+    paddingHorizontal: 18,
     borderRadius: THEME.radius.pill,
     backgroundColor: THEME.colors.surface,
     borderWidth: 1,
@@ -213,17 +229,17 @@ const styles = StyleSheet.create({
     borderColor: THEME.colors.accentLine,
   },
   catText: {
-    fontSize: 11,
-    fontWeight: 'bold',
+    fontSize: 13,
+    fontWeight: '600',
     color: THEME.colors.text3,
   },
   catTextActive: {
     color: THEME.colors.accent,
+    fontWeight: '700',
   },
   list: {
     paddingHorizontal: 16,
     gap: 8,
-    paddingBottom: 88,
   },
   txCard: {
     flexDirection: 'row',
@@ -248,10 +264,14 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: 'bold',
   },
+  emptyState: {
+    alignItems: 'center',
+    paddingVertical: 40,
+    gap: 12,
+  },
   emptyText: {
     color: THEME.colors.text3,
-    fontSize: 13,
+    fontSize: 14,
     textAlign: 'center',
-    paddingVertical: 24,
   },
 });
