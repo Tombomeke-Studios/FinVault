@@ -17,7 +17,26 @@ This file is **context + rules only** — all tasks and progress live in [TODO.m
 - Found a leftover Dutch string? Translate it as a small `fix(...)` cleanup commit when
   you're touching that area anyway.
 
-## 2. The iteration loop (follow for every unit of work)
+## 2. Branch strategy — three tiers
+
+```
+feature/<topic>  →  dev  →  staging  →  main
+```
+
+| Branch | Purpose | Who merges into it |
+|---|---|---|
+| `feature/<topic>` | Active development — one logical topic per branch | You, via PR |
+| `dev` | Integration — always CI-green, shared ground truth | PRs from feature branches |
+| `staging` | Production preparation — env hardening, migration dry-run, smoke tests | PR from `dev` once a milestone is complete |
+| `main` | Production — only ever updated from `staging` | PR from `staging` after sign-off |
+
+**Rules:**
+- A feature branch **never** targets `main` or `staging` directly.
+- `staging` only receives merges from `dev` — never individual feature branches.
+- `main` only receives merges from `staging` — never from `dev` or feature branches.
+- A red CI on `dev` is everyone's problem — fix it before opening new PRs.
+
+## 2a. The iteration loop (follow for every unit of work)
 
 A "unit" = one function, feature, fix, or refactor — the smallest shippable slice.
 
@@ -38,16 +57,23 @@ A "unit" = one function, feature, fix, or refactor — the smallest shippable sl
    progress so nothing is lost between sessions.
 9. Repeat 1–8 until the branch group is fully ticked.
 
-**Branch finish protocol** (after the last item):
+**Branch finish protocol** (after the last item on a feature branch):
 1. Mirror CI locally from the repo root: `npm run build && npm test` — both must pass.
-2. Push the final state and open a PR: summary per commit, what was tested, link the
-   relevant docs. Never open a PR with failing local checks.
+2. Push the final state and open a PR **targeting `dev`**: summary per commit, what was
+   tested, link the relevant docs. Never open a PR with failing local checks.
 3. CI is `.github/workflows/validate.yml` (install → prisma generate → shared build →
    workspace builds → `vitest run`) and runs on every PR. **A red PR is not done** —
    keep fixing (and pushing) on the branch until it's green.
-4. **Merge order for stacked branches:** merge child branches into their parent first,
-   then the parent into `main` — never skip a level.
-5. After merge: move the branch group in TODO.md to the Done section.
+4. After the feature PR merges into `dev` and CI is green: move the branch group in
+   TODO.md to the Done section.
+
+**Promoting `dev` → `staging` → `main`:**
+1. Open a PR `dev → staging` only when a full milestone is complete and `dev` CI is
+   green. Use the PR body to list: what changed, migrations needed, env var changes.
+2. On `staging`: verify `.env` values for production, run `npm run build && npm test`,
+   do a manual smoke test against a staging DB if available.
+3. Open a PR `staging → main` only after step 2 is fully signed off.
+4. After merging to `main`: tag the release (`git tag vX.Y.Z`) and push the tag.
 
 ## 3. Commit rules
 
