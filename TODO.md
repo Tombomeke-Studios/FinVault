@@ -34,6 +34,18 @@ Workflow rules live in [CLAUDE.md](CLAUDE.md#workflow-rules); short version:
 **Candidate group: `feature/mobile-theming`**
 - [ ] Mobile theming engine — Settings presets currently only fire a toast; app is dark-only
 
+**Candidate group: `feature/transfer-validation`**
+- [ ] Transfer screen (mobile + web): validate recipient field before proceeding to amount step
+  — accept IBAN, email, or name; show inline error if format is invalid or lookup returns nothing
+- [ ] Transfer screen: allow entering a **custom recipient name** instead of only hardcoded accounts;
+  the name field must be editable and passed through to the transaction description
+- [ ] Transfer to hardcoded demo accounts shows "succeeded" toast but no transaction is created
+  and nothing appears in logs — the backend call either silently swallows the error or the
+  route is not being hit; add server-side logging + return a proper error response so the
+  UI can surface it (both mobile and web)
+- [ ] After a successful transfer the sender wallet balance must update immediately (optimistic
+  update or re-fetch); currently the overview does not reflect the deduction
+
 **Smaller / unscheduled**
 - [ ] Backend: tests for `/auth/refresh` rotation + replay-revocation and `/auth/logout`
 - [ ] Card "limits & controls" toggles (contactless/foreign) are client-side only — add backend fields
@@ -41,6 +53,8 @@ Workflow rules live in [CLAUDE.md](CLAUDE.md#workflow-rules); short version:
 - [ ] Invoice service has no frontend surface yet
 - [ ] Virtualize mobile transaction list if data volumes grow
 - [ ] Rate limiting is per-instance in-memory — Redis when running replicas
+- [ ] RabbitMQ is Docker-only for local dev — run `docker run -d --name rabbitmq -p 5672:5672 rabbitmq:3`
+  then add `RABBITMQ_URL=amqp://guest:guest@localhost:5672` to `.env` to enable async events
 
 ## Done — UI/UX pass on `(ui/uix)-Rebase-of-UI` (2026-06-10, commit c522017)
 
