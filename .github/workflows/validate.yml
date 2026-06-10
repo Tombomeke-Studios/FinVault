@@ -3,8 +3,9 @@ name: Validate Codebase
 on:
   push:
     branches: [ main, master ]
+  # Validate every PR regardless of base branch — stacked feature branches
+  # (feature → parent → main) must each be green before merging.
   pull_request:
-    branches: [ main, master ]
 
 jobs:
   validate:
