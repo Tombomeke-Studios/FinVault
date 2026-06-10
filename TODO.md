@@ -1,23 +1,53 @@
-# FinVault Feedback Checklist (Voldaan)
+# FinVault TODO
 
-Hieronder zijn alle opgemerkte feedbackpunten van `TODO.md` succesvol opgelost:
+Living checklist — keep this current while working. Newest work at the top.
 
-- [x] **Total balance springt naar 0 bij refresh**: Opgelost door de `useCountUp` hook in [ScreenOverview.tsx](file:///C:/Users/sinkh/source/repos/tombomeke-studio/FinVault/apps/web-dashboard/src/screens/ScreenOverview.tsx) reactief te maken op veranderingen van de `target` balance, in plaats van slechts eenmalig te starten.
-- [x] **Admin account heeft slechts 1 wallet/account (moet checking + savings zijn)**: Opgelost door de database-creatie in [index.ts](file:///C:/Users/sinkh/source/repos/tombomeke-studio/FinVault/services/wallet-transaction-service/src/index.ts) bij dynamic RabbitMQ events, webhook events én in de `/wallets` self-healing route zo aan te passen dat er automatisch een `checking` én een `savings` wallet (met 2.5% APY) worden gecreëerd.
-- [x] **Alerts/Toasts vanonder zijn niet gecentreerd in de mobile frame**: Opgelost door in [UI.tsx](file:///C:/Users/sinkh/source/repos/tombomeke-studio/FinVault/apps/web-dashboard/src/components/UI.tsx) en [Shell.tsx](file:///C:/Users/sinkh/source/repos/tombomeke-studio/FinVault/apps/web-dashboard/src/components/Shell.tsx) de `embedded` prop door te geven aan `Toast`. Als de app in mobile simulator mode draait, wordt de toast nu met `position: absolute` en `bottom: 78` perfect gecentreerd binnen het apparaat-mockup getoond.
-- [x] **Edit en Delete iconen bij goals zijn raar/grid**: Opgelost door de ontbrekende `edit` en `trash` SVG paths toe te voegen aan de path registry in [Icon.tsx](file:///C:/Users/sinkh/source/repos/tombomeke-studio/FinVault/apps/web-dashboard/src/components/Icon.tsx).
-- [x] **Doelen verwijderen/wijzigen persist niet na refresh**: Opgelost door PUT en DELETE `/goals/:id` endpoints toe te voegen aan de [wallet-transaction-service](file:///C:/Users/sinkh/source/repos/tombomeke-studio/FinVault/services/wallet-transaction-service/src/index.ts) en de frontend in [ScreenSavings.tsx](file:///C:/Users/sinkh/source/repos/tombomeke-studio/FinVault/apps/web-dashboard/src/screens/ScreenSavings.tsx) hieraan te koppelen.
-- [x] **Weinig animatie**: Toegevoegd: een premium swiping carousel animatie op de homepage voor de bankkaarten, en geoptimaliseerde micro-interacties.
-- [x] **Loginpagina gebruikt logo-lockup nog niet**: Opgelost door de `FVLogo` component in [ScreenAuth.tsx](file:///C:/Users/sinkh/source/repos/tombomeke-studio/FinVault/apps/web-dashboard/src/screens/ScreenAuth.tsx) te importeren en te gebruiken voor zowel mobiele als desktop lay-outs.
-- [x] **Accounts lijst is niet klikbaar op de homepagina**: Opgelost door click handlers toe te voegen aan de account cards in [ScreenOverview.tsx](file:///C:/Users/sinkh/source/repos/tombomeke-studio/FinVault/apps/web-dashboard/src/screens/ScreenOverview.tsx) die navigeren naar respectievelijk de transactiepagina (checking) of de goals-pagina (savings).
-- [x] **Homepage bankkaarten swipen met de muis**: Opgelost door de custom `SwipeableCards` component toe te voegen aan [BankCard.tsx](file:///C:/Users/sinkh/source/repos/tombomeke-studio/FinVault/apps/web-dashboard/src/components/BankCard.tsx) en te gebruiken in [ScreenOverview.tsx](file:///C:/Users/sinkh/source/repos/tombomeke-studio/FinVault/apps/web-dashboard/src/screens/ScreenOverview.tsx). Dit maakt het mogelijk om met de muis (drag-and-swipe) of via touchscreen soepel tussen bankpassen te glijden.
-- [x] **Saving Goals op homepage is niet klikbaar**: Opgelost door click handlers toe te voegen aan de goals preview in [ScreenOverview.tsx](file:///C:/Users/sinkh/source/repos/tombomeke-studio/FinVault/apps/web-dashboard/src/screens/ScreenOverview.tsx) die navigeren naar de goals-pagina.
-- [x] **SPA Router & Auth**: Opgelost. De applicatie maakt al correct gebruik van React Router (met routebehoud bij browser refreshes) en dwingt JWT guards af via redirects in de root `App` component.
+## In progress — `feature/security-and-session`
 
-## Update: Kaart/Wallet Koppeling & Swipe Knoppen (Voldaan)
+- [ ] Backend security: protect `/users/profile-by-email` with `X-Service-Secret` (currently public via gateway → user enumeration + PII leak)
+- [ ] Backend security: hash refresh tokens at rest (sha256), add `/auth/refresh` rotation + `/auth/logout` revocation
+- [ ] Backend security: generic login error message (stop leaking attempt count & account existence), bcrypt rounds 10 → 12
+- [ ] Backend security: warn on JWT fallback secret, configurable CORS origins, rate-limit map cleanup
+- [ ] Add root `.env.example` documenting all env vars
+- [ ] Mobile: persistent session (expo-secure-store) — auto-login on relaunch, refresh-token flow, server-side revoke on sign-out
+- [ ] Mobile: "Security activity" view in Settings (uses `/api/users/audit-logs`, mock fallback in demo mode)
+- [ ] Docs: `docs/architecture.md`, `docs/design-system.md`, `docs/security.md`
+- [ ] Web: adopt refresh-token flow (localStorage → consider httpOnly approach) — *stretch*
 
-- [x] **Travel Multi-Currency account koppeling**: Opgelost. In de database-seeders en de `/wallets` self-healing logic is een derde wallet type `travel` ("Travel Multi-Currency" account) toegevoegd. De `Travel Multi-Currency` kaart in de database wordt nu via een self-healing check automatisch gekoppeld aan dit Travel account in plaats van aan het Everyday Checking account.
-- [x] **Per ongeluk klikken bij het swipen op de homepagina**: Opgelost. Klikken op de kaarten op de homepagina is uitgeschakeld om onbedoelde paginanavigatie bij het slepen/swipen te voorkomen.
-- [x] **Pijlknoppen voor homepage cards**: Toegevoegd. Er zijn nu duidelijke links- en rechts-pijlknoppen over de kaarten op de homepagina geplaatst, waarmee je eenvoudig en zonder te swijpen tussen de kaarten kunt wisselen. Navigatie naar het Cards tabblad verloopt nu uitsluitend via de grotere 'Manage'-knop rechtsboven.
-- [x] **Actief saldo per geselecteerde kaart**: Toegevoegd. Onder de kaarten-carousel op de homepagina wordt nu dynamisch de naam en het saldo getoond van de rekening die aan de op dat moment actieve kaart is gekoppeld. Dit reageert direct op swipen en het klikken op de pijlknoppen.
-- [x] **Transacties filteren per rekening**: Toegevoegd. Bij het klikken op een rekening op de homepagina wordt er nu doorverwezen naar de transactiepagina met een query-parameter (`?walletId=...`). De transactiepagina toont nu een duidelijke filter-banner en filtert de lijst tot uitsluitend de activiteit van die geselecteerde rekening, met een optie om het filter weer te wissen.
+## Backlog / known gaps
+
+- [ ] Mobile: theming engine — Settings presets only fire a toast today; mobile is dark-only (web has full `data-*` theming)
+- [ ] Mobile: transactions screen lacks per-wallet filter (web has `?walletId=` filter banner)
+- [ ] Mobile: "Request money" tab is simulated (fires toast only) — backend has payment-request (Tikkie) schemas
+- [ ] Mobile: virtualize transaction list if it grows (currently fine for demo volumes)
+- [ ] Card "limits & controls" toggles (contactless/foreign) are client-side only — no backend fields
+- [ ] Savings goal "due date" is free text — consider a date picker
+- [ ] Invoice service has no frontend surface yet
+
+## Done — UI/UX pass on `(ui/uix)-Rebase-of-UI` (2026-06-10, commit c522017)
+
+- [x] **money() corruption**: nl-NL `€ 4.000,00` was rendered as `€ 40,00` by `.replace('.00','')` call sites → `{ whole: true }` Intl option
+- [x] **Broken icons**: trend/target/clock/flame/gift/globe unmapped (rendered "?") → mapped, flame via MaterialCommunityIcons
+- [x] **Copy buttons** in card details now really copy (expo-clipboard)
+- [x] **Card schemes**: gold/accent offered but missing in BankCard → added
+- [x] Toast system replaces blocking Alert.alert for feedback (animated, auto-dismiss, a11y live region)
+- [x] MobileSheet: spring slide-up + fading scrim + drag-to-dismiss + KeyboardAvoidingView + inner ScrollView
+- [x] Motion.tsx: PressableScale / FadeSlideIn / AnimatedProgressBar, all Reduce-Motion aware; deduped SpringBtn copies
+- [x] Android hardware back → returns to Home instead of exiting
+- [x] Staggered entrances (Overview, Savings), animated card selection (Cards), animated progress fills
+- [x] Plan upgrade sheet: Dutch → English, ✓-text → check icons, white-on-emerald contrast fixed
+- [x] Settings: fake chevron rows → real Switch toggles; sign-out a11y
+- [x] Auth: autofill/textContentType, password show/hide a11y + hitSlop, submit spinner, card entrance animation
+- [x] Accounts carousel snap interval fixed (238 → 234); Sparkline measures container width
+- [x] Cash-flow "out" bars visible color; analytics days-left uses real month length (mobile + web)
+- [x] API URL via `EXPO_PUBLIC_API_URL`
+- [x] Card details auto-hide sensitive data when sheet closes
+- [x] Goals: empty state with CTA; 44px touch targets; disabled-state opacities everywhere
+
+## Done — earlier web feedback round (archived)
+
+All items from the original Dutch feedback checklist were completed previously:
+total-balance count-up fix, admin checking+savings wallets, centered toasts in mobile frame,
+edit/trash icon SVGs, goal persistence (PUT/DELETE endpoints), card swipe carousel with
+arrow buttons + active-card balance, clickable account cards & goals preview, logo lockup on
+login, SPA router with JWT guards, travel wallet linking, per-wallet transaction filtering.
