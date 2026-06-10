@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "prisma generate && tsx --env-file=../../.env watch src/index.ts",
+    "dev": "prisma generate && node --env-file=../../.env --import tsx --watch src/index.ts",
     "build": "prisma generate && tsc",
     "start": "node --env-file=../../.env dist/index.js",
     "db:push": "prisma db push"
