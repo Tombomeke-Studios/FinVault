@@ -52,6 +52,16 @@ const loginAttempts = new Map<string, { count: number; resetAt: number }>();
 const registerAttempts = new Map<string, { count: number; resetAt: number }>();
 const failedLoginAttemptsByEmail = new Map<string, number>();
 
+// Periodic cleanup so the in-memory rate-limit maps and the refresh-token
+// table don't grow without bound.
+setInterval(() => {
+  const now = Date.now();
+  for (const [k, v] of loginAttempts) if (now > v.resetAt) loginAttempts.delete(k);
+  for (const [k, v] of registerAttempts) if (now > v.resetAt) registerAttempts.delete(k);
+  prisma.refreshToken.deleteMany({ where: { expiresAt: { lt: new Date() } } })
+    .catch(err => console.error('Refresh-token cleanup failed:', err));
+}, 15 * 60 * 1000).unref();
+
 function checkRateLimit(
   ip: string,
   map: Map<string, { count: number; resetAt: number }>,
@@ -130,7 +140,7 @@ app.post('/auth/register', async (req, res) => {
       return res.status(400).json({ error: 'User with this email already exists' });
     }
 
-    const passwordHash = await bcrypt.hash(password, 10);
+    const passwordHash = await bcrypt.hash(password, BCRYPT_ROUNDS);
     const user = await prisma.user.create({
       data: {
         email,
@@ -237,9 +247,9 @@ app.post('/auth/login', async (req, res) => {
       }
 
       await logAudit(user.id, `Failed login attempt ${attempts}/10 for email: ${email}`, req);
-      return res.status(401).json({
-        error: `Invalid email or password. Attempt ${attempts} of 10 before your account is frozen.`
-      });
+      // Same generic message as the unknown-email path — the response must not
+      // reveal whether the account exists or how close it is to lockout.
+      return res.status(401).json({ error: 'Invalid email or password' });
     }
 
     // Successful login: reset failed counter
@@ -445,7 +455,7 @@ async function seedAccounts() {
     const adminEmail = 'admin@finvault.com';
     const existingAdmin = await prisma.user.findUnique({ where: { email: adminEmail } });
     if (!existingAdmin) {
-      const passwordHash = await bcrypt.hash('admin123', 10);
+      const passwordHash = await bcrypt.hash('admin123', BCRYPT_ROUNDS);
       const user = await prisma.user.create({
         data: {
           email: adminEmail,
@@ -480,7 +490,7 @@ async function seedAccounts() {
     const testEmail = 'test@finvault.com';
     const existingTest = await prisma.user.findUnique({ where: { email: testEmail } });
     if (!existingTest) {
-      const passwordHash = await bcrypt.hash('test123', 10);
+      const passwordHash = await bcrypt.hash('test123', BCRYPT_ROUNDS);
       const user = await prisma.user.create({
         data: {
           email: testEmail,
