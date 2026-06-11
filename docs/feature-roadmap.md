@@ -31,7 +31,7 @@ secondary · **P3** = differentiator/nice-to-have. Effort: S/M/L.
 | 2 | **Beneficiaries / saved payees** — every transfer re-enters recipient details | Core daily-payments UX; prerequisite for trusted-payee limits | P1 | M | #25 |
 | 3 | **Scheduled & recurring payments / standing orders** — no way to pay rent monthly | Core banking; needs backend model + due-date runner | P1 | L | #26 |
 | 4 | **Payment requests UI** — backend exists (invoice service), mobile tab is toast-only | Closes the loop on an already-built backend | P1 | M | #6 / #16 |
-| 5 | **Transaction search & filters** — no free-text search, date range, or amount filter | Expected on any activity feed | P2 | S | #27 |
+| 5 | **Transaction search & filters** — web has free-text search + type chips, but no date-range/amount filters; mobile has no search at all | Expected on any activity feed | P2 | S | #27 |
 | 6 | **Budgets & category limits** — insights are read-only; no monthly budget per category with alerts | Standard neo-bank feature, builds on existing category data | P2 | M | #28 |
 | 7 | **Direct debits / mandates UI** — mandates exist in invoice-service only | Visibility + cancel control is a PSD2 expectation | P2 | M | #29 |
 | 8 | **Security center** — change password, active sessions/device list with remote sign-out, real 2FA (TOTP) | Audit log exists; management actions are missing | P2 | M | #30 |
