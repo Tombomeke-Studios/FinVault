@@ -741,7 +741,7 @@ export default function App() {
       case 'overview':
         return <ScreenOverview navigate={setRoute} data={appData} onTopup={() => setDepositOpen(true)} />;
       case 'transactions':
-        return <ScreenTransactions data={appData} onExport={() => fire('Export ledger', 'Ledger CSV export completed.')} />;
+        return <ScreenTransactions data={appData} onExport={() => fire('Export complete', 'Your transactions CSV was shared.', 'success')} />;
       case 'transfer':
         return <ScreenTransfer data={appData} onTransfer={handleTransfer} onRequest={handleRequest} />;
       case 'cards':
