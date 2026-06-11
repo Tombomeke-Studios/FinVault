@@ -14,8 +14,8 @@ Workflow rules live in [CLAUDE.md](CLAUDE.md#workflow-rules); short version:
 
 - [x] Remove `close-linked-issues.yml` — default branch is `dev` now, GitHub
   auto-closes linked issues natively; CLAUDE.md §2/§2a + docs/ci-cd.md updated (#37)
-- [ ] `validate.yml` push trigger review: validate pushes to `dev` (the default and
-  integration tier) alongside `main` (#37)
+- [x] `validate.yml` push trigger review: validate pushes to `dev` (the default and
+  integration tier) alongside `main`; dropped never-existing `master` (#37)
 - [ ] Push, PR → `dev`, CI green, merge — the merge itself proves native auto-close
 
 ## Backlog — ungrouped (assign to a branch group when picked up)
