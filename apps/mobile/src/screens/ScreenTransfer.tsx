@@ -2,7 +2,10 @@ import React, { useState } from 'react';
 import { View, Text, StyleSheet, TextInput, TouchableOpacity, ScrollView } from 'react-native';
 import { Icon } from '../components/Icon';
 import { money } from '../components/UI';
+import QRCode from 'react-native-qrcode-svg';
 import { classifyRecipient, isEmail, normalizeIban } from '../lib/validate';
+import { buildEpcQr } from '../lib/epc';
+import { QrScanSheet } from '../components/QrScanSheet';
 import { THEME, themedSheet } from '../theme';
 import type { AppData, Beneficiary } from '../../App';
 
@@ -22,6 +25,7 @@ export function ScreenTransfer({ data, beneficiaries, onTransfer, onRequest }: T
   const [selWallet, setSelWallet] = useState(data.wallets[0]?.id || '');
   const [loading, setLoading] = useState(false);
   const [formError, setFormError] = useState('');
+  const [scanOpen, setScanOpen] = useState(false);
 
   const activeWallet = data.wallets.find(w => w.id === selWallet) || data.wallets[0];
 
@@ -138,6 +142,19 @@ export function ScreenTransfer({ data, beneficiaries, onTransfer, onRequest }: T
           </View>
         )}
 
+        {/* Scan to pay (#43) */}
+        {mode === 'send' && (
+          <TouchableOpacity
+            onPress={() => setScanOpen(true)}
+            accessibilityRole="button"
+            accessibilityLabel="Scan a payment QR code"
+            style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 12, borderRadius: THEME.radius.regular, backgroundColor: THEME.colors.accentSoft, borderWidth: 1, borderColor: THEME.colors.accentLine }}
+          >
+            <Icon name="card" size={16} color={THEME.colors.accent} />
+            <Text style={{ color: THEME.colors.accent, fontWeight: '700', fontSize: 14 }}>Scan QR to pay</Text>
+          </TouchableOpacity>
+        )}
+
         {/* Recipient */}
         <View>
           <Text style={styles.label}>{mode === 'send' ? 'Recipient email or IBAN' : 'Payer email'}</Text>
@@ -204,6 +221,27 @@ export function ScreenTransfer({ data, beneficiaries, onTransfer, onRequest }: T
           </View>
         )}
 
+        {/* Receive via QR (#43): EPC code others can scan to pay you */}
+        {mode === 'request' && data.wallets[0] && (
+          <View style={{ alignItems: 'center', gap: 10, paddingVertical: 6 }}>
+            <Text style={styles.label}>Or let them scan your QR</Text>
+            <View style={{ backgroundColor: '#ffffff', padding: 14, borderRadius: THEME.radius.lg }}>
+              <QRCode
+                size={170}
+                value={buildEpcQr({
+                  name: `${data.user.firstName} ${data.user.lastName}`,
+                  iban: data.wallets[0].iban,
+                  amount: parseFloat(amt) > 0 ? parseFloat(amt) : undefined,
+                  description: desc || undefined,
+                })}
+              />
+            </View>
+            <Text style={{ color: THEME.colors.text3, fontSize: 12, textAlign: 'center' }}>
+              SEPA QR for {data.wallets[0].iban}{parseFloat(amt) > 0 ? ` · ${money(parseFloat(amt))}` : ''}
+            </Text>
+          </View>
+        )}
+
         {/* Submit button */}
         <TouchableOpacity
           style={[styles.submitBtn, loading && { opacity: 0.7 }]}
@@ -218,6 +256,20 @@ export function ScreenTransfer({ data, beneficiaries, onTransfer, onRequest }: T
           </Text>
         </TouchableOpacity>
       </View>
+
+      <QrScanSheet
+        open={scanOpen}
+        onClose={() => setScanOpen(false)}
+        onScanned={p => {
+          // Prefill the whole form from the scanned EPC payload (#43); the
+          // transfer itself rides the receiverIban path.
+          setRecipient(p.iban);
+          setRecipientName(p.name);
+          if (p.amount) setAmt(String(p.amount));
+          if (p.description) setDesc(p.description);
+          setFormError('');
+        }}
+      />
     </ScrollView>
   );
 }
