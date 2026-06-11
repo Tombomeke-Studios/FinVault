@@ -43,6 +43,12 @@
   --accent-lo: oklch(calc(var(--accent-l) - 0.08) var(--accent-c) var(--accent-h));
   --accent-soft: oklch(var(--accent-l) var(--accent-c) var(--accent-h) / 0.13);
   --accent-line: oklch(var(--accent-l) var(--accent-c) var(--accent-h) / 0.32);
+  /* accent as *text* on app surfaces — light mode darkens it (see §2) */
+  --accent-ink: var(--accent);
+
+  /* category hue colors (Avatar/CategoryIcon/charts) — per-mode lightness */
+  --cat-l: 0.68;
+  --cat-soft-a: 0.16;
 
   /* semantic money colors */
   --pos: oklch(0.72 0.15 158);
@@ -91,6 +97,14 @@
   --pos: oklch(0.58 0.15 158);
   --neg: oklch(0.56 0.20 22);
   --warn: oklch(0.70 0.15 70);
+  /* Light accents (notably amber, l=0.74) are too pale on a light canvas:
+     clamp fill lightness and derive a darker ink for accent-colored text. */
+  --accent: oklch(min(var(--accent-l), 0.66) var(--accent-c) var(--accent-h));
+  --accent-hi: oklch(calc(min(var(--accent-l), 0.66) + 0.08) var(--accent-c) var(--accent-h));
+  --accent-lo: oklch(calc(min(var(--accent-l), 0.66) - 0.08) var(--accent-c) var(--accent-h));
+  --accent-ink: oklch(min(calc(var(--accent-l) - 0.14), 0.52) var(--accent-c) var(--accent-h));
+  --cat-l: 0.54;
+  --cat-soft-a: 0.12;
   color-scheme: light;
 }
 
@@ -220,7 +234,7 @@ a:focus-visible, button:focus-visible, [tabindex]:focus-visible { outline: 2px s
   background: var(--surface-2); color: var(--text-2);
   border: 1px solid var(--line);
 }
-.chip-accent { background: var(--accent-soft); color: var(--accent); border-color: var(--accent-line); }
+.chip-accent { background: var(--accent-soft); color: var(--accent-ink); border-color: var(--accent-line); }
 
 .eyebrow { font-size: 0.72rem; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase; color: var(--text-3); }
 
@@ -266,7 +280,7 @@ a:focus-visible, button:focus-visible, [tabindex]:focus-visible { outline: 2px s
   border-left: 3px solid transparent;
 }
 .nav-item.active {
-  background: var(--accent-soft); color: var(--accent);
+  background: var(--accent-soft); color: var(--accent-ink);
   border-left-color: var(--accent);
 }
 .nav-item:not(.active):hover { background: var(--surface-2); color: var(--text); }
