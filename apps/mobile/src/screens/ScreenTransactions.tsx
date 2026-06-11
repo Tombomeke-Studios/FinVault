@@ -1,7 +1,8 @@
 import React, { useState, useMemo } from 'react';
-import { View, Text, StyleSheet, TextInput, ScrollView, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, TextInput, ScrollView, TouchableOpacity, Share } from 'react-native';
 import { Icon } from '../components/Icon';
 import { money, CategoryIcon, relTime } from '../components/UI';
+import { buildTransactionsCsv, exportFileName } from '../lib/csv';
 import { THEME, themedSheet } from '../theme';
 import type { AppData } from '../../App';
 
@@ -31,6 +32,22 @@ export function ScreenTransactions({ data, onExport }: TransactionsProps) {
   const monthIn = useMemo(() => filtered.filter(t => getDisplayAmt(t) > 0).reduce((s, t) => s + getDisplayAmt(t), 0), [filtered]);
   const monthOut = useMemo(() => filtered.filter(t => getDisplayAmt(t) < 0).reduce((s, t) => s + getDisplayAmt(t), 0), [filtered]);
 
+  // Shares exactly what the current filters show via the native share sheet (#24).
+  const exportCsv = async () => {
+    const csv = buildTransactionsCsv(filtered.map(t => ({
+      date: new Date(t.createdAt).toISOString(),
+      description: t.description || 'Transaction',
+      category: t.type === 'deposit' ? 'deposit' : 'transfer',
+      status: t.status,
+      amount: getDisplayAmt(t),
+      currency: t.currency || 'EUR',
+    })));
+    try {
+      const result = await Share.share({ title: exportFileName(), message: csv });
+      if (result.action !== Share.dismissedAction) onExport();
+    } catch { /* share sheet unavailable — stay silent */ }
+  };
+
   return (
     <ScrollView
       style={styles.container}
@@ -46,7 +63,8 @@ export function ScreenTransactions({ data, onExport }: TransactionsProps) {
         </View>
         <TouchableOpacity
           style={styles.exportBtn}
-          onPress={onExport}
+          onPress={exportCsv}
+          disabled={filtered.length === 0}
           hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
           accessibilityRole="button"
           accessibilityLabel="Export transactions"

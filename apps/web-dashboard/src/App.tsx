@@ -675,7 +675,7 @@ export default function App() {
       case 'overview':
         return <ScreenOverview compact={compact} navigate={setRoute} data={appData} onTopup={() => setDepositOpen(true)} />;
       case 'transactions':
-        return <ScreenTransactions compact={compact} data={appData} onExport={() => fire('Export', 'CSV download will start shortly.', 'info')} />;
+        return <ScreenTransactions compact={compact} data={appData} onExport={() => fire('Export complete', 'Your CSV download has started.', 'success')} />;
       case 'transfer':
         return <ScreenTransfer compact={compact} navigate={setRoute} fire={fire} data={appData} onTransfer={handleTransfer} onRequest={handleRequest} />;
       case 'cards':
