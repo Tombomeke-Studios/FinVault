@@ -38,6 +38,8 @@ export const PRESETS: Record<string, ThemeConfig> = {
   Aurora:   { mode: 'dark',  accent: 'violet',  font: 'bricolage', radius: 'round', density: 'comfy',   card: 'glass' },
   Carbon:   { mode: 'dark',  accent: 'azure',   font: 'mono',      radius: 'sharp', density: 'compact', card: 'outline' },
   Sand:     { mode: 'light', accent: 'amber',   font: 'editorial', radius: 'round', density: 'comfy',   card: 'elevated' },
+  Midnight: { mode: 'dark',  accent: 'rose',    font: 'grotesk',   radius: 'round', density: 'regular', card: 'glass' },
+  Mint:     { mode: 'light', accent: 'emerald', font: 'grotesk',   radius: 'soft',  density: 'regular', card: 'elevated' },
 };
 
 export const DEFAULT_THEME: ThemeConfig = PRESETS.Vault;

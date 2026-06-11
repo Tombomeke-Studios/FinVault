@@ -72,7 +72,7 @@ export function ScreenSettings({ compact, theme, setTheme, fire, openUpgrade, on
       <SCard title="Appearance">
         <div style={{ padding: '4px 4px 12px' }}>
           <div style={{ fontWeight: 600, fontSize: '0.92rem', marginBottom: 10 }}>Theme preset</div>
-          <div style={{ display: 'grid', gridTemplateColumns: compact ? '1fr 1fr' : 'repeat(5, 1fr)', gap: 8 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: compact ? '1fr 1fr' : 'repeat(auto-fill, minmax(108px, 1fr))', gap: 8 }}>
             {Object.entries(PRESETS).map(([name, p]) => {
               const a = ACCENTS[p.accent];
               const isActive = activePreset && activePreset[0] === name;
