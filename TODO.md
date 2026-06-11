@@ -4,6 +4,8 @@ Single source of truth for all tasks and progress (CLAUDE.md contains **no** to-
 Workflow rules live in [CLAUDE.md](CLAUDE.md#workflow-rules); short version:
 
 - Tasks are **grouped per branch**. Pick a group, work it top to bottom.
+- Every actionable item has a **GitHub issue ref** `(#N)` — created at the latest when
+  its group is promoted from the backlog (CLAUDE.md §2a). PRs close them via `Closes #N`.
 - **Definition of done per item:** code + one small commit + docs updated + tests
   written + this file ticked. Only then start the next item.
 - **Branch group complete → push → PR → CI green** (`validate.yml`). Red PR ≠ done.
