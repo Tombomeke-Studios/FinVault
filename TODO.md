@@ -10,15 +10,19 @@ Workflow rules live in [CLAUDE.md](CLAUDE.md#workflow-rules); short version:
   written + this file ticked. Only then start the next item.
 - **Branch group complete → push → PR → CI green** (`validate.yml`). Red PR ≠ done.
 
-## Branch: `feature/statements-export` — active (#24)
+## Branch: `feature/repo-hygiene` — active
 
-- [x] Web: real CSV export from the Activity screen (replaces the fake toast),
-  pure builder in `src/lib/csv.ts` + 5 unit tests (#24)
-- [x] Mobile: share the same CSV via the native share sheet (mirrored
-  `src/lib/csv.ts` + tests, no new deps) (#24)
+- [x] Delete the five merged feature branches (remote + local); enable the repo
+  setting *Automatically delete head branches*
+- [x] CLAUDE.md §2a: trigger table (TODO item → issue, PR → `Closes #N`, merge →
+  verify/prune), open-issues-are-backlog rule, default-branch context for #37
 - [ ] Push, PR → `dev`, CI green, merge
 
 ## Backlog — ungrouped (assign to a branch group when picked up)
+
+**Workflow / CI**
+- [ ] Remove `close-linked-issues.yml` + update docs once the default branch is
+  switched to `dev` — native auto-close takes over (#37)
 
 **Roadmap gaps (see [docs/feature-roadmap.md](docs/feature-roadmap.md) for prio/effort)**
 - [ ] Beneficiaries: saved payees + picker in transfer flows (#25)
@@ -64,6 +68,11 @@ Workflow rules live in [CLAUDE.md](CLAUDE.md#workflow-rules); short version:
 **Dev-environment note (not a task):** RabbitMQ is Docker-only for local dev — run
 `docker run -d --name rabbitmq -p 5672:5672 rabbitmq:3` then add
 `RABBITMQ_URL=amqp://guest:guest@localhost:5672` to `.env` to enable async events.
+
+## Done — `feature/statements-export` (merged into `dev` via PR #36, issue #24 auto-closed, 2026-06-11)
+
+- [x] Web: real CSV download from the Activity screen (filtered rows, UTF-8 BOM, 5 unit tests)
+- [x] Mobile: same CSV via the native share sheet (mirrored lib + tests, no new deps)
 
 ## Done — `feature/banking-roadmap` (merged into `dev` via PR #35, issue #20 auto-closed, 2026-06-11)
 
