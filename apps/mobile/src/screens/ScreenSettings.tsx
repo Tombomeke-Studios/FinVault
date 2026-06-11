@@ -3,7 +3,7 @@ import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Switch, ActivityI
 import { Icon } from '../components/Icon';
 import { Avatar, relTime } from '../components/UI';
 import { MobileSheet } from '../components/MobileExtras';
-import { THEME } from '../theme';
+import { THEME, themedSheet, ACCENTS } from '../theme';
 import type { AppData, ThemeConfig } from '../../App';
 
 interface SettingsProps {
@@ -42,12 +42,16 @@ function auditIcon(action: string): { icon: string; color: string } {
   return { icon: 'shield', color: THEME.colors.text2 };
 }
 
+// Mirrors the web PRESETS in apps/web-dashboard/src/theme.ts — mobile applies
+// mode + accent; the other axes are reserved for future parity.
 const PRESETS: Record<string, ThemeConfig> = {
   Vault:    { mode: 'dark',  accent: 'emerald', font: 'grotesk',   radius: 'soft',  density: 'regular', card: 'elevated' },
   Daylight: { mode: 'light', accent: 'indigo',  font: 'grotesk',   radius: 'soft',  density: 'regular', card: 'outline' },
   Aurora:   { mode: 'dark',  accent: 'violet',  font: 'bricolage', radius: 'round', density: 'comfy',   card: 'glass' },
   Carbon:   { mode: 'dark',  accent: 'azure',   font: 'mono',      radius: 'sharp', density: 'compact', card: 'outline' },
   Sand:     { mode: 'light', accent: 'amber',   font: 'editorial', radius: 'round', density: 'comfy',   card: 'elevated' },
+  Midnight: { mode: 'dark',  accent: 'rose',    font: 'grotesk',   radius: 'round', density: 'regular', card: 'glass' },
+  Mint:     { mode: 'light', accent: 'emerald', font: 'grotesk',   radius: 'soft',  density: 'regular', card: 'elevated' },
 };
 
 export function ScreenSettings({ data, theme, setTheme, onLogout, fire, openUpgrade, token, apiUrl }: SettingsProps) {
@@ -123,9 +127,48 @@ export function ScreenSettings({ data, theme, setTheme, onLogout, fire, openUpgr
                 active ? styles.presetActive : null
               ]}>
                 <View style={[styles.presetSwatch, { backgroundColor: p.mode === 'dark' ? '#1f1f28' : '#fff' }]}>
-                  <View style={[styles.presetIndicator, { backgroundColor: p.accent === 'emerald' ? '#10b981' : p.accent === 'indigo' ? '#6366f1' : p.accent === 'violet' ? '#8b5cf6' : p.accent === 'azure' ? '#06b6d4' : '#f59e0b' }]} />
+                  <View style={[styles.presetIndicator, { backgroundColor: (ACCENTS[p.accent] || ACCENTS.emerald)[p.mode === 'light' ? 'light' : 'dark'] }]} />
                 </View>
                 <Text style={[styles.presetText, active ? styles.presetTextActive : null]}>{name}</Text>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+      </View>
+
+      {/* Appearance: mode + accent */}
+      <View style={[styles.card, styles.sectionCard]}>
+        <Text style={styles.sectionTitle}>Appearance</Text>
+        <View style={{ flexDirection: 'row', gap: 8, marginBottom: 14 }}>
+          {(['dark', 'light'] as const).map(m => {
+            const active = theme.mode === m;
+            return (
+              <TouchableOpacity
+                key={m}
+                onPress={() => setTheme({ ...theme, mode: m })}
+                accessibilityRole="button"
+                accessibilityState={{ selected: active }}
+                style={{ flex: 1, paddingVertical: 11, borderRadius: THEME.radius.regular, alignItems: 'center', backgroundColor: active ? THEME.colors.accentSoft : THEME.colors.surface2, borderWidth: 1, borderColor: active ? THEME.colors.accentLine : THEME.colors.line }}
+              >
+                <Text style={{ color: active ? THEME.colors.accent : THEME.colors.text2, fontWeight: '700', fontSize: 13, textTransform: 'capitalize' }}>{m}</Text>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+        <View style={{ flexDirection: 'row', gap: 10, flexWrap: 'wrap' }}>
+          {Object.entries(ACCENTS).map(([name, a]) => {
+            const active = theme.accent === name;
+            const hex = a[theme.mode === 'light' ? 'light' : 'dark'];
+            return (
+              <TouchableOpacity
+                key={name}
+                onPress={() => setTheme({ ...theme, accent: name })}
+                hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+                accessibilityLabel={`${name} accent`}
+                accessibilityState={{ selected: active }}
+                style={{ width: 34, height: 34, borderRadius: 17, backgroundColor: hex, alignItems: 'center', justifyContent: 'center', borderWidth: active ? 2 : 0, borderColor: THEME.colors.text }}
+              >
+                {active && <Icon name="check" size={15} color={theme.mode === 'light' ? '#ffffff' : '#0a0a0f'} />}
               </TouchableOpacity>
             );
           })}
@@ -228,7 +271,7 @@ export function ScreenSettings({ data, theme, setTheme, onLogout, fire, openUpgr
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedSheet(() => StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: THEME.colors.bg,
@@ -435,4 +478,4 @@ const styles = StyleSheet.create({
     color: THEME.colors.text3,
     marginTop: 2,
   },
-});
+}));

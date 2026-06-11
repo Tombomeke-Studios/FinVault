@@ -15,7 +15,7 @@ import { MobileSheet } from './src/components/MobileExtras';
 import { ToastHost, useToasts } from './src/components/Toast';
 import { Icon } from './src/components/Icon';
 import { saveSession, loadSession, clearSession, tryRefreshSession, revokeSession } from './src/session';
-import { THEME } from './src/theme';
+import { THEME, themedSheet, setAppTheme, persistThemeConfig, loadPersistedThemeConfig } from './src/theme';
 
 export interface ThemeConfig {
   mode: 'dark' | 'light';
@@ -264,7 +264,7 @@ function UpgradePlanSheet({ open, onClose, currentPlan, onUpgrade }: { open: boo
   );
 }
 
-const upgStyles = StyleSheet.create({
+const upgStyles = themedSheet(() => StyleSheet.create({
   planCard: {
     backgroundColor: THEME.colors.surface2,
     borderWidth: 1,
@@ -288,7 +288,7 @@ const upgStyles = StyleSheet.create({
   confirmBtnMuted: { backgroundColor: THEME.colors.surface2, borderWidth: 1, borderColor: THEME.colors.line },
   confirmTxt: { fontSize: 15, fontWeight: 'bold', color: THEME.colors.onAccent },
   confirmTxtMuted: { color: THEME.colors.text2 },
-});
+}));
 
 export default function App() {
   // --- Auth State ---
@@ -337,6 +337,24 @@ export default function App() {
   const [theme, setTheme] = useState<ThemeConfig>({
     mode: 'dark', accent: 'emerald', font: 'grotesk', radius: 'soft', density: 'regular', card: 'elevated'
   });
+
+  // Apply the palette mutation *before* the state update so the very next
+  // render (and the themedSheet rebuilds) already see the new colors.
+  const applyAndSetTheme = useCallback((t: ThemeConfig) => {
+    setAppTheme({ mode: t.mode, accent: t.accent });
+    persistThemeConfig(t as any);
+    setTheme(t);
+  }, []);
+
+  // Restore the persisted theme on boot.
+  useEffect(() => {
+    loadPersistedThemeConfig<ThemeConfig>().then(cfg => {
+      if (cfg) {
+        setAppTheme({ mode: cfg.mode, accent: cfg.accent });
+        setTheme(prev => ({ ...prev, ...cfg }));
+      }
+    });
+  }, []);
 
   // Non-blocking toast feedback (Alert is reserved for destructive confirms).
   const { toasts, fire, dismiss } = useToasts();
@@ -733,15 +751,17 @@ export default function App() {
       case 'savings':
         return <ScreenSavings data={appData} fire={fire} goals={goals} setGoals={setGoals} wallets={wallets} setWallets={setWallets} setTransactions={setTransactions} token={token} apiUrl={API_URL} />;
       case 'settings':
-        return <ScreenSettings data={appData} theme={theme} setTheme={setTheme} onLogout={handleLogout} fire={fire} openUpgrade={() => setUpgradeOpen(true)} token={token} apiUrl={API_URL} />;
+        return <ScreenSettings data={appData} theme={theme} setTheme={applyAndSetTheme} onLogout={handleLogout} fire={fire} openUpgrade={() => setUpgradeOpen(true)} token={token} apiUrl={API_URL} />;
       default:
         return <ScreenOverview navigate={setRoute} data={appData} onTopup={() => setDepositOpen(true)} />;
     }
   };
 
   return (
-    <SafeAreaView style={styles.container}>
-      <StatusBar barStyle="light-content" />
+    // Key forces a clean remount on theme switch so every component re-reads
+    // the mutated THEME object (inline styles + themedSheet proxies).
+    <SafeAreaView key={`${theme.mode}-${theme.accent}`} style={styles.container}>
+      <StatusBar barStyle={THEME.statusBarStyle} backgroundColor={THEME.colors.bg} />
 
       {/* Session restore splash, Auth screen, or Main application shell */}
       {restoring ? (
@@ -846,7 +866,7 @@ export default function App() {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedSheet(() => StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: THEME.colors.bg,
@@ -927,4 +947,4 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: 'bold',
   },
-});
+}));

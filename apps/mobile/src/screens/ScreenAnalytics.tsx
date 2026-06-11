@@ -2,7 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Platform } from 'react-native';
 import { Icon } from '../components/Icon';
 import { money, catColor, Donut, Bars, CategoryIcon, Delta } from '../components/UI';
-import { THEME } from '../theme';
+import { THEME, themedSheet } from '../theme';
 import type { AppData } from '../../App';
 
 interface AnalyticsProps {
@@ -193,7 +193,7 @@ export function ScreenAnalytics({ data }: AnalyticsProps) {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedSheet(() => StyleSheet.create({
   container: { flex: 1, backgroundColor: THEME.colors.bg },
   content: { padding: 16, gap: 16, paddingBottom: 88 },
   header: { paddingBottom: 4 },
@@ -232,4 +232,4 @@ const styles = StyleSheet.create({
   merchantRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 10, borderTopWidth: 1, borderTopColor: THEME.colors.line },
   merchantName: { flex: 1, fontSize: 14, fontWeight: '600', color: THEME.colors.text },
   merchantAmt: { fontSize: 14, fontWeight: 'bold', color: THEME.colors.text, fontFamily: 'monospace' },
-});
+}));

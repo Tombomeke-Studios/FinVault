@@ -2,7 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { View, Text, StyleSheet, TextInput, ScrollView, TouchableOpacity } from 'react-native';
 import { Icon } from '../components/Icon';
 import { money, CategoryIcon, relTime } from '../components/UI';
-import { THEME } from '../theme';
+import { THEME, themedSheet } from '../theme';
 import type { AppData } from '../../App';
 
 interface TransactionsProps {
@@ -127,7 +127,7 @@ export function ScreenTransactions({ data, onExport }: TransactionsProps) {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedSheet(() => StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: THEME.colors.bg,
@@ -283,4 +283,4 @@ const styles = StyleSheet.create({
     fontSize: 14,
     textAlign: 'center',
   },
-});
+}));

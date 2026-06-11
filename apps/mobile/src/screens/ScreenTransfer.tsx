@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { View, Text, StyleSheet, TextInput, TouchableOpacity, ScrollView, Alert } from 'react-native';
 import { Icon } from '../components/Icon';
 import { money } from '../components/UI';
-import { THEME } from '../theme';
+import { THEME, themedSheet } from '../theme';
 import type { AppData } from '../../App';
 
 interface TransferProps {
@@ -155,7 +155,7 @@ export function ScreenTransfer({ data, onTransfer, onRequest }: TransferProps) {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedSheet(() => StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: THEME.colors.bg,
@@ -298,4 +298,4 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: 'bold',
   },
-});
+}));

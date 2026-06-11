@@ -4,7 +4,7 @@ import { Icon } from '../components/Icon';
 import { BankCard, CARD_SCHEMES } from '../components/BankCard';
 import { MobileCardDetail, LimitsSheet, MobileSheet } from '../components/MobileExtras';
 import { useReducedMotion } from '../components/Motion';
-import { THEME } from '../theme';
+import { THEME, themedSheet } from '../theme';
 import { money, Ring } from '../components/UI';
 import type { AppData } from '../../App';
 
@@ -390,7 +390,7 @@ export function ScreenCards({ data, fire, cards, setCards, token, apiUrl, naviga
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedSheet(() => StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: THEME.colors.bg,
@@ -617,4 +617,4 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: 'bold',
   },
-});
+}));

@@ -2,7 +2,7 @@ import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Image } from 'react-native';
 import { Icon } from './Icon';
 import { Avatar } from './UI';
-import { THEME } from '../theme';
+import { THEME, themedSheet } from '../theme';
 
 interface ShellProps {
   route: string;
@@ -97,7 +97,7 @@ export function Shell({ route, setRoute, user, children }: ShellProps) {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedSheet(() => StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: THEME.colors.bg,
@@ -174,4 +174,4 @@ const styles = StyleSheet.create({
     elevation: 8,
     transform: [{ translateY: -14 }],
   },
-});
+}));
