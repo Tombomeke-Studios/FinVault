@@ -58,9 +58,14 @@ event-driven microservices backend.
 ### Wallet-transaction service
 - Wallets (checking / savings / travel) with IBAN generation, interest simulation,
   credit lines, balance history.
-- Transactions: P2P by email, SEPA by IBAN (mod-97 validation in `sepa-validator.ts`),
-  own-wallet transfers, deposits — all in Prisma `$transaction` blocks with an
-  integrity hash per transaction (`shared/src/integrity.ts`).
+- Transactions: P2P by email **or IBAN** (`/transactions/transfer` accepts
+  `receiverEmail` or `receiverIban`; format validation in `iban.ts`), SEPA XML by IBAN
+  (`sepa-validator.ts`), own-wallet transfers, deposits — all in Prisma `$transaction`
+  blocks with an integrity hash per transaction (`shared/src/integrity.ts`).
+- Every transfer request and every rejection path is logged server-side
+  (`Transfer request:` / `Transfer rejected (status): reason`) — failures are never
+  silent (#11). Note: seeded demo IBANs are structurally valid but not mod-97
+  checksummed, so target lookups validate *format* only.
 - Cards (freeze, limits) and savings goals (fund/edit/delete) CRUD.
 - Self-healing seed reconciliation on startup for demo accounts.
 

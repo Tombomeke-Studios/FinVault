@@ -5,6 +5,7 @@ import helmet from 'helmet';
 import { PrismaClient } from '../generated/prisma/index.js';
 import { publishEvent, requireAuth, extractTokenFromRequest, computeTransactionHash, consumeRabbitQueue, SERVICE_SECRET } from 'shared';
 import { validateSEPAXML } from './sepa-validator.js';
+import { normalizeIban, isValidIbanFormat } from './iban.js';
 
 const prisma = new PrismaClient();
 const app = express();
@@ -979,15 +980,23 @@ app.post('/transactions/own-transfer', requireAuth, async (req, res) => {
 
 // P2P Transfer (Atomically) — with idempotency + integrity hash + auto-receipt
 app.post('/transactions/transfer', requireAuth, async (req, res) => {
-  const { senderWalletId, receiverEmail, amount, description } = req.body;
+  const { senderWalletId, receiverEmail, receiverIban, amount, description } = req.body;
   const userId = (req as any).user.userId;
 
-  if (!senderWalletId || !receiverEmail || !amount || amount <= 0) {
-    return res.status(400).json({ error: 'Invalid transfer details' });
+  // Every request and every rejection is logged — a transfer that fails must
+  // never be silent on the server (#11).
+  console.log(`[Wallet Service] Transfer request: sender=${senderWalletId} target=${receiverEmail || receiverIban || '(none)'} amount=${amount}`);
+  const reject = (status: number, error: string) => {
+    console.warn(`[Wallet Service] Transfer rejected (${status}): ${error}`);
+    return res.status(status).json({ error });
+  };
+
+  if (!senderWalletId || (!receiverEmail && !receiverIban) || !amount || amount <= 0) {
+    return reject(400, 'Invalid transfer details');
   }
 
   if (amount > 1_000_000) {
-    return res.status(400).json({ error: 'Maximum single transfer is €1,000,000' });
+    return reject(400, 'Maximum single transfer is €1,000,000');
   }
 
   // Idempotency check
@@ -1006,7 +1015,7 @@ app.post('/transactions/transfer', requireAuth, async (req, res) => {
   });
 
   if (recentTx) {
-    return res.status(409).json({ error: 'Duplicate transaction detected. Please wait 10 seconds.' });
+    return reject(409, 'Duplicate transaction detected. Please wait 10 seconds.');
   }
 
   try {
@@ -1015,8 +1024,8 @@ app.post('/transactions/transfer', requireAuth, async (req, res) => {
       where: { id: senderWalletId },
       include: { creditLine: true }
     });
-    if (!senderWallet) return res.status(404).json({ error: 'Sender wallet not found' });
-    if (senderWallet.userId !== userId) return res.status(403).json({ error: 'Unauthorized to spend from this wallet' });
+    if (!senderWallet) return reject(404, 'Sender wallet not found');
+    if (senderWallet.userId !== userId) return reject(403, 'Unauthorized to spend from this wallet');
 
     let availableCredit = 0.0;
     if (senderWallet.creditLine && ['active', 'suspended'].includes(senderWallet.creditLine.status)) {
@@ -1024,37 +1033,55 @@ app.post('/transactions/transfer', requireAuth, async (req, res) => {
     }
 
     if (senderWallet.balance + availableCredit < amount) {
-      return res.status(400).json({ error: 'Insufficient balance' });
+      return reject(400, 'Insufficient balance');
     }
 
-    // 2. Find receiver via Account Service
-    let receiverUserId: string | null = null;
-    try {
-      const response = await fetch(`${ACCOUNT_SERVICE_URL}/users/profile-by-email?email=${encodeURIComponent(receiverEmail)}`, { headers: { 'X-Service-Secret': SERVICE_SECRET } });
-      if (response.ok) {
-        const data = await response.json();
-        receiverUserId = data.id;
+    // 2. Resolve the receiver wallet — by IBAN directly, or by email via the
+    // Account Service (#9: transfers now also accept an IBAN target).
+    let receiverWallet: { id: string; userId: string; currency: string; iban: string } | null = null;
+
+    if (receiverIban) {
+      const iban = normalizeIban(receiverIban);
+      if (!isValidIbanFormat(iban)) {
+        return reject(400, 'Invalid IBAN format');
       }
-    } catch (err: any) {
-      console.error('[Wallet Service] Failed to call Account Service to resolve email:', err.message);
-    }
+      receiverWallet = await prisma.wallet.findUnique({ where: { iban } });
+      if (!receiverWallet) {
+        return reject(404, 'No FinVault wallet found for this IBAN');
+      }
+      if (receiverWallet.currency !== senderWallet.currency) {
+        return reject(400, 'Receiver wallet uses a different currency');
+      }
+    } else {
+      let receiverUserId: string | null = null;
+      try {
+        const response = await fetch(`${ACCOUNT_SERVICE_URL}/users/profile-by-email?email=${encodeURIComponent(receiverEmail)}`, { headers: { 'X-Service-Secret': SERVICE_SECRET } });
+        if (response.ok) {
+          const data = await response.json();
+          receiverUserId = data.id;
+        }
+      } catch (err: any) {
+        console.error('[Wallet Service] Failed to call Account Service to resolve email:', err.message);
+      }
 
-    if (!receiverUserId) {
-      return res.status(404).json({ error: `No FinVault account found for email: ${receiverEmail}` });
-    }
+      if (!receiverUserId) {
+        return reject(404, `No FinVault account found for email: ${receiverEmail}`);
+      }
 
-    // 3. Find receiver wallet
-    const receiverWallet = await prisma.wallet.findFirst({
-      where: { userId: receiverUserId, currency: senderWallet.currency }
-    });
+      receiverWallet = await prisma.wallet.findFirst({
+        where: { userId: receiverUserId, currency: senderWallet.currency }
+      });
 
-    if (!receiverWallet) {
-      return res.status(404).json({ error: 'Receiver has no matching wallet for this currency' });
+      if (!receiverWallet) {
+        return reject(404, 'Receiver has no matching wallet for this currency');
+      }
     }
 
     if (senderWallet.id === receiverWallet.id) {
-      return res.status(400).json({ error: 'Cannot transfer to the same wallet' });
+      return reject(400, 'Cannot transfer to the same wallet');
     }
+
+    const targetLabel = receiverEmail || receiverWallet.iban;
 
     const reference = `TX-${Math.random().toString(36).substring(2, 9).toUpperCase()}`;
 
@@ -1085,7 +1112,7 @@ app.post('/transactions/transfer', requireAuth, async (req, res) => {
           currency: senderWallet.currency,
           status: 'confirmed',
           type: 'transfer',
-          description: description || `Transfer to ${receiverEmail}`,
+          description: description || `Transfer to ${targetLabel}`,
           integrityHash
         }
       });
@@ -1096,7 +1123,7 @@ app.post('/transactions/transfer', requireAuth, async (req, res) => {
           walletId: senderWallet.id,
           amount: -amount,
           balanceAfter: debitRes.newBalance,
-          reason: description || `Transfer to ${receiverEmail}`
+          reason: description || `Transfer to ${targetLabel}`
         }
       });
 
@@ -1154,10 +1181,10 @@ app.post('/transactions/transfer', requireAuth, async (req, res) => {
       payerUserId: senderWallet.userId,
       payeeUserId: receiverWallet.userId,
       payerEmail: (req as any).user.email,
-      payeeEmail: receiverEmail,
+      payeeEmail: receiverEmail || receiverWallet.iban,
       amount,
       currency: senderWallet.currency,
-      description: description || `Transfer to ${receiverEmail}`
+      description: description || `Transfer to ${targetLabel}`
     });
 
     const responseBody = { message: 'Transfer successful', transaction };
