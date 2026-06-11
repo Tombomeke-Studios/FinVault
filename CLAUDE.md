@@ -35,6 +35,9 @@ feature/<topic>  →  dev  →  staging  →  main
 - `staging` only receives merges from `dev` — never individual feature branches.
 - `main` only receives merges from `staging` — never from `dev` or feature branches.
 - A red CI on `dev` is everyone's problem — fix it before opening new PRs.
+- The GitHub **default branch is `dev`** (since 2026-06-12): new PRs target it by
+  default, fresh clones check it out, and issue auto-close fires on merges into it.
+  This changes nothing about the release flow above — `main` stays the production tier.
 
 ## 2a. GitHub issues — every task is a trackable issue
 
@@ -66,12 +69,9 @@ Tasks live in two places that must stay in sync:
 4. **TODO.md items carry their issue ref:** `- [ ] Fix X (#12)` — add the ref the
    moment the issue exists.
 5. **PR bodies close their issues:** list every completed issue as `Closes #N` (one per
-   line) in the PR description. Merging the PR into `dev` then closes them automatically
-   via `.github/workflows/close-linked-issues.yml`. *Why a workflow and not GitHub's
-   built-in linking:* native auto-close (closing keywords **and** the Development-sidebar
-   link) only fires when a PR merges into the **default branch** — currently `main`,
-   which feature PRs never target. Once the default branch is switched to `dev`, native
-   auto-close takes over and the workflow gets removed (#37).
+   line) in the PR description. GitHub closes them natively when the PR merges —
+   auto-close fires on default-branch merges, and the default branch is `dev` (§2).
+   The issue's Development sidebar shows the linked PR automatically.
 6. An issue is only ever closed by a merged PR — or manually with a comment explaining
    why (duplicate, obsolete, won't fix). Never silently.
 7. Open issues are the **backlog**, not a failure signal: an issue stays open until its
