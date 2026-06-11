@@ -10,25 +10,20 @@ Workflow rules live in [CLAUDE.md](CLAUDE.md#workflow-rules); short version:
   written + this file ticked. Only then start the next item.
 - **Branch group complete → push → PR → CI green** (`validate.yml`). Red PR ≠ done.
 
-## Branch: `feature/banking-roadmap` — active (#20)
+## Branch: `feature/statements-export` — active (#24)
 
-- [x] docs/feature-roadmap.md: present/missing matrix vs. a real banking app,
-  prioritized P1–P3 with effort estimates (#20)
-- [x] GitHub issues #24–#34 for every actionable gap, linked from the doc (#20)
+- [x] Web: real CSV export from the Activity screen (replaces the fake toast),
+  pure builder in `src/lib/csv.ts` + 5 unit tests (#24)
+- [x] Mobile: share the same CSV via the native share sheet (mirrored
+  `src/lib/csv.ts` + tests, no new deps) (#24)
 - [ ] Push, PR → `dev`, CI green, merge
-
-## Branch: `feature/statements-export` — next (#24)
-
-- [ ] Web: real CSV export from the Activity screen (replaces the fake toast) (#24)
-- [ ] Mobile: share the same CSV via the native share sheet (follow-up if not in
-  the same branch) (#24)
 
 ## Backlog — ungrouped (assign to a branch group when picked up)
 
 **Roadmap gaps (see [docs/feature-roadmap.md](docs/feature-roadmap.md) for prio/effort)**
 - [ ] Beneficiaries: saved payees + picker in transfer flows (#25)
 - [ ] Scheduled & recurring payments / standing orders (#26)
-- [ ] Transactions: free-text search + date/amount filters (#27)
+- [ ] Transactions: date-range + amount filters (search exists on both apps) (#27)
 - [ ] Budgets: monthly category limits with progress + alerts (#28)
 - [ ] Direct debits: surface SEPA mandates with cancel control (#29)
 - [ ] Security center: change password, active sessions, real TOTP 2FA (#30)
@@ -69,6 +64,11 @@ Workflow rules live in [CLAUDE.md](CLAUDE.md#workflow-rules); short version:
 **Dev-environment note (not a task):** RabbitMQ is Docker-only for local dev — run
 `docker run -d --name rabbitmq -p 5672:5672 rabbitmq:3` then add
 `RABBITMQ_URL=amqp://guest:guest@localhost:5672` to `.env` to enable async events.
+
+## Done — `feature/banking-roadmap` (merged into `dev` via PR #35, issue #20 auto-closed, 2026-06-11)
+
+- [x] docs/feature-roadmap.md: present/missing matrix, P1–P3 priorities, build order
+- [x] Issues #24–#34 for every actionable gap
 
 ## Done — `feature/mobile-theming` (merged into `dev` via PR #23, issue #8 auto-closed, 2026-06-11)
 
