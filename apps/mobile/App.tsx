@@ -15,6 +15,7 @@ import { MobileSheet } from './src/components/MobileExtras';
 import { ToastHost, useToasts } from './src/components/Toast';
 import { Icon } from './src/components/Icon';
 import { saveSession, loadSession, clearSession, tryRefreshSession, revokeSession } from './src/session';
+import { isBiometricAvailable, authenticateBiometric, getBiometricPref } from './src/biometrics';
 import { THEME, themedSheet, setAppTheme, persistThemeConfig, loadPersistedThemeConfig } from './src/theme';
 
 export interface ThemeConfig {
@@ -399,12 +400,24 @@ export default function App() {
   // Configure via apps/mobile/.env → EXPO_PUBLIC_API_URL=http://<your-lan-ip>:8000
   const API_URL = process.env.EXPO_PUBLIC_API_URL || 'http://192.168.0.6:8000';
 
-  // Restore the persisted session once on launch (keystore-backed).
+  // Restore the persisted session once on launch (keystore-backed). When the
+  // user enabled biometric sign-in, the auto-login is gated behind the system
+  // biometric prompt (#7); declining lands on the auth screen where the
+  // Face ID button offers a retry.
   useEffect(() => {
     let cancelled = false;
-    loadSession().then(({ accessToken }) => {
-      if (!cancelled && accessToken) setToken(accessToken);
-    }).finally(() => { if (!cancelled) setRestoring(false); });
+    (async () => {
+      try {
+        const { accessToken } = await loadSession();
+        if (!accessToken || cancelled) return;
+        if (await getBiometricPref()) {
+          if (!(await isBiometricAvailable()) || !(await authenticateBiometric('Unlock FinVault'))) return;
+        }
+        if (!cancelled) setToken(accessToken);
+      } finally {
+        if (!cancelled) setRestoring(false);
+      }
+    })();
     return () => { cancelled = true; };
   }, []);
 
@@ -527,14 +540,38 @@ export default function App() {
     }
   };
 
-  const handleFaceIdLogin = () => {
+  // Real biometric login (#7): authenticate, then restore the stored session
+  // (refreshing it when the access token went stale). Falls back to the demo
+  // session only when biometrics are unavailable on the device, so the demo
+  // flow keeps working in simulators.
+  const handleFaceIdLogin = async () => {
     setAuthError('');
     setAuthSuccess('');
-    setRawUser(null);
-    saveSession('mock-token');
-    setToken('mock-token');
-    setupMockSession();
-    setAuthSuccess('Face ID scan successful!');
+    if (!(await isBiometricAvailable())) {
+      setRawUser(null);
+      saveSession('mock-token');
+      setToken('mock-token');
+      setupMockSession();
+      setAuthSuccess('Biometrics unavailable — demo session started.');
+      return;
+    }
+    if (!(await authenticateBiometric('Sign in to FinVault'))) {
+      setAuthError('Biometric authentication was cancelled.');
+      return;
+    }
+    const { accessToken } = await loadSession();
+    if (accessToken) {
+      setToken(accessToken);
+      setAuthSuccess('Welcome back!');
+      return;
+    }
+    const refreshed = await tryRefreshSession(API_URL);
+    if (refreshed) {
+      setToken(refreshed);
+      setAuthSuccess('Welcome back!');
+    } else {
+      setAuthError('No saved session on this device — sign in with your password first.');
+    }
   };
 
   const handleRegister = async (firstName: string, lastName: string, email: string, pw: string) => {

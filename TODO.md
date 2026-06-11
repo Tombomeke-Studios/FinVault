@@ -30,15 +30,22 @@ Workflow rules live in [CLAUDE.md](CLAUDE.md#workflow-rules); short version:
 - [x] Mobile: beneficiary chips prefill the transfer form
 - [ ] Docs + roadmap tick, PR → `dev`, CI green, merge
 
-## Branch: `feature/qr-transfers` — active (#43)
+## Branch: `feature/mobile-biometrics` — active (#7)
 
-- [x] `chore(mobile):` deps — expo-camera, react-native-svg, react-native-qrcode-svg (#43)
-- [x] EPC QR (EPC069-12) parser/builder in `src/lib/epc.ts` + 7 unit tests (#43)
-- [x] Scan to pay: `QrScanSheet` (camera, permission flow, EPC-only accept) prefills
-  IBAN/name/amount/description on the transfer form (#43)
-- [x] Receive: EPC QR on the Request tab (own IBAN + live amount/description) (#43)
-- [ ] Docs + roadmap tick, PR → `dev`, CI green, merge — **needs a manual device test
-  via Expo Go before promoting beyond `dev`** (camera can't be CI-tested)
+- [x] `chore(mobile):` expo-local-authentication (#7)
+- [x] `src/biometrics.ts`: availability check, system prompt wrapper, keystore-persisted
+  opt-in preference (#7)
+- [x] Real Face ID button: authenticate → restore stored session (refresh fallback);
+  demo session only when no biometric hardware exists (#7)
+- [x] Opt-in biometric gate on boot session restore; Settings toggle is functional (#7)
+- [ ] PR → `dev`, CI green, merge — **manual device test via Expo Go needed** (like QR)
+
+## Manual device-test checklist (Expo Go) — before promoting `dev` → `staging`
+
+- [ ] QR (#43): scan an EPC QR (generate one on a second device via Request tab);
+  verify prefill + transfer; deny camera permission once and re-grant
+- [ ] Biometrics (#7): enable the Settings toggle, kill + reopen the app → biometric
+  prompt gates auto-login; cancel → auth screen → Face ID button retry works
 
 ## Backlog — ungrouped (assign to a branch group when picked up)
 
@@ -57,7 +64,7 @@ Workflow rules live in [CLAUDE.md](CLAUDE.md#workflow-rules); short version:
 **Candidate group: `feature/mobile-feature-parity`**
 - [ ] Mobile: per-wallet filter on the transactions screen (web has `?walletId=` filter banner) (#5)
 - [ ] Mobile: wire "Request money" tab to the payment-request backend (currently toast-only) (#6)
-- [ ] Mobile: real biometrics via `expo-local-authentication` (Face ID button is simulated) (#7)
+- [ ] Web: receive-QR parity on the Request tab (no camera needed, reuse EPC builder) — follow-up of #43
 
 **Smaller / unscheduled**
 - [ ] Backend: tests for `/auth/refresh` rotation + replay-revocation and `/auth/logout` (#13)
@@ -70,6 +77,15 @@ Workflow rules live in [CLAUDE.md](CLAUDE.md#workflow-rules); short version:
 **Dev-environment note (not a task):** RabbitMQ is Docker-only for local dev — run
 `docker run -d --name rabbitmq -p 5672:5672 rabbitmq:3` then add
 `RABBITMQ_URL=amqp://guest:guest@localhost:5672` to `.env` to enable async events.
+
+## Done — `feature/qr-transfers` (merged into `dev` via PR #44, issue #43 auto-closed, 2026-06-12)
+
+- [x] EPC069-12 parser/builder (7 tests); scan-to-pay camera sheet prefills the transfer form
+- [x] Receive-QR on the Request tab; camera permission in app.json (manual device test pending)
+
+## Done — `feature/beneficiaries` (merged into `dev` via PR #42, issue #25 auto-closed, 2026-06-12)
+
+- [x] Beneficiary model + CRUD + auto-upsert on transfer; payee grid (web) + prefill chips (mobile)
 
 ## Done — `feature/web-session-hardening` (merged into `dev` via PR #41, issues #3/#4 auto-closed, 2026-06-12)
 

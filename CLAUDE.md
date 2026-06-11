@@ -194,6 +194,7 @@ the same emails offline → client-side mock demo mode. Mobile API base: `EXPO_P
 |---|---|
 | `App.tsx` | All app state: auth/token, wallets/transactions/cards/goals, route string (`'overview'`, `'account:<walletId>'`, …), all API handlers (`handleLogin/Transfer/Deposit/OwnTransfer/UpgradePlan`), mock-data builder, deposit + plan-upgrade sheets, Android BackHandler, session restore + splash |
 | `src/session.ts` | SecureStore token persistence: `saveSession/loadSession/clearSession/tryRefreshSession/revokeSession` |
+| `src/biometrics.ts` | Real biometric gate (expo-local-authentication): `isBiometricAvailable/authenticateBiometric` + keystore-persisted opt-in pref |
 | `src/theme.ts` | Theme engine: mutable `THEME` tokens (hex), dark/light palettes × 6 accents, `setAppTheme`/`subscribeTheme`, `themedSheet` StyleSheet proxy, secure-store persistence. Tests: `theme.test.ts` |
 | `src/components/Icon.tsx` | Name → Feather glyph map + `MCI_MAPPING` (MaterialCommunityIcons fallback: `flame`, `faceId`). Unmapped → help-circle |
 | `src/components/Motion.tsx` | `PressableScale`, `FadeSlideIn`, `AnimatedProgressBar`, `useReducedMotion` — use these, no ad-hoc Animated code |
