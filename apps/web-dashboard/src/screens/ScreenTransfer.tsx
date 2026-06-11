@@ -2,13 +2,14 @@ import React, { useState } from 'react';
 import { Icon } from '../components/Icon';
 import { money, Avatar, Segmented, PageHead } from '../components/UI';
 import { classifyRecipient, normalizeIban } from '../lib/validate';
-import type { AppData } from '../App';
+import type { AppData, Beneficiary } from '../App';
 
 interface TransferProps {
   compact: boolean;
   navigate: (r: string) => void;
   fire: (title: string, body: string, type?: string) => void;
   data: AppData;
+  beneficiaries?: Beneficiary[];
   onTransfer: (target: { email?: string; iban?: string }, amount: number, desc: string, walletId: string) => Promise<void>;
   onRequest: (email: string, amount: number, desc: string) => Promise<void>;
 }
@@ -29,7 +30,7 @@ const CONTACTS: Recipient[] = [
   { name: 'Eva Claes',     handle: 'eva@finvault.com',  initials: 'EC', hue: 265, kind: 'email' },
 ];
 
-export function ScreenTransfer({ compact, navigate, fire, data, onTransfer, onRequest }: TransferProps) {
+export function ScreenTransfer({ compact, navigate, fire, data, beneficiaries, onTransfer, onRequest }: TransferProps) {
   const [tab, setTab] = useState<'send' | 'request'>('send');
   const [step, setStep] = useState(0);
   const [to, setTo] = useState<Recipient | null>(null);
@@ -47,10 +48,21 @@ export function ScreenTransfer({ compact, navigate, fire, data, onTransfer, onRe
   const wallet = data.wallets[fromIdx] || data.wallets[0];
   const reset = () => { setStep(0); setTo(null); setAmt(''); setNote(''); setQuery(''); setCustomName(''); };
 
+  // Saved beneficiaries replace the demo contacts when available (#25).
+  const HUES = [320, 230, 158, 28, 265, 200];
+  const saved: Recipient[] = (beneficiaries || []).map((b, i) => ({
+    name: b.name,
+    handle: b.email || b.iban || '',
+    initials: (b.name.split(' ').map(p => p[0]).join('').slice(0, 2) || '??').toUpperCase(),
+    hue: HUES[i % HUES.length],
+    kind: b.iban ? 'iban' as const : 'email' as const,
+  }));
+  const contactList = saved.length > 0 ? saved : CONTACTS;
+
   // Recipient validation (#9/#10): the input accepts an email or IBAN; names
   // match the contact list. Anything else gets an inline error.
   const q = query.trim();
-  const matchedContacts = q === '' ? CONTACTS : CONTACTS.filter(c =>
+  const matchedContacts = q === '' ? contactList : contactList.filter(c =>
     c.name.toLowerCase().includes(q.toLowerCase()) || c.handle.toLowerCase().includes(q.toLowerCase()));
   const queryKind = classifyRecipient(q);
   const queryInvalid = q !== '' && queryKind === 'invalid' && matchedContacts.length === 0;
@@ -175,7 +187,7 @@ export function ScreenTransfer({ compact, navigate, fire, data, onTransfer, onRe
                 <button className="btn btn-primary" onClick={selectCustom}>Continue <Icon name="arrowRight" size={16} /></button>
               </div>
             )}
-            <div className="eyebrow" style={{ marginTop: 4 }}>Recent</div>
+            <div className="eyebrow" style={{ marginTop: 4 }}>{saved.length > 0 ? 'Saved payees' : 'Recent'}</div>
             {matchedContacts.length === 0 && q !== '' && (
               <div style={{ color: 'var(--text-3)', fontSize: '0.86rem' }}>No contacts match "{q}".</div>
             )}
