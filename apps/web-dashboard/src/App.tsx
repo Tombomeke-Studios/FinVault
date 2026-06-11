@@ -90,6 +90,14 @@ interface CardItem {
   limit: number;
 }
 
+export interface Beneficiary {
+  id: string;
+  name: string;
+  email?: string | null;
+  iban?: string | null;
+  lastUsedAt?: string;
+}
+
 interface Goal {
   id: string;
   name: string;
@@ -256,6 +264,7 @@ export default function App() {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [cards, setCards] = useState<CardItem[]>([]);
   const [goals, setGoals] = useState<Goal[]>([]);
+  const [beneficiaries, setBeneficiaries] = useState<Beneficiary[]>([]);
   const [authError, setAuthError] = useState('');
   const [authSuccess, setAuthSuccess] = useState('');
 
@@ -385,6 +394,13 @@ export default function App() {
     } catch { /* stay with current */ }
   }, [token]);
 
+  const fetchBeneficiaries = useCallback(async () => {
+    try {
+      const res = await fetch('/api/beneficiaries', { headers: { Authorization: `Bearer ${token}` } });
+      if (res.ok) setBeneficiaries(await res.json());
+    } catch { /* offline — screen falls back to demo contacts */ }
+  }, [token]);
+
   // Offline demo session
   const setupMockSession = useCallback(() => {
     const fakeUser = { id: 'mock-u', email: 'tom@finvault.com', accountType: 'personal', profile: { firstName: 'Tom', lastName: 'Bomeke' } };
@@ -416,6 +432,7 @@ export default function App() {
         fetchTransactions();
         fetchCards();
         fetchGoals();
+        fetchBeneficiaries();
         setAuthLoading(false);
       } else if (res.status === 401) {
         // Expired access token → silent refresh instead of a logout (#3).
@@ -566,6 +583,7 @@ export default function App() {
       if (!res.ok) throw new Error(data.error || 'Transfer failed');
       applyLocalDebit();
       setTransactions(prev => [data.transaction, ...prev]);
+      fetchBeneficiaries(); // the backend auto-upserts the payee (#25)
       await Promise.all([fetchWallets(), fetchTransactions()]);
     } catch (err: any) {
       // Network unreachable → offline demo fallback; real API errors propagate.
@@ -707,7 +725,7 @@ export default function App() {
       case 'transactions':
         return <ScreenTransactions compact={compact} data={appData} onExport={() => fire('Export complete', 'Your CSV download has started.', 'success')} />;
       case 'transfer':
-        return <ScreenTransfer compact={compact} navigate={setRoute} fire={fire} data={appData} onTransfer={handleTransfer} onRequest={handleRequest} />;
+        return <ScreenTransfer compact={compact} navigate={setRoute} fire={fire} data={appData} beneficiaries={beneficiaries} onTransfer={handleTransfer} onRequest={handleRequest} />;
       case 'cards':
         return <ScreenCards compact={compact} data={appData} fire={fire} cards={cards} setCards={setCards} token={token} navigate={setRoute} />;
       case 'analytics':

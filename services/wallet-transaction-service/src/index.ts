@@ -1187,6 +1187,21 @@ app.post('/transactions/transfer', requireAuth, async (req, res) => {
       description: description || `Transfer to ${targetLabel}`
     });
 
+    // Remember the payee for the next transfer (#25) — best effort, the
+    // frontends send descriptions like "To <name>".
+    const payeeName = (description || '').replace(/^To /, '').trim() || targetLabel;
+    prisma.beneficiary.upsert({
+      where: receiverEmail
+        ? { userId_email: { userId, email: String(receiverEmail).toLowerCase() } }
+        : { userId_iban: { userId, iban: normalizeIban(receiverIban) } },
+      update: { lastUsedAt: new Date() },
+      create: {
+        userId, name: payeeName,
+        email: receiverEmail ? String(receiverEmail).toLowerCase() : null,
+        iban: receiverEmail ? null : normalizeIban(receiverIban),
+      },
+    }).catch((e: any) => console.warn('[Wallet Service] Beneficiary upsert failed:', e.message));
+
     const responseBody = { message: 'Transfer successful', transaction };
     await storeIdempotencyResult(req.headers['x-idempotency-key'] as string, 200, responseBody);
 
@@ -1749,6 +1764,55 @@ app.put('/cards/:id/limit', requireAuth, async (req, res) => {
     res.status(200).json(updated);
   } catch (error: any) {
     res.status(500).json({ error: 'Failed to update card limit', message: error.message });
+  }
+});
+
+// ---- Beneficiaries (#25): saved payees for the transfer flow ----
+app.get('/beneficiaries', requireAuth, async (req, res) => {
+  const userId = (req as any).user.userId;
+  try {
+    const list = await prisma.beneficiary.findMany({ where: { userId }, orderBy: { lastUsedAt: 'desc' } });
+    res.json(list);
+  } catch (error: any) {
+    res.status(500).json({ error: 'Failed to load beneficiaries', message: error.message });
+  }
+});
+
+app.post('/beneficiaries', requireAuth, async (req, res) => {
+  const userId = (req as any).user.userId;
+  const { name, email, iban } = req.body;
+  if (!name || String(name).trim() === '' || (!email && !iban) || (email && iban)) {
+    return res.status(400).json({ error: 'Provide a name and exactly one of email or IBAN' });
+  }
+  if (iban && !isValidIbanFormat(normalizeIban(iban))) {
+    return res.status(400).json({ error: 'Invalid IBAN format' });
+  }
+  try {
+    const cleanName = String(name).trim();
+    const cleanEmail = email ? String(email).trim().toLowerCase() : null;
+    const cleanIban = iban ? normalizeIban(iban) : null;
+    const saved = await prisma.beneficiary.upsert({
+      where: cleanEmail
+        ? { userId_email: { userId, email: cleanEmail } }
+        : { userId_iban: { userId, iban: cleanIban! } },
+      update: { name: cleanName, lastUsedAt: new Date() },
+      create: { userId, name: cleanName, email: cleanEmail, iban: cleanIban },
+    });
+    res.status(201).json(saved);
+  } catch (error: any) {
+    res.status(500).json({ error: 'Failed to save beneficiary', message: error.message });
+  }
+});
+
+app.delete('/beneficiaries/:id', requireAuth, async (req, res) => {
+  const userId = (req as any).user.userId;
+  try {
+    const b = await prisma.beneficiary.findUnique({ where: { id: req.params.id } });
+    if (!b || b.userId !== userId) return res.status(404).json({ error: 'Beneficiary not found' });
+    await prisma.beneficiary.delete({ where: { id: b.id } });
+    res.status(204).end();
+  } catch (error: any) {
+    res.status(500).json({ error: 'Failed to delete beneficiary', message: error.message });
   }
 });
 

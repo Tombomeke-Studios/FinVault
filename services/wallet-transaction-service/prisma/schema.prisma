@@ -89,6 +89,20 @@ model Card {
   createdAt  DateTime @default(now())
 }
 
+// Saved payees for the transfer flow (#25). Exactly one of email/iban is set.
+model Beneficiary {
+  id         String   @id @default(uuid())
+  userId     String
+  name       String
+  email      String?
+  iban       String?
+  lastUsedAt DateTime @default(now())
+  createdAt  DateTime @default(now())
+
+  @@unique([userId, email])
+  @@unique([userId, iban])
+}
+
 model SavingsGoal {
   id        String   @id @default(uuid())
   userId    String
