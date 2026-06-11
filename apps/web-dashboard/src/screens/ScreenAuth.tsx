@@ -117,7 +117,7 @@ export function ScreenAuth({ compact, onLogin, onRegister, authError, authSucces
       <div style={{ position: 'relative', overflow: 'hidden', padding: '48px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', background: 'linear-gradient(155deg, var(--accent-lo), var(--accent) 55%, var(--accent-hi))', color: 'var(--on-accent)' }}>
         <div style={{ position: 'absolute', inset: 0, opacity: 0.12, backgroundImage: 'radial-gradient(circle at 80% 20%, white 0 1px, transparent 1px)', backgroundSize: '26px 26px' }} />
         <div style={{ position: 'relative' }}>
-          <FVLogo size={32} />
+          <FVLogo size={32} mono />
         </div>
         <div style={{ position: 'relative' }}>
           <div className="display" style={{ fontSize: '2.6rem', lineHeight: 1.05, fontWeight: 700, letterSpacing: '-0.03em' }}>

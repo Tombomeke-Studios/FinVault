@@ -21,6 +21,15 @@ Dark-first fintech look: emerald accent, soft-radius surfaces, spring-physics mo
 Wallet-type accents (both apps): checking = emerald, savings = `#a78bfa` (violet),
 travel = `#38bdf8` (sky).
 
+### Logo
+- **Web:** `FVLogo` (`components/Shell.tsx`) — inline SVG lockup: gradient brand mark
+  (`#19f5c3 → #00bfa0`, two skewed bars) + wordmark in `currentColor`, so it adapts to
+  every mode/accent. Pass `mono` on accent or gradient surfaces (e.g. the auth brand
+  panel) to render the mark in `currentColor` too.
+- Never reintroduce raster lockups with a baked-in text color — the old
+  `logo-lockup.png` had a white wordmark that disappeared on light themes.
+- `public/favicon.png` is the mark-only raster for the browser tab.
+
 - Web colors are **OKLCH** and derive accent variants from `--accent-h/c/l`.
 - Web supports light mode + 6 accent presets + radius/density/card variants via
   `data-*` attributes on `<html>` (see `Tweaks.tsx`). Mobile is dark-only for now.

@@ -4,13 +4,29 @@ import { Avatar, Sheet, Toast } from './UI';
 import type { ToastData } from '../App';
 
 // ---- Logo ----
-export function FVLogo({ size = 28 }: { size?: number }) {
+// Theme-aware lockup: gradient brand mark + wordmark in currentColor, so it
+// stays legible on every mode/accent (the old PNG had a baked-in white
+// wordmark that vanished on light themes). `mono` renders the mark in
+// currentColor too — use it on accent/gradient surfaces.
+export function FVLogo({ size = 28, mono = false }: { size?: number; mono?: boolean }) {
   return (
-    <img
-      src="/logo-lockup.png"
-      alt="FinVault"
-      style={{ height: size * 1.1, width: 'auto', display: 'block', objectFit: 'contain' }}
-    />
+    <span role="img" aria-label="FinVault" style={{ display: 'inline-flex', alignItems: 'center', gap: Math.round(size * 0.34), lineHeight: 1 }}>
+      <svg width={size * 1.05} height={size * 0.93} viewBox="0 0 72 64" aria-hidden="true" style={{ display: 'block', flexShrink: 0 }}>
+        {!mono && (
+          <defs>
+            <linearGradient id="fv-logo-grad" x1="0" y1="64" x2="72" y2="0" gradientUnits="userSpaceOnUse">
+              <stop offset="0" stopColor="#19f5c3" />
+              <stop offset="1" stopColor="#00bfa0" />
+            </linearGradient>
+          </defs>
+        )}
+        <g fill={mono ? 'currentColor' : 'url(#fv-logo-grad)'} transform="translate(8 0) skewX(-35)">
+          <rect x="26" y="10" width="38" height="14" rx="7" />
+          <rect x="26" y="32" width="26" height="14" rx="7" />
+        </g>
+      </svg>
+      <span className="display" style={{ fontSize: size * 0.66, fontWeight: 700, letterSpacing: '-0.03em', color: 'inherit' }}>FinVault</span>
+    </span>
   );
 }
 
