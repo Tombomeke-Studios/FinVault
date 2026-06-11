@@ -31,7 +31,21 @@ travel = `#38bdf8` (sky).
 - `public/favicon.png` is the mark-only raster for the browser tab.
 
 - Web colors are **OKLCH** and derive accent variants from `--accent-h/c/l`.
-- Mobile is dark-only for now (theming engine tracked in #8).
+
+### Mobile theming engine
+- **`src/theme.ts`** exports a mutable `THEME` singleton (original shape, ~500 call
+  sites untouched). `setAppTheme({ mode, accent })` swaps the dark/light palette and
+  one of six accents (same hues as web), flips `THEME.statusBarStyle`, and bumps a
+  version counter.
+- Module-level StyleSheets that reference THEME colors **must** be wrapped:
+  `const styles = themedSheet(() => StyleSheet.create({...}))` — plain
+  `StyleSheet.create` freezes colors at import time.
+- App.tsx calls `setAppTheme` *before* `setTheme` state updates (next render sees new
+  colors) and remounts the subtree via a mode+accent key. Choice persists through
+  `persistThemeConfig`/`loadPersistedThemeConfig` (expo-secure-store, lazy import).
+- Settings: presets (web parity, 7) + Appearance card (mode toggle, accent dots).
+- The engine module has no react-native imports — palette logic is vitest-tested
+  (`src/theme.test.ts`).
 
 ### Web theming engine
 - **`src/theme.ts`** owns the JS side: `ThemeConfig` (mode/accent/font/radius/density/card),

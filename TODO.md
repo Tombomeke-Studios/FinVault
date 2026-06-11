@@ -10,30 +10,13 @@ Workflow rules live in [CLAUDE.md](CLAUDE.md#workflow-rules); short version:
   written + this file ticked. Only then start the next item.
 - **Branch group complete → push → PR → CI green** (`validate.yml`). Red PR ≠ done.
 
-## Branch: `feature/web-theme-refactor` — active (#19)
-
-- [x] Remove dead `src/theme.css` (never imported; drifted duplicate of index.css) (#19)
-- [x] Theme-aware `FVLogo`: SVG lockup (gradient mark + currentColor wordmark, `mono`
-  variant) replaces the white-wordmark PNG that broke on light themes (#19)
-- [x] Restructure `index.css` into layered sections: primitives → semantic tokens →
-  components → motion, with the token contract documented (#19)
-- [x] Fix light-mode contrast: `--accent-ink`, clamped light accent fills, per-mode
-  `--cat-l`/`--cat-soft-a` category tokens (#19)
-- [x] Expand the motion library: `fvSlideDown/BlurIn/Shake/BounceIn/GradShift` keyframes,
-  `.stagger`, `.gradient-animate`, theme-switch cross-fade, gradient `.btn-primary`,
-  `::selection`; reduced-motion kill-switch intact (#19)
-- [x] Persist theme to localStorage and restore on boot — `src/theme.ts` owns the
-  engine now (deduped ACCENTS/FONTS/PRESETS from App.tsx + ScreenSettings) (#19)
-- [x] Update docs/design-system.md to match the refactored system (#19)
-- [x] Extra presets: Midnight (dark rose glass) + Mint (light emerald) (#19)
-
 ## Branch: `feature/mobile-theming` — active (#8)
 
 - [x] Mobile theming engine — mutable THEME palette (light + dark), six web-parity
   accents, `themedSheet` proxy rebuilds module StyleSheets, vitest coverage (#8)
 - [x] Wire it up: presets apply for real, new Appearance section (mode toggle +
   accent dots), persisted via expo-secure-store, StatusBar follows mode (#8)
-- [ ] docs/design-system.md: mobile theming section (#8)
+- [x] docs/design-system.md: mobile theming section (#8)
 
 ## Backlog — ungrouped (assign to a branch group when picked up)
 
@@ -70,6 +53,15 @@ Workflow rules live in [CLAUDE.md](CLAUDE.md#workflow-rules); short version:
 **Dev-environment note (not a task):** RabbitMQ is Docker-only for local dev — run
 `docker run -d --name rabbitmq -p 5672:5672 rabbitmq:3` then add
 `RABBITMQ_URL=amqp://guest:guest@localhost:5672` to `.env` to enable async events.
+
+## Done — `feature/web-theme-refactor` (merged into `dev` via PR #22, issue #19 auto-closed, 2026-06-11)
+
+- [x] Removed dead `src/theme.css`; theme-aware `FVLogo` SVG (mono variant) replaces white-wordmark PNG
+- [x] `index.css` restructured into 7 layered sections with a token contract header
+- [x] Light-mode contrast: `--accent-ink`, clamped light accent fills, `--cat-l`/`--cat-soft-a`
+- [x] Motion library: SlideDown/BlurIn/Shake/BounceIn/GradShift, `.stagger`, theme cross-fade
+- [x] Theme engine in `src/theme.ts` + localStorage persistence; Midnight + Mint presets
+- [x] docs/design-system.md: theming contract + motion vocabulary
 
 ## Done — `feature/github-workflow` (merged into `dev` via PR #21, 2026-06-11)
 

@@ -171,12 +171,12 @@ the same emails offline → client-side mock demo mode. Mobile API base: `EXPO_P
 
 ## 7. Codebase map — where is what
 
-### apps/mobile (Expo SDK 54, RN 0.81, dark-only)
+### apps/mobile (Expo SDK 54, RN 0.81, themed dark/light)
 | File | Contents |
 |---|---|
 | `App.tsx` | All app state: auth/token, wallets/transactions/cards/goals, route string (`'overview'`, `'account:<walletId>'`, …), all API handlers (`handleLogin/Transfer/Deposit/OwnTransfer/UpgradePlan`), mock-data builder, deposit + plan-upgrade sheets, Android BackHandler, session restore + splash |
 | `src/session.ts` | SecureStore token persistence: `saveSession/loadSession/clearSession/tryRefreshSession/revokeSession` |
-| `src/theme.ts` | `THEME` tokens (colors/radius/spacing) — hex, single dark palette |
+| `src/theme.ts` | Theme engine: mutable `THEME` tokens (hex), dark/light palettes × 6 accents, `setAppTheme`/`subscribeTheme`, `themedSheet` StyleSheet proxy, secure-store persistence. Tests: `theme.test.ts` |
 | `src/components/Icon.tsx` | Name → Feather glyph map + `MCI_MAPPING` (MaterialCommunityIcons fallback: `flame`, `faceId`). Unmapped → help-circle |
 | `src/components/Motion.tsx` | `PressableScale`, `FadeSlideIn`, `AnimatedProgressBar`, `useReducedMotion` — use these, no ad-hoc Animated code |
 | `src/components/Toast.tsx` | `useToasts()` + `<ToastHost/>`; `fire(title, body, type)` success/info/warn/error |
@@ -221,5 +221,9 @@ the same emails offline → client-side mock demo mode. Mobile API base: `EXPO_P
   (`walletLabel()` server-side, inline ternaries client-side).
 - Services run on Node ESM + tsx; Prisma clients are generated into `generated/prisma`.
 - Mobile screens need `paddingBottom: 88` in scroll content to clear the bottom nav.
+- **Mobile theming:** module-level StyleSheets that use THEME colors must be wrapped in
+  `themedSheet(() => StyleSheet.create({...}))`; theme changes go through
+  `applyAndSetTheme` in App.tsx (mutate first, then setState) — never call
+  `setTheme` with a new palette directly.
 - Alerts (`Alert.alert`) only for destructive confirmations — all other feedback via toasts.
 - Expo SDK is **54** (`apps/mobile/AGENTS.md` mentions v56 docs — installed SDK wins).
