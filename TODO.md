@@ -15,11 +15,13 @@ Workflow rules live in [CLAUDE.md](CLAUDE.md#workflow-rules); short version:
 - [x] Remove dead `src/theme.css` (never imported; drifted duplicate of index.css) (#19)
 - [x] Theme-aware `FVLogo`: SVG lockup (gradient mark + currentColor wordmark, `mono`
   variant) replaces the white-wordmark PNG that broke on light themes (#19)
-- [ ] Restructure `index.css` into layered sections: primitives → semantic tokens →
+- [x] Restructure `index.css` into layered sections: primitives → semantic tokens →
   components → motion, with the token contract documented (#19)
-- [ ] Fix light-mode contrast: nav, chips, accent surfaces in Daylight/Sand (#19)
-- [ ] Expand the motion library (new `fv*` keyframes + utility classes, micro-interactions),
-  keep the reduced-motion kill-switch (#19)
+- [x] Fix light-mode contrast: `--accent-ink`, clamped light accent fills, per-mode
+  `--cat-l`/`--cat-soft-a` category tokens (#19)
+- [x] Expand the motion library: `fvSlideDown/BlurIn/Shake/BounceIn/GradShift` keyframes,
+  `.stagger`, `.gradient-animate`, theme-switch cross-fade, gradient `.btn-primary`,
+  `::selection`; reduced-motion kill-switch intact (#19)
 - [x] Persist theme to localStorage and restore on boot — `src/theme.ts` owns the
   engine now (deduped ACCENTS/FONTS/PRESETS from App.tsx + ScreenSettings) (#19)
 - [ ] Update docs/design-system.md to match the refactored system (#19)

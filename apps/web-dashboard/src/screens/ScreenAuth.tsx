@@ -51,7 +51,7 @@ export function ScreenAuth({ compact, onLogin, onRegister, authError, authSucces
       </div>
 
       {authError && (
-        <div style={{ background: 'color-mix(in oklab, var(--neg) 14%, transparent)', border: '1px solid var(--neg)', borderRadius: 'var(--r)', padding: '10px 14px', color: 'var(--neg)', fontSize: '0.88rem', marginBottom: 'var(--gap)', display: 'flex', alignItems: 'center', gap: 8 }}>
+        <div className="shake" style={{ background: 'color-mix(in oklab, var(--neg) 14%, transparent)', border: '1px solid var(--neg)', borderRadius: 'var(--r)', padding: '10px 14px', color: 'var(--neg)', fontSize: '0.88rem', marginBottom: 'var(--gap)', display: 'flex', alignItems: 'center', gap: 8 }}>
           <Icon name="x" size={15} />{authError}
         </div>
       )}

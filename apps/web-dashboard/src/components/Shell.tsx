@@ -48,7 +48,7 @@ function Notifs({ open, onClose, items }: { open: boolean; onClose: () => void; 
   if (!open) return null;
   return (
     <div onClick={onClose} style={{ position: 'fixed', inset: 0, zIndex: 70 }}>
-      <div onClick={e => e.stopPropagation()} className="card" style={{ position: 'absolute', top: 64, right: 18, width: 'min(340px, calc(100% - 36px))', padding: 'var(--pad)', boxShadow: 'var(--shadow)', animation: 'fvRise .2s ease' }}>
+      <div onClick={e => e.stopPropagation()} className="card slide-down" style={{ position: 'absolute', top: 64, right: 18, width: 'min(340px, calc(100% - 36px))', padding: 'var(--pad)', boxShadow: 'var(--shadow)' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
           <span style={{ fontWeight: 700 }}>Notifications</span>
           <button className="btn btn-quiet" onClick={onClose} style={{ padding: 4, fontSize: '0.78rem', color: 'var(--accent)' }}>Mark all read</button>
