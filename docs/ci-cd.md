@@ -10,7 +10,6 @@ workflow, update this file in the same commit (CLAUDE.md §5).
 | File | Trigger | What it does |
 |---|---|---|
 | `validate.yml` | push to `main`; **every PR** (any base branch) | Install → Prisma generate → build `shared/` → build all workspaces (type-check) → `vitest run` |
-| `close-linked-issues.yml` | PR **merged** into `dev` | Parses the PR body for closing keywords (`Closes #N`, `Fixes #N`, …) and closes those issues with a back-link comment |
 
 Local mirror of `validate.yml`: `npm run build && npm test` from the repo root — run it
 before opening any PR (CLAUDE.md §2b, finish protocol).
@@ -37,21 +36,15 @@ on:
      and is skipped; its type-checking is the local `npx tsc --noEmit` bar).
   5. `npm test` — `vitest run`, picks up every colocated `*.test.ts`.
 
-## 3. Anatomy of `close-linked-issues.yml`
+## 3. Issue auto-close — native
 
-GitHub's native keyword auto-close ("Closes #N" in a PR body) only fires when the PR
-merges into the repo's **default branch** (`main`). Feature PRs target `dev`, so this
-workflow replicates the behavior: on a merged PR into `dev` it extracts all
-`close/closes/closed/fix/fixes/fixed/resolve/resolves/resolved #N` references from the
-PR body, comments `Closed by #PR` on each issue, and closes it as `completed`.
+GitHub closes linked issues itself when a PR with closing keywords merges into the
+**default branch** — which is `dev` since 2026-06-12. The `close-linked-issues.yml`
+workflow that replicated this behavior while `main` was still the default has been
+removed (#37).
 
-- It needs `permissions: issues: write` — granted in the workflow file itself, works
-  with the default `GITHUB_TOKEN` (no PAT/secret required).
-- Only the **PR body** is parsed (not commit messages) — keep the `Closes #N` lines in
-  the PR description, one per line.
-- Skips already-closed issues and accidental PR references; safe to re-run.
-- **Planned removal (#37):** once the repository default branch is switched to `dev`,
-  GitHub's native auto-close fires on feature-PR merges and this workflow is redundant.
+- Keep the `Closes #N` lines in the **PR description**, one per line (CLAUDE.md §2a);
+  the Development sidebar on the issue shows the link automatically.
 - Related repo setting: *Automatically delete head branches* is **on** — merged
   feature branches disappear server-side; run `git fetch --prune` locally.
 
