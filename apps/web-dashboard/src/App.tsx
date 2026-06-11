@@ -521,26 +521,30 @@ export default function App() {
     navigate('/login', { replace: true });
   };
 
-  const handleTransfer = async (email: string, amount: number, desc: string, walletId: string) => {
+  // Throws on failure so the transfer screen can show an honest result (#11);
+  // on success the sender balance updates immediately and the re-fetch is
+  // awaited before the screen advances (#12).
+  const handleTransfer = async (target: { email?: string; iban?: string }, amount: number, desc: string, walletId: string) => {
     const wallet = wallets.find(w => w.id === walletId) || wallets[0];
     if (!wallet) throw new Error('No wallet found.');
     if (amount <= 0) throw new Error('Amount must be greater than zero.');
     if (amount > wallet.balance) {
-      fire('Insufficient funds', `Your ${wallet.name || 'account'} balance is ${money(wallet.balance, wallet.currency)}.`, 'warn');
-      return;
+      throw new Error(`Insufficient funds — your ${wallet.name || 'account'} balance is ${money(wallet.balance, wallet.currency)}.`);
     }
-    try {
-      const res = await fetch('/api/transactions/transfer', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify({ senderWalletId: walletId, receiverEmail: email, amount, description: desc }) });
-      const data = await res.json();
-      if (res.ok) { fetchWallets(); fetchTransactions(); }
-      else throw new Error(data.error);
-    } catch (err: any) {
-      if (err?.message && !err.message.includes('fetch')) {
-        fire('Transfer failed', err.message, 'warn');
-        return;
-      }
-      // Demo fallback — backend offline
+    const applyLocalDebit = () => {
       setWallets(prev => prev.map(w => w.id === walletId ? { ...w, balance: w.balance - amount } : w));
+    };
+    try {
+      const res = await fetch('/api/transactions/transfer', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify({ senderWalletId: walletId, receiverEmail: target.email, receiverIban: target.iban, amount, description: desc }) });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Transfer failed');
+      applyLocalDebit();
+      setTransactions(prev => [data.transaction, ...prev]);
+      await Promise.all([fetchWallets(), fetchTransactions()]);
+    } catch (err: any) {
+      // Network unreachable → offline demo fallback; real API errors propagate.
+      if (err?.message && !err.message.toLowerCase().includes('fetch')) throw err;
+      applyLocalDebit();
       setTransactions(prev => [{
         id: Math.random().toString(), senderWalletId: walletId, receiverWalletId: null,
         amount, currency: wallet.currency, status: 'confirmed', type: 'transfer',
