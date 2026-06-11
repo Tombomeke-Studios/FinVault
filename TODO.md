@@ -27,10 +27,12 @@ Workflow rules live in [CLAUDE.md](CLAUDE.md#workflow-rules); short version:
 - [x] Update docs/design-system.md to match the refactored system (#19)
 - [x] Extra presets: Midnight (dark rose glass) + Mint (light emerald) (#19)
 
-## Branch: `feature/mobile-theming` — planned (#8)
+## Branch: `feature/mobile-theming` — active (#8)
 
-- [ ] Mobile theming engine — theme context, light + dark palettes, web accent parity,
-  wire the Settings presets, persist choice (#8)
+- [x] Mobile theming engine — mutable THEME palette (light + dark), six web-parity
+  accents, `themedSheet` proxy rebuilds module StyleSheets, vitest coverage (#8)
+- [x] Wire it up: presets apply for real, new Appearance section (mode toggle +
+  accent dots), persisted via expo-secure-store, StatusBar follows mode (#8)
 - [ ] docs/design-system.md: mobile theming section (#8)
 
 ## Backlog — ungrouped (assign to a branch group when picked up)
