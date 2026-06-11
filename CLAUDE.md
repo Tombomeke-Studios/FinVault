@@ -144,6 +144,7 @@ A "unit" = one function, feature, fix, or refactor — the smallest shippable sl
 | Auth, sessions, secrets, rate limits, known gaps | [docs/security.md](docs/security.md) |
 | Tokens, colors, typography, motion, components, a11y | [docs/design-system.md](docs/design-system.md) |
 | Anything under `.github/workflows/` (triggers, steps, pinned actions) | [docs/ci-cd.md](docs/ci-cd.md) |
+| Product feature set vs. real banking apps (gaps, priorities) | [docs/feature-roadmap.md](docs/feature-roadmap.md) |
 | New/moved/renamed files, new commands, new gotchas | **This file** (map in §7, gotchas in §8) |
 | Setup / how-to-run instructions | README.md |
 | Tasks, progress, follow-ups | [TODO.md](TODO.md) — and *only* there |
