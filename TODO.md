@@ -10,13 +10,14 @@ Workflow rules live in [CLAUDE.md](CLAUDE.md#workflow-rules); short version:
   written + this file ticked. Only then start the next item.
 - **Branch group complete → push → PR → CI green** (`validate.yml`). Red PR ≠ done.
 
-## Branch: `feature/native-issue-autoclose` — active (#37)
+## Branch: `feature/transfer-validation` — active (#9 #10 #11 #12)
 
-- [x] Remove `close-linked-issues.yml` — default branch is `dev` now, GitHub
-  auto-closes linked issues natively; CLAUDE.md §2/§2a + docs/ci-cd.md updated (#37)
-- [x] `validate.yml` push trigger review: validate pushes to `dev` (the default and
-  integration tier) alongside `main`; dropped never-existing `master` (#37)
-- [ ] Push, PR → `dev`, CI green, merge — the merge itself proves native auto-close
+- [x] Backend (#11): request + rejection logging on `/transactions/transfer`, proper
+  error responses, `receiverIban` targets (`iban.ts` + 8 tests)
+- [ ] Web + mobile (#11): stop the false "Payment sent" — surface backend errors
+- [ ] Web + mobile (#9): recipient input accepts email or IBAN with inline validation
+- [ ] Web + mobile (#10): editable custom recipient name → transaction description
+- [ ] Web + mobile (#12): sender balance updates immediately after a transfer
 
 ## Backlog — ungrouped (assign to a branch group when picked up)
 
@@ -41,18 +42,6 @@ Workflow rules live in [CLAUDE.md](CLAUDE.md#workflow-rules); short version:
 - [ ] Mobile: wire "Request money" tab to the payment-request backend (currently toast-only) (#6)
 - [ ] Mobile: real biometrics via `expo-local-authentication` (Face ID button is simulated) (#7)
 
-**Candidate group: `feature/transfer-validation`**
-- [ ] Transfer screen (mobile + web): validate recipient field before proceeding to amount step
-  — accept IBAN, email, or name; show inline error if format is invalid or lookup returns nothing (#9)
-- [ ] Transfer screen: allow entering a **custom recipient name** instead of only hardcoded accounts;
-  the name field must be editable and passed through to the transaction description (#10)
-- [ ] Transfer to hardcoded demo accounts shows "succeeded" toast but no transaction is created
-  and nothing appears in logs — the backend call either silently swallows the error or the
-  route is not being hit; add server-side logging + return a proper error response so the
-  UI can surface it (both mobile and web) (#11)
-- [ ] After a successful transfer the sender wallet balance must update immediately (optimistic
-  update or re-fetch); currently the overview does not reflect the deduction (#12)
-
 **Smaller / unscheduled**
 - [ ] Backend: tests for `/auth/refresh` rotation + replay-revocation and `/auth/logout` (#13)
 - [ ] Card "limits & controls" toggles (contactless/foreign) are client-side only — add backend fields (#14)
@@ -64,6 +53,11 @@ Workflow rules live in [CLAUDE.md](CLAUDE.md#workflow-rules); short version:
 **Dev-environment note (not a task):** RabbitMQ is Docker-only for local dev — run
 `docker run -d --name rabbitmq -p 5672:5672 rabbitmq:3` then add
 `RABBITMQ_URL=amqp://guest:guest@localhost:5672` to `.env` to enable async events.
+
+## Done — `feature/native-issue-autoclose` (merged into `dev` via PR #39, issue #37 closed natively, 2026-06-12)
+
+- [x] `close-linked-issues.yml` removed — default branch is `dev`, GitHub auto-closes natively
+- [x] `validate.yml` also validates pushes to `dev`; CLAUDE.md §2/§2a + docs/ci-cd.md updated
 
 ## Done — `feature/repo-hygiene` (merged into `dev` via PR #38, 2026-06-11)
 
