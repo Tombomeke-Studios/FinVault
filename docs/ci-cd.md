@@ -50,6 +50,10 @@ PR body, comments `Closed by #PR` on each issue, and closes it as `completed`.
 - Only the **PR body** is parsed (not commit messages) — keep the `Closes #N` lines in
   the PR description, one per line.
 - Skips already-closed issues and accidental PR references; safe to re-run.
+- **Planned removal (#37):** once the repository default branch is switched to `dev`,
+  GitHub's native auto-close fires on feature-PR merges and this workflow is redundant.
+- Related repo setting: *Automatically delete head branches* is **on** — merged
+  feature branches disappear server-side; run `git fetch --prune` locally.
 
 ## 4. Maintenance rules
 

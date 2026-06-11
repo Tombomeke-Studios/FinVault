@@ -43,6 +43,16 @@ Tasks live in two places that must stay in sync:
 - **TODO.md** — the working checklist, grouped per branch (single source of truth for *progress*)
 - **GitHub issues** — the trackable mirror of every open TODO item (single source of truth for *linking*: PRs, commits, discussion)
 
+**Trigger table — when X happens, the agent does Y, immediately and unprompted:**
+
+| Moment | Action |
+|---|---|
+| You add an actionable item to TODO.md | Create its GitHub issue (rule 1) and put the `(#N)` ref on the TODO line |
+| You promote a backlog group to `feature/<topic>` | Verify every item in it has an issue; create any missing ones first |
+| You discover a bug while working | Issue immediately (`type:bug`), then decide: fix now or backlog |
+| You open a PR | One `Closes #N` line per completed issue in the PR body |
+| The PR merges | Verify the issues auto-closed; move the group to Done in TODO.md; `git fetch --prune` (GitHub deletes the head branch automatically) |
+
 **Rules:**
 
 1. **Every actionable TODO item gets a GitHub issue** — at the latest when its backlog
@@ -57,11 +67,15 @@ Tasks live in two places that must stay in sync:
    moment the issue exists.
 5. **PR bodies close their issues:** list every completed issue as `Closes #N` (one per
    line) in the PR description. Merging the PR into `dev` then closes them automatically
-   via `.github/workflows/close-linked-issues.yml` (GitHub's native keyword auto-close
-   only fires on the default branch `main`, which feature PRs never target — the
-   workflow replicates it for `dev`).
+   via `.github/workflows/close-linked-issues.yml`. *Why a workflow and not GitHub's
+   built-in linking:* native auto-close (closing keywords **and** the Development-sidebar
+   link) only fires when a PR merges into the **default branch** — currently `main`,
+   which feature PRs never target. Once the default branch is switched to `dev`, native
+   auto-close takes over and the workflow gets removed (#37).
 6. An issue is only ever closed by a merged PR — or manually with a comment explaining
    why (duplicate, obsolete, won't fix). Never silently.
+7. Open issues are the **backlog**, not a failure signal: an issue stays open until its
+   feature branch ships. Don't close issues to "clean up" — close them by shipping.
 
 ## 2b. The iteration loop (follow for every unit of work)
 
@@ -96,6 +110,9 @@ A "unit" = one function, feature, fix, or refactor — the smallest shippable sl
    **A red PR is not done** — keep fixing (and pushing) on the branch until it's green.
 4. After the feature PR merges into `dev` and CI is green: move the branch group in
    TODO.md to the Done section and verify the linked issues were auto-closed.
+5. The remote head branch is deleted automatically on merge (repo setting
+   *Automatically delete head branches*). Locally run `git fetch --prune` and
+   `git branch -d feature/<topic>` — merged branches never linger.
 
 **Promoting `dev` → `staging` → `main`:**
 1. Open a PR `dev → staging` only when a full milestone is complete and `dev` CI is
