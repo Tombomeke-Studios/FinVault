@@ -1,8 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Switch, ActivityIndicator } from 'react-native';
 import { Icon } from '../components/Icon';
 import { Avatar, relTime } from '../components/UI';
 import { MobileSheet } from '../components/MobileExtras';
+import { isBiometricAvailable, getBiometricPref, setBiometricPref } from '../biometrics';
 import { THEME, themedSheet, ACCENTS } from '../theme';
 import type { AppData, ThemeConfig } from '../../App';
 
@@ -55,7 +56,20 @@ const PRESETS: Record<string, ThemeConfig> = {
 };
 
 export function ScreenSettings({ data, theme, setTheme, onLogout, fire, openUpgrade, token, apiUrl }: SettingsProps) {
-  const [biometric, setBiometric] = useState(true);
+  const [biometric, setBiometric] = useState(false);
+
+  // The toggle reflects and persists the real biometric-gate preference (#7).
+  useEffect(() => { getBiometricPref().then(setBiometric); }, []);
+  const toggleBiometric = async (v: boolean) => {
+    if (v && !(await isBiometricAvailable())) {
+      fire('Biometrics unavailable', 'No biometric hardware or enrollment found on this device.', 'warn');
+      return;
+    }
+    setBiometric(v);
+    await setBiometricPref(v);
+    fire(v ? 'Biometrics enabled' : 'Biometrics disabled',
+      v ? 'Unlocking FinVault now requires Face ID / fingerprint.' : 'You will sign in with your password.', 'success');
+  };
   const [pushNotifs, setPushNotifs] = useState(true);
   const [securityOpen, setSecurityOpen] = useState(false);
   const [logs, setLogs] = useState<AuditEntry[]>([]);
@@ -186,7 +200,7 @@ export function ScreenSettings({ data, theme, setTheme, onLogout, fire, openUpgr
           </View>
           <Switch
             value={biometric}
-            onValueChange={v => { setBiometric(v); fire(v ? 'Biometrics enabled' : 'Biometrics disabled', v ? 'Face ID will be used at sign-in.' : 'You will sign in with your password.', 'success'); }}
+            onValueChange={toggleBiometric}
             trackColor={{ false: THEME.colors.surfaceHi, true: THEME.colors.accent }}
             thumbColor="#fff"
             accessibilityLabel="Biometric sign-in"
