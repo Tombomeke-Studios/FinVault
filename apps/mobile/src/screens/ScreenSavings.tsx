@@ -4,7 +4,7 @@ import { Icon } from '../components/Icon';
 import { money, Ring, catColor } from '../components/UI';
 import { MobileSheet } from '../components/MobileExtras';
 import { FadeSlideIn, AnimatedProgressBar } from '../components/Motion';
-import { THEME } from '../theme';
+import { THEME, themedSheet } from '../theme';
 import type { AppData } from '../../App';
 
 interface Goal { id: string; name: string; target: number; saved: number; hue: number; icon: string; due: string; }
@@ -477,7 +477,7 @@ export function ScreenSavings({ data, fire, goals, setGoals, wallets, setWallets
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedSheet(() => StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: THEME.colors.bg,
@@ -731,4 +731,4 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: 'bold',
   },
-});
+}));

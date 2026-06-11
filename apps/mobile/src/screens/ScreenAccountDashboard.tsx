@@ -7,7 +7,7 @@ import { Icon } from '../components/Icon';
 import { money, relTime, CategoryIcon } from '../components/UI';
 import { MobileSheet } from '../components/MobileExtras';
 import { PressableScale } from '../components/Motion';
-import { THEME } from '../theme';
+import { THEME, themedSheet } from '../theme';
 import type { AppData } from '../../App';
 
 interface AccountDashboardProps {
@@ -376,7 +376,7 @@ export function ScreenAccountDashboard({ walletId, data, navigate, onOwnTransfer
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedSheet(() => StyleSheet.create({
   container: { flex: 1, backgroundColor: THEME.colors.bg },
   content: { paddingHorizontal: 16, paddingTop: 8, paddingBottom: 100, gap: 14 },
 
@@ -463,4 +463,4 @@ const styles = StyleSheet.create({
   noteInput: { backgroundColor: THEME.colors.surface2, borderWidth: 1.5, borderColor: THEME.colors.line, borderRadius: 14, paddingVertical: 12, paddingHorizontal: 14, color: THEME.colors.text, fontSize: 14 },
   submitBtn: { borderRadius: 16, paddingVertical: 15, flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 8, shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.35, shadowRadius: 14, elevation: 8, marginTop: 4 },
   submitText: { color: THEME.colors.onAccent, fontSize: 15, fontWeight: '800' },
-});
+}));

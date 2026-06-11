@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Animated, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { Icon } from './Icon';
-import { THEME } from '../theme';
+import { THEME, themedSheet } from '../theme';
 import { useReducedMotion } from './Motion';
 
 /**
@@ -101,7 +101,7 @@ export function useToasts() {
   return { toasts, fire, dismiss };
 }
 
-const styles = StyleSheet.create({
+const styles = themedSheet(() => StyleSheet.create({
   host: {
     position: 'absolute',
     top: 64,
@@ -147,4 +147,4 @@ const styles = StyleSheet.create({
   closeBtn: {
     padding: 4,
   },
-});
+}));

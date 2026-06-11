@@ -3,7 +3,7 @@ import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Switch, ActivityI
 import { Icon } from '../components/Icon';
 import { Avatar, relTime } from '../components/UI';
 import { MobileSheet } from '../components/MobileExtras';
-import { THEME } from '../theme';
+import { THEME, themedSheet } from '../theme';
 import type { AppData, ThemeConfig } from '../../App';
 
 interface SettingsProps {
@@ -228,7 +228,7 @@ export function ScreenSettings({ data, theme, setTheme, onLogout, fire, openUpgr
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedSheet(() => StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: THEME.colors.bg,
@@ -435,4 +435,4 @@ const styles = StyleSheet.create({
     color: THEME.colors.text3,
     marginTop: 2,
   },
-});
+}));

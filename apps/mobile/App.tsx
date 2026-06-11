@@ -15,7 +15,7 @@ import { MobileSheet } from './src/components/MobileExtras';
 import { ToastHost, useToasts } from './src/components/Toast';
 import { Icon } from './src/components/Icon';
 import { saveSession, loadSession, clearSession, tryRefreshSession, revokeSession } from './src/session';
-import { THEME } from './src/theme';
+import { THEME, themedSheet } from './src/theme';
 
 export interface ThemeConfig {
   mode: 'dark' | 'light';
@@ -264,7 +264,7 @@ function UpgradePlanSheet({ open, onClose, currentPlan, onUpgrade }: { open: boo
   );
 }
 
-const upgStyles = StyleSheet.create({
+const upgStyles = themedSheet(() => StyleSheet.create({
   planCard: {
     backgroundColor: THEME.colors.surface2,
     borderWidth: 1,
@@ -288,7 +288,7 @@ const upgStyles = StyleSheet.create({
   confirmBtnMuted: { backgroundColor: THEME.colors.surface2, borderWidth: 1, borderColor: THEME.colors.line },
   confirmTxt: { fontSize: 15, fontWeight: 'bold', color: THEME.colors.onAccent },
   confirmTxtMuted: { color: THEME.colors.text2 },
-});
+}));
 
 export default function App() {
   // --- Auth State ---
@@ -846,7 +846,7 @@ export default function App() {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedSheet(() => StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: THEME.colors.bg,
@@ -927,4 +927,4 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: 'bold',
   },
-});
+}));
