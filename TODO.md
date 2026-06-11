@@ -30,6 +30,14 @@ Workflow rules live in [CLAUDE.md](CLAUDE.md#workflow-rules); short version:
 - [x] Mobile: beneficiary chips prefill the transfer form
 - [ ] Docs + roadmap tick, PR → `dev`, CI green, merge
 
+## Branch: `feature/qr-transfers` — active (#43)
+
+- [ ] `chore(mobile):` deps — expo-camera, react-native-svg, react-native-qrcode-svg (#43)
+- [ ] EPC QR (EPC069-12) parser/builder in `src/lib/epc.ts` + unit tests (#43)
+- [ ] Scan to pay: camera sheet on the transfer screen prefills IBAN/name/amount/desc (#43)
+- [ ] Receive: EPC QR for the selected own wallet on the Request tab (#43)
+- [ ] Docs + roadmap row, PR → `dev`, CI green, merge
+
 ## Backlog — ungrouped (assign to a branch group when picked up)
 
 **Roadmap gaps (see [docs/feature-roadmap.md](docs/feature-roadmap.md) for prio/effort)**
