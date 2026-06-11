@@ -41,7 +41,7 @@ secondary · **P3** = differentiator/nice-to-have. Effort: S/M/L.
 | 12 | **Dispute / report a transaction** — no flow to flag fraud or errors | Trust feature; can start as a support ticket | P3 | S | #34 |
 | 13 | **In-app support** — no help center/FAQ/contact | Expected, low urgency in a demo | P3 | S | — (backlog note) |
 | 14 | **KYC-ish onboarding** — register hardcodes DOB/address | Realism of the demo; validation exists server-side already | P3 | S | — (backlog note) |
-| 15 | **QR transfers (Payconiq-style)** — scan an EPC QR to pay, show one to receive (mobile camera) | Requested 2026-06-12; signature BE payments UX, rides on the IBAN transfer path | P1 | M | #43 |
+| 15 | **QR transfers (Payconiq-style)** — ✅ shipped 2026-06-12 (mobile): EPC069-12 scan-to-pay prefills the transfer form, receive-QR on the Request tab; web receive-QR parity stays open | Requested 2026-06-12; signature BE payments UX, rides on the IBAN transfer path | P1 | M | #43 |
 | 16 | **Biometric-gated login** — real Face ID/fingerprint + biometric gate on session restore (extends the simulated button) | Requested 2026-06-12; table-stakes mobile banking security UX | P1 | S | #7 |
 
 Deliberately out of scope for a demo: real payment rails, joint accounts, lending

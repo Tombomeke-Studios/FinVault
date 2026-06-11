@@ -32,11 +32,13 @@ Workflow rules live in [CLAUDE.md](CLAUDE.md#workflow-rules); short version:
 
 ## Branch: `feature/qr-transfers` — active (#43)
 
-- [ ] `chore(mobile):` deps — expo-camera, react-native-svg, react-native-qrcode-svg (#43)
-- [ ] EPC QR (EPC069-12) parser/builder in `src/lib/epc.ts` + unit tests (#43)
-- [ ] Scan to pay: camera sheet on the transfer screen prefills IBAN/name/amount/desc (#43)
-- [ ] Receive: EPC QR for the selected own wallet on the Request tab (#43)
-- [ ] Docs + roadmap row, PR → `dev`, CI green, merge
+- [x] `chore(mobile):` deps — expo-camera, react-native-svg, react-native-qrcode-svg (#43)
+- [x] EPC QR (EPC069-12) parser/builder in `src/lib/epc.ts` + 7 unit tests (#43)
+- [x] Scan to pay: `QrScanSheet` (camera, permission flow, EPC-only accept) prefills
+  IBAN/name/amount/description on the transfer form (#43)
+- [x] Receive: EPC QR on the Request tab (own IBAN + live amount/description) (#43)
+- [ ] Docs + roadmap tick, PR → `dev`, CI green, merge — **needs a manual device test
+  via Expo Go before promoting beyond `dev`** (camera can't be CI-tested)
 
 ## Backlog — ungrouped (assign to a branch group when picked up)
 
