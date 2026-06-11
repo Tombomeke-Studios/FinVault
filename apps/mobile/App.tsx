@@ -84,6 +84,13 @@ interface CardItem {
   limit: number;
 }
 
+export interface Beneficiary {
+  id: string;
+  name: string;
+  email?: string | null;
+  iban?: string | null;
+}
+
 interface Goal {
   id: string;
   name: string;
@@ -299,6 +306,7 @@ export default function App() {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [cards, setCards] = useState<CardItem[]>([]);
   const [goals, setGoals] = useState<Goal[]>([]);
+  const [beneficiaries, setBeneficiaries] = useState<Beneficiary[]>([]);
   const [authError, setAuthError] = useState('');
   const [authSuccess, setAuthSuccess] = useState('');
   const [upgradeOpen, setUpgradeOpen] = useState(false);
@@ -440,6 +448,16 @@ export default function App() {
     } catch {}
   }, [token]);
 
+  const fetchBeneficiaries = useCallback(async () => {
+    if (!token || token === 'mock-token') return;
+    try {
+      const res = await fetch(`${API_URL}/api/beneficiaries`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (res.ok) setBeneficiaries(await res.json());
+    } catch {}
+  }, [token]);
+
   const fetchProfile = useCallback(async () => {
     if (!token || token === 'mock-token') {
       setupMockSession();
@@ -456,6 +474,7 @@ export default function App() {
         fetchTransactions();
         fetchCards();
         fetchGoals();
+        fetchBeneficiaries();
       } else {
         // Access token expired/invalid — try one silent refresh before signing out.
         const refreshed = await tryRefreshSession(API_URL);
@@ -594,6 +613,7 @@ export default function App() {
           // Immediate balance feedback, then reconcile with the server (#12).
           applyLocalDebit();
           fire('Transfer completed', `${money(amount)} sent to ${label}.`, 'success');
+          fetchBeneficiaries(); // backend auto-upserts the payee (#25)
           await Promise.all([fetchWallets(), fetchTransactions()]);
           return true;
         } else {
@@ -752,7 +772,7 @@ export default function App() {
       case 'transactions':
         return <ScreenTransactions data={appData} onExport={() => fire('Export complete', 'Your transactions CSV was shared.', 'success')} />;
       case 'transfer':
-        return <ScreenTransfer data={appData} onTransfer={handleTransfer} onRequest={handleRequest} />;
+        return <ScreenTransfer data={appData} beneficiaries={beneficiaries} onTransfer={handleTransfer} onRequest={handleRequest} />;
       case 'cards':
         return <ScreenCards data={appData} fire={fire} cards={cards} setCards={setCards} token={token} apiUrl={API_URL} navigate={setRoute} />;
       case 'analytics':

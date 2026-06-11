@@ -4,15 +4,16 @@ import { Icon } from '../components/Icon';
 import { money } from '../components/UI';
 import { classifyRecipient, isEmail, normalizeIban } from '../lib/validate';
 import { THEME, themedSheet } from '../theme';
-import type { AppData } from '../../App';
+import type { AppData, Beneficiary } from '../../App';
 
 interface TransferProps {
   data: AppData;
+  beneficiaries?: Beneficiary[];
   onTransfer: (target: { email?: string; iban?: string }, amt: number, desc: string, walletId: string) => Promise<boolean>;
   onRequest: (email: string, amt: number, desc: string) => Promise<void>;
 }
 
-export function ScreenTransfer({ data, onTransfer, onRequest }: TransferProps) {
+export function ScreenTransfer({ data, beneficiaries, onTransfer, onRequest }: TransferProps) {
   const [mode, setMode] = useState<'send' | 'request'>('send');
   const [recipient, setRecipient] = useState('');
   const [recipientName, setRecipientName] = useState('');
@@ -112,6 +113,28 @@ export function ScreenTransfer({ data, onTransfer, onRequest }: TransferProps) {
                 </TouchableOpacity>
               ))}
             </View>
+          </View>
+        )}
+
+        {/* Saved payees prefill the form (#25) */}
+        {mode === 'send' && (beneficiaries?.length ?? 0) > 0 && (
+          <View>
+            <Text style={styles.label}>Saved payees</Text>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+              <View style={{ flexDirection: 'row', gap: 8 }}>
+                {beneficiaries!.map(b => (
+                  <TouchableOpacity
+                    key={b.id}
+                    onPress={() => { setRecipient(b.email || b.iban || ''); setRecipientName(b.name); setFormError(''); }}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Use payee ${b.name}`}
+                    style={{ paddingVertical: 8, paddingHorizontal: 14, borderRadius: THEME.radius.pill, backgroundColor: THEME.colors.surface2, borderWidth: 1, borderColor: THEME.colors.line }}
+                  >
+                    <Text style={{ color: THEME.colors.text, fontWeight: '600', fontSize: 13 }}>{b.name}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </ScrollView>
           </View>
         )}
 
