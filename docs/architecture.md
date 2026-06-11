@@ -67,6 +67,9 @@ event-driven microservices backend.
   silent (#11). Note: seeded demo IBANs are structurally valid but not mod-97
   checksummed, so target lookups validate *format* only.
 - Cards (freeze, limits) and savings goals (fund/edit/delete) CRUD.
+- Beneficiaries (#25): `GET/POST /beneficiaries`, `DELETE /beneficiaries/:id` —
+  saved payees (name + email *or* IBAN, unique per user); successful transfers
+  auto-upsert the payee with a fresh `lastUsedAt`. Proxied as `/api/beneficiaries`.
 - Self-healing seed reconciliation on startup for demo accounts.
 
 ### Shared (`shared/`)

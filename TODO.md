@@ -21,13 +21,14 @@ Workflow rules live in [CLAUDE.md](CLAUDE.md#workflow-rules); short version:
 - [x] Web + mobile (#10): editable custom recipient name → transaction description
 - [x] Web + mobile (#12): optimistic sender debit + awaited re-fetch before success UI
 
-## Branch: `feature/web-session-hardening` — active (#3 #4)
+## Branch: `feature/beneficiaries` — active (#25)
 
-- [x] Web (#3): in-memory access token + rotating refresh token (`src/lib/session.ts`,
-  mirrors mobile; boot restore, silent refresh on 401, legacy-token migration,
-  demo sentinel; 10 unit tests)
-- [x] Web (#4): sign-out revokes the refresh token server-side (parity with mobile)
-- [ ] Push, PR → `dev`, CI green, merge
+- [x] Backend: `Beneficiary` model (name + email *or* IBAN, unique per user),
+  GET/POST/DELETE endpoints, auto-upsert on successful transfers, gateway route
+- [ ] Web: transfer recipients list shows saved beneficiaries (demo contacts as
+  offline fallback); custom recipients are remembered automatically
+- [ ] Mobile: beneficiary chips prefill the transfer form
+- [ ] Docs + roadmap tick, PR → `dev`, CI green, merge
 
 ## Backlog — ungrouped (assign to a branch group when picked up)
 
