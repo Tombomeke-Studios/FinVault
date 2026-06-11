@@ -189,7 +189,8 @@ the same emails offline → client-side mock demo mode. Mobile API base: `EXPO_P
 ### apps/web-dashboard (Vite + React 18 + React Router)
 | File | Contents |
 |---|---|
-| `src/App.tsx` | Routing (PATH_TO_ROUTE), theming engine (`applyTheme`, ACCENTS/FONTS/PRESETS), auth with localStorage token, data fetching, mock fallback |
+| `src/App.tsx` | Routing (PATH_TO_ROUTE), auth with localStorage token, data fetching, mock fallback; re-exports `ThemeConfig` |
+| `src/theme.ts` | Theme engine: `ThemeConfig`, `ACCENTS`/`FONTS`/`PRESETS`, `applyTheme()` (data-attrs + accent vars on `<html>`, runtime cross-fade), `loadTheme()`/`saveTheme()` persistence (localStorage `fv_theme`) |
 | `src/index.css` | The only CSS entry: OKLCH tokens per `data-mode/radius/density/card`, `.btn/.field/.chip/.card`, all `fv*` keyframes, reduced-motion kill-switch |
 | `src/components/` | `Shell` (sidebar/bottom-nav via `compact` prop; `FVLogo` theme-aware SVG lockup, `mono` variant for accent surfaces), `UI` (money en-US, Toast, Sheet), `Icon`/`Icons` (SVG path registry), `BankCard` + `SwipeableCards`, `IOSFrame` (device mockup), `Tweaks` (theme panel) |
 | `src/screens/` | Same screen set as mobile + `ScreenLanding` |

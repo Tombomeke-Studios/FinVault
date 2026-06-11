@@ -20,7 +20,8 @@ Workflow rules live in [CLAUDE.md](CLAUDE.md#workflow-rules); short version:
 - [ ] Fix light-mode contrast: nav, chips, accent surfaces in Daylight/Sand (#19)
 - [ ] Expand the motion library (new `fv*` keyframes + utility classes, micro-interactions),
   keep the reduced-motion kill-switch (#19)
-- [ ] Persist theme to localStorage and restore on boot (#19)
+- [x] Persist theme to localStorage and restore on boot — `src/theme.ts` owns the
+  engine now (deduped ACCENTS/FONTS/PRESETS from App.tsx + ScreenSettings) (#19)
 - [ ] Update docs/design-system.md to match the refactored system (#19)
 
 ## Branch: `feature/mobile-theming` — planned (#8)

@@ -14,18 +14,12 @@ import { ScreenLanding } from './screens/ScreenLanding';
 import { Sheet, money } from './components/UI';
 import { IOSDevice } from './components/IOSFrame';
 import { Icon } from './components/Icon';
+import { applyTheme, loadTheme, saveTheme, type ThemeConfig } from './theme';
 
 // ============================================================
 // Types
 // ============================================================
-export interface ThemeConfig {
-  mode: 'dark' | 'light';
-  accent: string;
-  font: string;
-  radius: string;
-  density: string;
-  card: string;
-}
+export type { ThemeConfig } from './theme';
 
 export interface ToastData {
   title: string;
@@ -141,53 +135,6 @@ const ROUTE_TO_PATH: Record<string, string> = {
   savings:      '/goals',
   settings:     '/settings',
 };
-
-// ============================================================
-// Font and accent maps
-// ============================================================
-const FONTS: Record<string, { display: string; body: string; num: string; label: string }> = {
-  grotesk:   { display: "'Space Grotesk'", body: "'Hanken Grotesque'", num: "'Space Grotesk'", label: 'Grotesk' },
-  bricolage: { display: "'Bricolage Grotesque'", body: "'Hanken Grotesque'", num: "'Space Grotesk'", label: 'Display' },
-  editorial: { display: "'Instrument Serif'", body: "'Hanken Grotesque'", num: "'Space Grotesk'", label: 'Editorial' },
-  mono:      { display: "'JetBrains Mono'", body: "'JetBrains Mono'", num: "'JetBrains Mono'", label: 'Mono' },
-};
-
-const ACCENTS: Record<string, { h: number; c: number; l: number; on: string; sw: string }> = {
-  emerald: { h: 158, c: 0.13, l: 0.62, on: 'oklch(0.99 0 0)', sw: 'oklch(0.62 0.13 158)' },
-  indigo:  { h: 265, c: 0.15, l: 0.56, on: 'oklch(0.99 0 0)', sw: 'oklch(0.56 0.15 265)' },
-  violet:  { h: 305, c: 0.16, l: 0.58, on: 'oklch(0.99 0 0)', sw: 'oklch(0.58 0.16 305)' },
-  azure:   { h: 232, c: 0.14, l: 0.60, on: 'oklch(0.99 0 0)', sw: 'oklch(0.60 0.14 232)' },
-  amber:   { h: 75,  c: 0.13, l: 0.74, on: 'oklch(0.24 0.03 80)', sw: 'oklch(0.74 0.13 75)' },
-  rose:    { h: 12,  c: 0.16, l: 0.62, on: 'oklch(0.99 0 0)', sw: 'oklch(0.62 0.16 12)' },
-};
-
-const PRESETS: Record<string, ThemeConfig> = {
-  Vault:    { mode: 'dark',  accent: 'emerald', font: 'grotesk',   radius: 'soft',  density: 'regular', card: 'elevated' },
-  Daylight: { mode: 'light', accent: 'indigo',  font: 'grotesk',   radius: 'soft',  density: 'regular', card: 'outline' },
-  Aurora:   { mode: 'dark',  accent: 'violet',  font: 'bricolage', radius: 'round', density: 'comfy',   card: 'glass' },
-  Carbon:   { mode: 'dark',  accent: 'azure',   font: 'mono',      radius: 'sharp', density: 'compact', card: 'outline' },
-  Sand:     { mode: 'light', accent: 'amber',   font: 'editorial', radius: 'round', density: 'comfy',   card: 'elevated' },
-};
-
-function applyTheme(t: ThemeConfig) {
-  const el = document.documentElement;
-  el.setAttribute('data-mode',    t.mode);
-  el.setAttribute('data-radius',  t.radius);
-  el.setAttribute('data-density', t.density);
-  el.setAttribute('data-card',    t.card);
-  const a = ACCENTS[t.accent] || ACCENTS.emerald;
-  el.style.setProperty('--accent-h', String(a.h));
-  el.style.setProperty('--accent-c', String(a.c));
-  el.style.setProperty('--accent-l', String(a.l));
-  el.style.setProperty('--on-accent', a.on);
-
-  const f = FONTS[t.font] || FONTS.grotesk;
-  const dispFb = t.font === 'editorial' ? ', Georgia, serif' : t.font === 'mono' ? ', ui-monospace, monospace' : ', system-ui, sans-serif';
-  const bodyFb = t.font === 'mono' ? ', ui-monospace, monospace' : ', system-ui, sans-serif';
-  el.style.setProperty('--font-display', f.display + dispFb);
-  el.style.setProperty('--font-body',    f.body + bodyFb);
-  el.style.setProperty('--font-num',     f.num + (t.font === 'mono' ? ', ui-monospace, monospace' : ', system-ui, sans-serif'));
-}
 
 // ============================================================
 // Mock data generators
@@ -361,11 +308,8 @@ export default function App() {
   const [depositAmt, setDepositAmt] = useState('');
   const [depositLoading, setDepositLoading] = useState(false);
 
-  // --- Theme state ---
-  const [theme, setThemeState] = useState<ThemeConfig>({
-    mode: 'dark', accent: 'emerald', font: 'grotesk',
-    radius: 'soft', density: 'regular', card: 'elevated',
-  });
+  // --- Theme state (restored from localStorage, see src/theme.ts) ---
+  const [theme, setThemeState] = useState<ThemeConfig>(loadTheme);
 
   // --- Toast ---
   const [toast, setToast] = useState<ToastData | null>(null);
@@ -388,13 +332,8 @@ export default function App() {
     return () => window.removeEventListener('resize', onResize);
   }, [isMobileMode]);
 
-  // Apply theme on change
-  useEffect(() => { applyTheme(theme); }, [theme]);
-
-  const setTheme = (t: ThemeConfig | ((k: keyof ThemeConfig, v: string) => ThemeConfig)) => {
-    if (typeof t === 'function') return;
-    setThemeState(t);
-  };
+  // Apply + persist theme on change
+  useEffect(() => { applyTheme(theme); saveTheme(theme); }, [theme]);
 
   // fire = show toast + add notification
   const fire = useCallback((title: string, body: string, type: string = 'info') => {
