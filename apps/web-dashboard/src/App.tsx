@@ -15,6 +15,7 @@ import { Sheet, money } from './components/UI';
 import { IOSDevice } from './components/IOSFrame';
 import { Icon } from './components/Icon';
 import { applyTheme, loadTheme, saveTheme, type ThemeConfig } from './theme';
+import { saveSession, clearSession, tryRefreshSession, revokeSession, MOCK_TOKEN } from './lib/session';
 
 // ============================================================
 // Types
@@ -245,8 +246,11 @@ export default function App() {
   useEffect(() => { setAccountRoute(null); }, [location.pathname]);
 
   // --- Auth state ---
-  const [token, setToken] = useState<string | null>(localStorage.getItem('finvault_token'));
-  const [authLoading, setAuthLoading] = useState(() => !!localStorage.getItem('finvault_token'));
+  // Access token lives in memory only (#3); boot restores the session by
+  // exchanging the persisted refresh token (see src/lib/session.ts).
+  const [token, setToken] = useState<string | null>(null);
+  const [authLoading, setAuthLoading] = useState(true);
+  const bootDoneRef = useRef(false);
   const [rawUser, setRawUser] = useState<any>(null);
   const [wallets, setWallets] = useState<Wallet[]>([]);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
@@ -413,8 +417,15 @@ export default function App() {
         fetchCards();
         fetchGoals();
         setAuthLoading(false);
+      } else if (res.status === 401) {
+        // Expired access token → silent refresh instead of a logout (#3).
+        const fresh = await tryRefreshSession();
+        if (fresh && fresh !== token) { setToken(fresh); return; }
+        clearSession();
+        setToken(null);
+        setAuthLoading(false);
       } else {
-        localStorage.removeItem('finvault_token');
+        clearSession();
         setToken(null);
         setAuthLoading(false);
       }
@@ -447,9 +458,20 @@ export default function App() {
     } catch { /* ignore ws failure */ }
   }, [token, rawUser, fire, fetchTransactions, fetchWallets]);
 
+  // Boot: restore the session from the persisted refresh token (or the demo
+  // sentinel / a migrated legacy token) before deciding the auth state.
   useEffect(() => {
-    if (token) fetchProfile();
-    else { setRawUser(null); setWallets([]); setTransactions([]); setCards([]); setGoals([]); setAuthLoading(false); }
+    tryRefreshSession().then(restored => {
+      bootDoneRef.current = true;
+      if (restored) setToken(restored);
+      else setAuthLoading(false);
+    });
+  }, []);
+
+  useEffect(() => {
+    if (token) { fetchProfile(); return; }
+    if (!bootDoneRef.current) return; // boot effect above decides the initial state
+    setRawUser(null); setWallets([]); setTransactions([]); setCards([]); setGoals([]); setAuthLoading(false);
   }, [token]);
 
   useEffect(() => { if (rawUser && token) connectWs(); }, [rawUser, token]);
@@ -481,7 +503,8 @@ export default function App() {
       const res = await fetch('/api/auth/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email, password }) });
       const data = await res.json();
       if (res.ok) {
-        localStorage.setItem('finvault_token', data.accessToken);
+        // Access token stays in memory; the rotating refresh token persists (#3).
+        saveSession(data.accessToken, data.refreshToken);
         setToken(data.accessToken);
         setAuthSuccess('Welcome back!');
       } else {
@@ -491,8 +514,8 @@ export default function App() {
     } catch {
       // Backend unreachable — only grant demo access to known demo accounts
       if (DEMO_EMAILS.includes(email.trim().toLowerCase())) {
-        localStorage.setItem('finvault_token', 'mock-token-abc');
-        setToken('mock-token-abc');
+        saveSession(MOCK_TOKEN);
+        setToken(MOCK_TOKEN);
       } else {
         setAuthError('Server is unavailable. To explore the demo, use admin@finvault.com');
       }
@@ -515,7 +538,10 @@ export default function App() {
   };
 
   const handleLogout = () => {
-    localStorage.removeItem('finvault_token');
+    // Server-side revocation of the refresh token before wiping local state,
+    // parity with mobile (#4). Best effort — offline sign-out still works.
+    revokeSession();
+    clearSession();
     setToken(null); setRawUser(null); setWallets([]); setTransactions([]); setCards([]); setGoals([]);
     if (wsRef.current) wsRef.current.close();
     navigate('/login', { replace: true });

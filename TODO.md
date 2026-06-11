@@ -21,6 +21,14 @@ Workflow rules live in [CLAUDE.md](CLAUDE.md#workflow-rules); short version:
 - [x] Web + mobile (#10): editable custom recipient name → transaction description
 - [x] Web + mobile (#12): optimistic sender debit + awaited re-fetch before success UI
 
+## Branch: `feature/web-session-hardening` — active (#3 #4)
+
+- [x] Web (#3): in-memory access token + rotating refresh token (`src/lib/session.ts`,
+  mirrors mobile; boot restore, silent refresh on 401, legacy-token migration,
+  demo sentinel; 10 unit tests)
+- [x] Web (#4): sign-out revokes the refresh token server-side (parity with mobile)
+- [ ] Push, PR → `dev`, CI green, merge
+
 ## Backlog — ungrouped (assign to a branch group when picked up)
 
 **Roadmap gaps (see [docs/feature-roadmap.md](docs/feature-roadmap.md) for prio/effort)**
@@ -34,10 +42,6 @@ Workflow rules live in [CLAUDE.md](CLAUDE.md#workflow-rules); short version:
 - [ ] FX: currency exchange flow for the travel wallet (#32)
 - [ ] Round-up savings into a goal (#33)
 - [ ] Dispute flow: report a transaction (#34)
-
-**Candidate group: `feature/web-session-hardening`**
-- [ ] Web: adopt refresh-token flow (localStorage → in-memory token + refresh, or httpOnly cookie) (#3)
-- [ ] Web: sign-out should revoke the refresh token server-side (parity with mobile) (#4)
 
 **Candidate group: `feature/mobile-feature-parity`**
 - [ ] Mobile: per-wallet filter on the transactions screen (web has `?walletId=` filter banner) (#5)
