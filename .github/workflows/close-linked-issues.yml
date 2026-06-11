@@ -1,0 +1,52 @@
+name: Close Linked Issues
+
+# GitHub only auto-closes issues via closing keywords ("Closes #N") when a PR
+# merges into the repository's *default* branch (main). Our feature PRs target
+# dev (see CLAUDE.md §2), so this workflow replicates that behavior for dev:
+# when a PR is merged into dev, every issue referenced with a closing keyword
+# in the PR body is commented on and closed.
+on:
+  pull_request:
+    types: [closed]
+    branches: [dev]
+
+permissions:
+  issues: write
+  pull-requests: read
+
+jobs:
+  close-linked-issues:
+    if: github.event.pull_request.merged == true
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Close issues referenced by closing keywords in the PR body
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8.0.0
+        with:
+          script: |
+            const pr = context.payload.pull_request;
+            const body = pr.body || '';
+            const keywordRe = /\b(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?)\s*:?\s+#(\d+)/gi;
+            const issueNumbers = [...new Set([...body.matchAll(keywordRe)].map(m => Number(m[1])))];
+            if (issueNumbers.length === 0) {
+              core.info('No closing keywords found in PR body — nothing to close.');
+              return;
+            }
+            for (const issue_number of issueNumbers) {
+              const { data: issue } = await github.rest.issues.get({ ...context.repo, issue_number });
+              if (issue.pull_request) {
+                core.warning(`#${issue_number} is a pull request — skipping.`);
+                continue;
+              }
+              if (issue.state === 'closed') {
+                core.info(`#${issue_number} is already closed — skipping.`);
+                continue;
+              }
+              await github.rest.issues.createComment({
+                ...context.repo,
+                issue_number,
+                body: `Closed by #${pr.number} (merged into \`dev\`).`,
+              });
+              await github.rest.issues.update({ ...context.repo, issue_number, state: 'closed', state_reason: 'completed' });
+              core.info(`Closed #${issue_number}.`);
+            }

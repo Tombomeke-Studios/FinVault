@@ -4,11 +4,75 @@ Single source of truth for all tasks and progress (CLAUDE.md contains **no** to-
 Workflow rules live in [CLAUDE.md](CLAUDE.md#workflow-rules); short version:
 
 - Tasks are **grouped per branch**. Pick a group, work it top to bottom.
+- Every actionable item has a **GitHub issue ref** `(#N)` — created at the latest when
+  its group is promoted from the backlog (CLAUDE.md §2a). PRs close them via `Closes #N`.
 - **Definition of done per item:** code + one small commit + docs updated + tests
   written + this file ticked. Only then start the next item.
 - **Branch group complete → push → PR → CI green** (`validate.yml`). Red PR ≠ done.
 
-## Branch: `feature/security-and-session` — ✅ complete, ready for PR
+## Branch: `feature/github-workflow` — active
+
+- [x] Move stale `feature/security-and-session` group to Done (merged via PR #2)
+- [x] CI: `close-linked-issues.yml` — auto-close issues on PR merge into `dev`
+- [x] CLAUDE.md §2a: GitHub issue workflow (issue per TODO item, `Closes #N` in PRs)
+- [x] docs/ci-cd.md: workflow reference + maintenance guide
+- [x] GitHub: `scope:*`/`type:*` labels + issues #3–#20 for all open backlog items
+- [ ] Push, PR → `dev`, CI green, merge
+
+## Branch: `feature/web-theme-refactor` — next (#19)
+
+- [ ] Remove dead `src/theme.css` (never imported; drifted duplicate of index.css) (#19)
+- [ ] Restructure `index.css` into layered sections: primitives → semantic tokens →
+  components → motion, with the token contract documented (#19)
+- [ ] Fix light-mode contrast: logo, nav, chips, accent surfaces in Daylight/Sand (#19)
+- [ ] Expand the motion library (new `fv*` keyframes + utility classes, micro-interactions),
+  keep the reduced-motion kill-switch (#19)
+- [ ] Persist theme to localStorage and restore on boot (#19)
+- [ ] Update docs/design-system.md to match the refactored system (#19)
+
+## Branch: `feature/mobile-theming` — planned (#8)
+
+- [ ] Mobile theming engine — theme context, light + dark palettes, web accent parity,
+  wire the Settings presets, persist choice (#8)
+- [ ] docs/design-system.md: mobile theming section (#8)
+
+## Backlog — ungrouped (assign to a branch group when picked up)
+
+**Candidate group: `feature/web-session-hardening`**
+- [ ] Web: adopt refresh-token flow (localStorage → in-memory token + refresh, or httpOnly cookie) (#3)
+- [ ] Web: sign-out should revoke the refresh token server-side (parity with mobile) (#4)
+
+**Candidate group: `feature/mobile-feature-parity`**
+- [ ] Mobile: per-wallet filter on the transactions screen (web has `?walletId=` filter banner) (#5)
+- [ ] Mobile: wire "Request money" tab to the payment-request backend (currently toast-only) (#6)
+- [ ] Mobile: real biometrics via `expo-local-authentication` (Face ID button is simulated) (#7)
+
+**Candidate group: `feature/transfer-validation`**
+- [ ] Transfer screen (mobile + web): validate recipient field before proceeding to amount step
+  — accept IBAN, email, or name; show inline error if format is invalid or lookup returns nothing (#9)
+- [ ] Transfer screen: allow entering a **custom recipient name** instead of only hardcoded accounts;
+  the name field must be editable and passed through to the transaction description (#10)
+- [ ] Transfer to hardcoded demo accounts shows "succeeded" toast but no transaction is created
+  and nothing appears in logs — the backend call either silently swallows the error or the
+  route is not being hit; add server-side logging + return a proper error response so the
+  UI can surface it (both mobile and web) (#11)
+- [ ] After a successful transfer the sender wallet balance must update immediately (optimistic
+  update or re-fetch); currently the overview does not reflect the deduction (#12)
+
+**Smaller / unscheduled**
+- [ ] Backend: tests for `/auth/refresh` rotation + replay-revocation and `/auth/logout` (#13)
+- [ ] Card "limits & controls" toggles (contactless/foreign) are client-side only — add backend fields (#14)
+- [ ] Savings goal "due date" is free text — date picker (#15)
+- [ ] Invoice service has no frontend surface yet (#16)
+- [ ] Virtualize mobile transaction list if data volumes grow (#17)
+- [ ] Rate limiting is per-instance in-memory — Redis when running replicas (#18)
+- [ ] Docs: banking feature gap analysis vs a real banking app → docs/feature-roadmap.md (#20)
+
+**Dev-environment note (not a task):** RabbitMQ is Docker-only for local dev — run
+`docker run -d --name rabbitmq -p 5672:5672 rabbitmq:3` then add
+`RABBITMQ_URL=amqp://guest:guest@localhost:5672` to `.env` to enable async events.
+
+## Done — `feature/security-and-session` (merged into `dev` via PR #2, 2026-06-10)
 
 - [x] Backend: protect `/users/profile-by-email` with `X-Service-Secret` (was public via gateway → user enumeration + PII leak)
 - [x] Backend: hash refresh tokens at rest (sha256), `/auth/refresh` rotation + `/auth/logout` revocation
@@ -18,43 +82,7 @@ Workflow rules live in [CLAUDE.md](CLAUDE.md#workflow-rules); short version:
 - [x] Mobile: persistent session (expo-secure-store) — auto-login, silent refresh, server-side revoke on sign-out
 - [x] Mobile: "Security activity" view in Settings (`/api/users/audit-logs`, mock fallback offline)
 - [x] Docs: `docs/architecture.md`, `docs/design-system.md`, `docs/security.md`
-- [ ] Push branch + open PR, verify CI green *(needs remote push approval)*
-
-## Backlog — ungrouped (assign to a branch group when picked up)
-
-**Candidate group: `feature/web-session-hardening`**
-- [ ] Web: adopt refresh-token flow (localStorage → in-memory token + refresh, or httpOnly cookie)
-- [ ] Web: sign-out should revoke the refresh token server-side (parity with mobile)
-
-**Candidate group: `feature/mobile-feature-parity`**
-- [ ] Mobile: per-wallet filter on the transactions screen (web has `?walletId=` filter banner)
-- [ ] Mobile: wire "Request money" tab to the payment-request backend (currently toast-only)
-- [ ] Mobile: real biometrics via `expo-local-authentication` (Face ID button is simulated)
-
-**Candidate group: `feature/mobile-theming`**
-- [ ] Mobile theming engine — Settings presets currently only fire a toast; app is dark-only
-
-**Candidate group: `feature/transfer-validation`**
-- [ ] Transfer screen (mobile + web): validate recipient field before proceeding to amount step
-  — accept IBAN, email, or name; show inline error if format is invalid or lookup returns nothing
-- [ ] Transfer screen: allow entering a **custom recipient name** instead of only hardcoded accounts;
-  the name field must be editable and passed through to the transaction description
-- [ ] Transfer to hardcoded demo accounts shows "succeeded" toast but no transaction is created
-  and nothing appears in logs — the backend call either silently swallows the error or the
-  route is not being hit; add server-side logging + return a proper error response so the
-  UI can surface it (both mobile and web)
-- [ ] After a successful transfer the sender wallet balance must update immediately (optimistic
-  update or re-fetch); currently the overview does not reflect the deduction
-
-**Smaller / unscheduled**
-- [ ] Backend: tests for `/auth/refresh` rotation + replay-revocation and `/auth/logout`
-- [ ] Card "limits & controls" toggles (contactless/foreign) are client-side only — add backend fields
-- [ ] Savings goal "due date" is free text — date picker
-- [ ] Invoice service has no frontend surface yet
-- [ ] Virtualize mobile transaction list if data volumes grow
-- [ ] Rate limiting is per-instance in-memory — Redis when running replicas
-- [ ] RabbitMQ is Docker-only for local dev — run `docker run -d --name rabbitmq -p 5672:5672 rabbitmq:3`
-  then add `RABBITMQ_URL=amqp://guest:guest@localhost:5672` to `.env` to enable async events
+- [x] Push branch + open PR, verify CI green — merged as PR #2
 
 ## Done — UI/UX pass on `(ui/uix)-Rebase-of-UI` (2026-06-10, commit c522017)
 

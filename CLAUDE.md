@@ -36,12 +36,40 @@ feature/<topic>  →  dev  →  staging  →  main
 - `main` only receives merges from `staging` — never from `dev` or feature branches.
 - A red CI on `dev` is everyone's problem — fix it before opening new PRs.
 
-## 2a. The iteration loop (follow for every unit of work)
+## 2a. GitHub issues — every task is a trackable issue
+
+Tasks live in two places that must stay in sync:
+
+- **TODO.md** — the working checklist, grouped per branch (single source of truth for *progress*)
+- **GitHub issues** — the trackable mirror of every open TODO item (single source of truth for *linking*: PRs, commits, discussion)
+
+**Rules:**
+
+1. **Every actionable TODO item gets a GitHub issue** — at the latest when its backlog
+   group is promoted to an active `feature/<topic>` group; bugs get one immediately.
+   Create with `gh issue create --title "..." --body "..." --label scope:<x> --label type:<y>`.
+2. **Title** = the TODO line, imperative. **Body** = context, acceptance criteria,
+   affected files, links to the relevant doc (§5).
+3. **Labels:** one `scope:*` label (mobile/web/gateway/account/wallet/invoice/shared/
+   security/docs/ci) + one `type:*` label (bug/feature/refactor/test/docs). Keep the
+   label set in sync with the commit scopes in §3.
+4. **TODO.md items carry their issue ref:** `- [ ] Fix X (#12)` — add the ref the
+   moment the issue exists.
+5. **PR bodies close their issues:** list every completed issue as `Closes #N` (one per
+   line) in the PR description. Merging the PR into `dev` then closes them automatically
+   via `.github/workflows/close-linked-issues.yml` (GitHub's native keyword auto-close
+   only fires on the default branch `main`, which feature PRs never target — the
+   workflow replicates it for `dev`).
+6. An issue is only ever closed by a merged PR — or manually with a comment explaining
+   why (duplicate, obsolete, won't fix). Never silently.
+
+## 2b. The iteration loop (follow for every unit of work)
 
 A "unit" = one function, feature, fix, or refactor — the smallest shippable slice.
 
 1. **Pick** the next unticked item from the active branch group in TODO.md.
-   No active group? Promote backlog items into a new `feature/<topic>` group first.
+   No active group? Promote backlog items into a new `feature/<topic>` group first —
+   and create the GitHub issues for them (§2a) as part of that promotion.
 2. **Read context** before touching code: the codebase map below + the matching doc
    (§5). Don't rediscover what's already documented.
 3. **Implement** the slice. Match surrounding style; reuse the shared primitives
@@ -60,12 +88,14 @@ A "unit" = one function, feature, fix, or refactor — the smallest shippable sl
 **Branch finish protocol** (after the last item on a feature branch):
 1. Mirror CI locally from the repo root: `npm run build && npm test` — both must pass.
 2. Push the final state and open a PR **targeting `dev`**: summary per commit, what was
-   tested, link the relevant docs. Never open a PR with failing local checks.
+   tested, link the relevant docs, and a `Closes #N` line per completed issue (§2a).
+   Never open a PR with failing local checks.
 3. CI is `.github/workflows/validate.yml` (install → prisma generate → shared build →
-   workspace builds → `vitest run`) and runs on every PR. **A red PR is not done** —
-   keep fixing (and pushing) on the branch until it's green.
+   workspace builds → `vitest run`) and runs on every PR — see [docs/ci-cd.md](docs/ci-cd.md)
+   for the full pipeline reference and how to maintain the workflow files.
+   **A red PR is not done** — keep fixing (and pushing) on the branch until it's green.
 4. After the feature PR merges into `dev` and CI is green: move the branch group in
-   TODO.md to the Done section.
+   TODO.md to the Done section and verify the linked issues were auto-closed.
 
 **Promoting `dev` → `staging` → `main`:**
 1. Open a PR `dev → staging` only when a full milestone is complete and `dev` CI is
@@ -113,6 +143,7 @@ A "unit" = one function, feature, fix, or refactor — the smallest shippable sl
 | Services, endpoints, events, infra topology | [docs/architecture.md](docs/architecture.md) |
 | Auth, sessions, secrets, rate limits, known gaps | [docs/security.md](docs/security.md) |
 | Tokens, colors, typography, motion, components, a11y | [docs/design-system.md](docs/design-system.md) |
+| Anything under `.github/workflows/` (triggers, steps, pinned actions) | [docs/ci-cd.md](docs/ci-cd.md) |
 | New/moved/renamed files, new commands, new gotchas | **This file** (map in §7, gotchas in §8) |
 | Setup / how-to-run instructions | README.md |
 | Tasks, progress, follow-ups | [TODO.md](TODO.md) — and *only* there |
