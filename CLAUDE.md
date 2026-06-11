@@ -91,8 +91,9 @@ A "unit" = one function, feature, fix, or refactor — the smallest shippable sl
    tested, link the relevant docs, and a `Closes #N` line per completed issue (§2a).
    Never open a PR with failing local checks.
 3. CI is `.github/workflows/validate.yml` (install → prisma generate → shared build →
-   workspace builds → `vitest run`) and runs on every PR. **A red PR is not done** —
-   keep fixing (and pushing) on the branch until it's green.
+   workspace builds → `vitest run`) and runs on every PR — see [docs/ci-cd.md](docs/ci-cd.md)
+   for the full pipeline reference and how to maintain the workflow files.
+   **A red PR is not done** — keep fixing (and pushing) on the branch until it's green.
 4. After the feature PR merges into `dev` and CI is green: move the branch group in
    TODO.md to the Done section and verify the linked issues were auto-closed.
 
@@ -142,6 +143,7 @@ A "unit" = one function, feature, fix, or refactor — the smallest shippable sl
 | Services, endpoints, events, infra topology | [docs/architecture.md](docs/architecture.md) |
 | Auth, sessions, secrets, rate limits, known gaps | [docs/security.md](docs/security.md) |
 | Tokens, colors, typography, motion, components, a11y | [docs/design-system.md](docs/design-system.md) |
+| Anything under `.github/workflows/` (triggers, steps, pinned actions) | [docs/ci-cd.md](docs/ci-cd.md) |
 | New/moved/renamed files, new commands, new gotchas | **This file** (map in §7, gotchas in §8) |
 | Setup / how-to-run instructions | README.md |
 | Tasks, progress, follow-ups | [TODO.md](TODO.md) — and *only* there |
