@@ -191,7 +191,7 @@ the same emails offline → client-side mock demo mode. Mobile API base: `EXPO_P
 |---|---|
 | `src/App.tsx` | Routing (PATH_TO_ROUTE), auth with localStorage token, data fetching, mock fallback; re-exports `ThemeConfig` |
 | `src/theme.ts` | Theme engine: `ThemeConfig`, `ACCENTS`/`FONTS`/`PRESETS`, `applyTheme()` (data-attrs + accent vars on `<html>`, runtime cross-fade), `loadTheme()`/`saveTheme()` persistence (localStorage `fv_theme`) |
-| `src/index.css` | The only CSS entry: OKLCH tokens per `data-mode/radius/density/card`, `.btn/.field/.chip/.card`, all `fv*` keyframes, reduced-motion kill-switch |
+| `src/index.css` | The only CSS entry — 7 layers with a token-contract header: primitives → mode palettes → style axes (`data-mode/radius/density/card`) → base → components (`.btn/.field/.chip/.card/.nav-item`) → motion (`fv*` keyframes + utilities, `.stagger`, theme cross-fade) → reduced-motion kill-switch. Accent-as-text uses `--accent-ink`, category hues use `--cat-l`/`--cat-soft-a` |
 | `src/components/` | `Shell` (sidebar/bottom-nav via `compact` prop; `FVLogo` theme-aware SVG lockup, `mono` variant for accent surfaces), `UI` (money en-US, Toast, Sheet), `Icon`/`Icons` (SVG path registry), `BankCard` + `SwipeableCards`, `IOSFrame` (device mockup), `Tweaks` (theme panel) |
 | `src/screens/` | Same screen set as mobile + `ScreenLanding` |
 

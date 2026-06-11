@@ -24,7 +24,8 @@ Workflow rules live in [CLAUDE.md](CLAUDE.md#workflow-rules); short version:
   `::selection`; reduced-motion kill-switch intact (#19)
 - [x] Persist theme to localStorage and restore on boot — `src/theme.ts` owns the
   engine now (deduped ACCENTS/FONTS/PRESETS from App.tsx + ScreenSettings) (#19)
-- [ ] Update docs/design-system.md to match the refactored system (#19)
+- [x] Update docs/design-system.md to match the refactored system (#19)
+- [x] Extra presets: Midnight (dark rose glass) + Mint (light emerald) (#19)
 
 ## Branch: `feature/mobile-theming` — planned (#8)
 
