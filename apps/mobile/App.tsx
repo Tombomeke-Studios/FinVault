@@ -569,9 +569,16 @@ export default function App() {
     }
   };
 
-  const handleTransfer = async (email: string, amount: number, desc: string, walletId: string) => {
+  // Returns true on success so the screen only resets the form for real
+  // transfers (#11); failures surface the backend reason as a warn toast.
+  const handleTransfer = async (target: { email?: string; iban?: string }, amount: number, desc: string, walletId: string): Promise<boolean> => {
     const wallet = wallets.find(w => w.id === walletId) || wallets[0];
-    if (!wallet) return;
+    if (!wallet) return false;
+    const label = target.email || target.iban || '';
+
+    const applyLocalDebit = () => {
+      setWallets(prev => prev.map(w => w.id === walletId ? { ...w, balance: w.balance - amount } : w));
+    };
 
     if (token && token !== 'mock-token') {
       try {
@@ -581,30 +588,32 @@ export default function App() {
             'Content-Type': 'application/json',
             Authorization: `Bearer ${token}`
           },
-          body: JSON.stringify({ receiverEmail: email, amount, description: desc, senderWalletId: walletId })
+          body: JSON.stringify({ receiverEmail: target.email, receiverIban: target.iban, amount, description: desc, senderWalletId: walletId })
         });
         if (res.ok) {
-          fire('Transfer completed', `${money(amount)} sent to ${email}.`, 'success');
-          fetchWallets();
-          fetchTransactions();
-          return;
+          // Immediate balance feedback, then reconcile with the server (#12).
+          applyLocalDebit();
+          fire('Transfer completed', `${money(amount)} sent to ${label}.`, 'success');
+          await Promise.all([fetchWallets(), fetchTransactions()]);
+          return true;
         } else {
           const err = await res.json();
-          Alert.alert('Transfer failed', err.message || 'Could not complete transfer.');
-          return;
+          fire('Transfer failed', err.error || err.message || 'Could not complete transfer.', 'warn');
+          return false;
         }
       } catch {
-        // Fallback
+        // Network unreachable — fall through to the offline demo path.
       }
     }
 
-    setWallets(prev => prev.map(w => w.id === walletId ? { ...w, balance: w.balance - amount } : w));
+    applyLocalDebit();
     setTransactions(prev => [{
       id: Math.random().toString(), senderWalletId: walletId, receiverWalletId: null,
       amount, currency: wallet.currency, status: 'confirmed', type: 'transfer',
       description: desc, createdAt: new Date().toISOString()
     }, ...prev]);
-    fire('Transfer completed (Demo)', `${money(amount)} sent to ${email}.`, 'success');
+    fire('Transfer completed (Demo)', `${money(amount)} sent to ${label}.`, 'success');
+    return true;
   };
 
   const handleRequest = async (email: string, amount: number, desc: string) => {

@@ -1,43 +1,65 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, TextInput, TouchableOpacity, ScrollView, Alert } from 'react-native';
+import { View, Text, StyleSheet, TextInput, TouchableOpacity, ScrollView } from 'react-native';
 import { Icon } from '../components/Icon';
 import { money } from '../components/UI';
+import { classifyRecipient, isEmail, normalizeIban } from '../lib/validate';
 import { THEME, themedSheet } from '../theme';
 import type { AppData } from '../../App';
 
 interface TransferProps {
   data: AppData;
-  onTransfer: (email: string, amt: number, desc: string, walletId: string) => Promise<void>;
+  onTransfer: (target: { email?: string; iban?: string }, amt: number, desc: string, walletId: string) => Promise<boolean>;
   onRequest: (email: string, amt: number, desc: string) => Promise<void>;
 }
 
 export function ScreenTransfer({ data, onTransfer, onRequest }: TransferProps) {
   const [mode, setMode] = useState<'send' | 'request'>('send');
-  const [email, setEmail] = useState('');
+  const [recipient, setRecipient] = useState('');
+  const [recipientName, setRecipientName] = useState('');
   const [amt, setAmt] = useState('');
   const [desc, setDesc] = useState('');
   const [selWallet, setSelWallet] = useState(data.wallets[0]?.id || '');
   const [loading, setLoading] = useState(false);
+  const [formError, setFormError] = useState('');
 
   const activeWallet = data.wallets.find(w => w.id === selWallet) || data.wallets[0];
 
+  // Inline validation instead of blocking Alerts (#9) — Alerts stay reserved
+  // for destructive confirmations.
   const submit = async () => {
+    setFormError('');
     const val = parseFloat(amt);
-    if (!email) { Alert.alert('Error', 'Please enter a recipient email.'); return; }
-    if (!val || val <= 0) { Alert.alert('Error', 'Please enter a valid amount.'); return; }
+    const kind = classifyRecipient(recipient);
+
+    if (mode === 'request' && !isEmail(recipient)) {
+      setFormError('Enter a valid payer email address.');
+      return;
+    }
+    if (mode === 'send' && kind === 'invalid') {
+      setFormError('Enter a valid email address or IBAN.');
+      return;
+    }
+    if (!val || val <= 0) { setFormError('Enter an amount greater than zero.'); return; }
 
     setLoading(true);
     try {
       if (mode === 'send') {
         if (activeWallet && activeWallet.balance < val) {
-          Alert.alert('Insufficient Balance', 'Your wallet balance is too low.');
+          setFormError(`Insufficient balance — ${money(activeWallet.balance, activeWallet.currency)} available.`);
           return;
         }
-        await onTransfer(email, val, desc || 'Transfer', selWallet);
+        const target = kind === 'iban'
+          ? { iban: normalizeIban(recipient) }
+          : { email: recipient.trim().toLowerCase() };
+        // Custom recipient name flows into the description (#10).
+        const description = desc || (recipientName.trim() ? `To ${recipientName.trim()}` : 'Transfer');
+        const ok = await onTransfer(target, val, description, selWallet);
+        if (!ok) return; // keep the form so the user can correct and retry (#11)
       } else {
-        await onRequest(email, val, desc || 'Request');
+        await onRequest(recipient, val, desc || 'Request');
       }
-      setEmail('');
+      setRecipient('');
+      setRecipientName('');
       setAmt('');
       setDesc('');
     } finally {
@@ -93,16 +115,16 @@ export function ScreenTransfer({ data, onTransfer, onRequest }: TransferProps) {
           </View>
         )}
 
-        {/* Recipient Email */}
+        {/* Recipient */}
         <View>
-          <Text style={styles.label}>{mode === 'send' ? 'Recipient email' : 'Payer email'}</Text>
+          <Text style={styles.label}>{mode === 'send' ? 'Recipient email or IBAN' : 'Payer email'}</Text>
           <View style={styles.inputWrapper}>
             <Icon name="user" size={16} color={THEME.colors.text3} style={styles.inputIcon} />
             <TextInput
               style={[styles.input, { paddingLeft: 42 }]}
-              value={email}
-              onChangeText={setEmail}
-              placeholder="name@email.com"
+              value={recipient}
+              onChangeText={v => { setRecipient(v); if (formError) setFormError(''); }}
+              placeholder={mode === 'send' ? 'name@email.com or BE89 …' : 'name@email.com'}
               placeholderTextColor={THEME.colors.text3}
               keyboardType="email-address"
               autoCapitalize="none"
@@ -111,6 +133,20 @@ export function ScreenTransfer({ data, onTransfer, onRequest }: TransferProps) {
             />
           </View>
         </View>
+
+        {/* Custom recipient name → description (#10) */}
+        {mode === 'send' && (
+          <View>
+            <Text style={styles.label}>Recipient name (optional)</Text>
+            <TextInput
+              style={styles.input}
+              value={recipientName}
+              onChangeText={setRecipientName}
+              placeholder="Shown in the transaction description"
+              placeholderTextColor={THEME.colors.text3}
+            />
+          </View>
+        )}
 
         {/* Amount */}
         <View>
@@ -136,6 +172,14 @@ export function ScreenTransfer({ data, onTransfer, onRequest }: TransferProps) {
             placeholderTextColor={THEME.colors.text3}
           />
         </View>
+
+        {/* Inline form error (#9/#11) */}
+        {formError !== '' && (
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }} accessibilityLiveRegion="polite">
+            <Icon name="alertTriangle" size={14} color={THEME.colors.neg} />
+            <Text style={{ color: THEME.colors.neg, fontSize: 13, flex: 1 }}>{formError}</Text>
+          </View>
+        )}
 
         {/* Submit button */}
         <TouchableOpacity

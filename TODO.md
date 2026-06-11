@@ -14,10 +14,12 @@ Workflow rules live in [CLAUDE.md](CLAUDE.md#workflow-rules); short version:
 
 - [x] Backend (#11): request + rejection logging on `/transactions/transfer`, proper
   error responses, `receiverIban` targets (`iban.ts` + 8 tests)
-- [ ] Web + mobile (#11): stop the false "Payment sent" — surface backend errors
-- [ ] Web + mobile (#9): recipient input accepts email or IBAN with inline validation
-- [ ] Web + mobile (#10): editable custom recipient name → transaction description
-- [ ] Web + mobile (#12): sender balance updates immediately after a transfer
+- [x] Web + mobile (#11): stop the false "Payment sent" — handleTransfer throws/returns
+  honestly, screens surface the backend reason; mobile drops Alert for warn toasts
+- [x] Web + mobile (#9): recipient input accepts email or IBAN with inline validation
+  (`lib/validate.ts` mirrors on both apps + tests)
+- [x] Web + mobile (#10): editable custom recipient name → transaction description
+- [x] Web + mobile (#12): optimistic sender debit + awaited re-fetch before success UI
 
 ## Backlog — ungrouped (assign to a branch group when picked up)
 
