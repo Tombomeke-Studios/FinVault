@@ -8,18 +8,6 @@ Workflow rules live in [CLAUDE.md](CLAUDE.md#workflow-rules); short version:
   written + this file ticked. Only then start the next item.
 - **Branch group complete → push → PR → CI green** (`validate.yml`). Red PR ≠ done.
 
-## Branch: `feature/security-and-session` — ✅ complete, ready for PR
-
-- [x] Backend: protect `/users/profile-by-email` with `X-Service-Secret` (was public via gateway → user enumeration + PII leak)
-- [x] Backend: hash refresh tokens at rest (sha256), `/auth/refresh` rotation + `/auth/logout` revocation
-- [x] Backend: generic login error (no attempt-count / account-existence leak), bcrypt 10 → 12
-- [x] Backend: fallback-secret warnings, configurable CORS origins, rate-limit map cleanup
-- [x] Root `.env.example` documenting all env vars
-- [x] Mobile: persistent session (expo-secure-store) — auto-login, silent refresh, server-side revoke on sign-out
-- [x] Mobile: "Security activity" view in Settings (`/api/users/audit-logs`, mock fallback offline)
-- [x] Docs: `docs/architecture.md`, `docs/design-system.md`, `docs/security.md`
-- [ ] Push branch + open PR, verify CI green *(needs remote push approval)*
-
 ## Backlog — ungrouped (assign to a branch group when picked up)
 
 **Candidate group: `feature/web-session-hardening`**
@@ -55,6 +43,18 @@ Workflow rules live in [CLAUDE.md](CLAUDE.md#workflow-rules); short version:
 - [ ] Rate limiting is per-instance in-memory — Redis when running replicas
 - [ ] RabbitMQ is Docker-only for local dev — run `docker run -d --name rabbitmq -p 5672:5672 rabbitmq:3`
   then add `RABBITMQ_URL=amqp://guest:guest@localhost:5672` to `.env` to enable async events
+
+## Done — `feature/security-and-session` (merged into `dev` via PR #2, 2026-06-10)
+
+- [x] Backend: protect `/users/profile-by-email` with `X-Service-Secret` (was public via gateway → user enumeration + PII leak)
+- [x] Backend: hash refresh tokens at rest (sha256), `/auth/refresh` rotation + `/auth/logout` revocation
+- [x] Backend: generic login error (no attempt-count / account-existence leak), bcrypt 10 → 12
+- [x] Backend: fallback-secret warnings, configurable CORS origins, rate-limit map cleanup
+- [x] Root `.env.example` documenting all env vars
+- [x] Mobile: persistent session (expo-secure-store) — auto-login, silent refresh, server-side revoke on sign-out
+- [x] Mobile: "Security activity" view in Settings (`/api/users/audit-logs`, mock fallback offline)
+- [x] Docs: `docs/architecture.md`, `docs/design-system.md`, `docs/security.md`
+- [x] Push branch + open PR, verify CI green — merged as PR #2
 
 ## Done — UI/UX pass on `(ui/uix)-Rebase-of-UI` (2026-06-10, commit c522017)
 
