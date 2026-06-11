@@ -1,31 +1,8 @@
 import React, { useState } from 'react';
 import { Icon } from '../components/Icon';
 import { Avatar, Segmented, Toggle, PageHead } from '../components/UI';
-import type { AppData, ThemeConfig } from '../App';
-
-const ACCENTS: Record<string, { h: number; c: number; l: number; on: string; sw: string }> = {
-  emerald: { h: 158, c: 0.13, l: 0.62, on: 'oklch(0.99 0 0)', sw: 'oklch(0.62 0.13 158)' },
-  indigo:  { h: 265, c: 0.15, l: 0.56, on: 'oklch(0.99 0 0)', sw: 'oklch(0.56 0.15 265)' },
-  violet:  { h: 305, c: 0.16, l: 0.58, on: 'oklch(0.99 0 0)', sw: 'oklch(0.58 0.16 305)' },
-  azure:   { h: 232, c: 0.14, l: 0.60, on: 'oklch(0.99 0 0)', sw: 'oklch(0.60 0.14 232)' },
-  amber:   { h: 75,  c: 0.13, l: 0.74, on: 'oklch(0.24 0.03 80)', sw: 'oklch(0.74 0.13 75)' },
-  rose:    { h: 12,  c: 0.16, l: 0.62, on: 'oklch(0.99 0 0)', sw: 'oklch(0.62 0.16 12)' },
-};
-
-const FONTS: Record<string, { label: string }> = {
-  grotesk:   { label: 'Grotesk' },
-  bricolage: { label: 'Display' },
-  editorial: { label: 'Editorial' },
-  mono:      { label: 'Mono' },
-};
-
-const PRESETS: Record<string, ThemeConfig> = {
-  Vault:    { mode: 'dark',  accent: 'emerald', font: 'grotesk',   radius: 'soft',  density: 'regular', card: 'elevated' },
-  Daylight: { mode: 'light', accent: 'indigo',  font: 'grotesk',   radius: 'soft',  density: 'regular', card: 'outline' },
-  Aurora:   { mode: 'dark',  accent: 'violet',  font: 'bricolage', radius: 'round', density: 'comfy',   card: 'glass' },
-  Carbon:   { mode: 'dark',  accent: 'azure',   font: 'mono',      radius: 'sharp', density: 'compact', card: 'outline' },
-  Sand:     { mode: 'light', accent: 'amber',   font: 'editorial', radius: 'round', density: 'comfy',   card: 'elevated' },
-};
+import { ACCENTS, FONTS, PRESETS, type ThemeConfig } from '../theme';
+import type { AppData } from '../App';
 
 function SettingRow({ icon, label, desc, right, onClick, last }: { icon?: string; label: string; desc?: string; right?: React.ReactNode; onClick?: () => void; last?: boolean }) {
   return (
@@ -95,7 +72,7 @@ export function ScreenSettings({ compact, theme, setTheme, fire, openUpgrade, on
       <SCard title="Appearance">
         <div style={{ padding: '4px 4px 12px' }}>
           <div style={{ fontWeight: 600, fontSize: '0.92rem', marginBottom: 10 }}>Theme preset</div>
-          <div style={{ display: 'grid', gridTemplateColumns: compact ? '1fr 1fr' : 'repeat(5, 1fr)', gap: 8 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: compact ? '1fr 1fr' : 'repeat(auto-fill, minmax(108px, 1fr))', gap: 8 }}>
             {Object.entries(PRESETS).map(([name, p]) => {
               const a = ACCENTS[p.accent];
               const isActive = activePreset && activePreset[0] === name;

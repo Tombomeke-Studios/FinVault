@@ -10,25 +10,22 @@ Workflow rules live in [CLAUDE.md](CLAUDE.md#workflow-rules); short version:
   written + this file ticked. Only then start the next item.
 - **Branch group complete → push → PR → CI green** (`validate.yml`). Red PR ≠ done.
 
-## Branch: `feature/github-workflow` — active
+## Branch: `feature/web-theme-refactor` — active (#19)
 
-- [x] Move stale `feature/security-and-session` group to Done (merged via PR #2)
-- [x] CI: `close-linked-issues.yml` — auto-close issues on PR merge into `dev`
-- [x] CLAUDE.md §2a: GitHub issue workflow (issue per TODO item, `Closes #N` in PRs)
-- [x] docs/ci-cd.md: workflow reference + maintenance guide
-- [x] GitHub: `scope:*`/`type:*` labels + issues #3–#20 for all open backlog items
-- [ ] Push, PR → `dev`, CI green, merge
-
-## Branch: `feature/web-theme-refactor` — next (#19)
-
-- [ ] Remove dead `src/theme.css` (never imported; drifted duplicate of index.css) (#19)
-- [ ] Restructure `index.css` into layered sections: primitives → semantic tokens →
+- [x] Remove dead `src/theme.css` (never imported; drifted duplicate of index.css) (#19)
+- [x] Theme-aware `FVLogo`: SVG lockup (gradient mark + currentColor wordmark, `mono`
+  variant) replaces the white-wordmark PNG that broke on light themes (#19)
+- [x] Restructure `index.css` into layered sections: primitives → semantic tokens →
   components → motion, with the token contract documented (#19)
-- [ ] Fix light-mode contrast: logo, nav, chips, accent surfaces in Daylight/Sand (#19)
-- [ ] Expand the motion library (new `fv*` keyframes + utility classes, micro-interactions),
-  keep the reduced-motion kill-switch (#19)
-- [ ] Persist theme to localStorage and restore on boot (#19)
-- [ ] Update docs/design-system.md to match the refactored system (#19)
+- [x] Fix light-mode contrast: `--accent-ink`, clamped light accent fills, per-mode
+  `--cat-l`/`--cat-soft-a` category tokens (#19)
+- [x] Expand the motion library: `fvSlideDown/BlurIn/Shake/BounceIn/GradShift` keyframes,
+  `.stagger`, `.gradient-animate`, theme-switch cross-fade, gradient `.btn-primary`,
+  `::selection`; reduced-motion kill-switch intact (#19)
+- [x] Persist theme to localStorage and restore on boot — `src/theme.ts` owns the
+  engine now (deduped ACCENTS/FONTS/PRESETS from App.tsx + ScreenSettings) (#19)
+- [x] Update docs/design-system.md to match the refactored system (#19)
+- [x] Extra presets: Midnight (dark rose glass) + Mint (light emerald) (#19)
 
 ## Branch: `feature/mobile-theming` — planned (#8)
 
@@ -71,6 +68,15 @@ Workflow rules live in [CLAUDE.md](CLAUDE.md#workflow-rules); short version:
 **Dev-environment note (not a task):** RabbitMQ is Docker-only for local dev — run
 `docker run -d --name rabbitmq -p 5672:5672 rabbitmq:3` then add
 `RABBITMQ_URL=amqp://guest:guest@localhost:5672` to `.env` to enable async events.
+
+## Done — `feature/github-workflow` (merged into `dev` via PR #21, 2026-06-11)
+
+- [x] Move stale `feature/security-and-session` group to Done (merged via PR #2)
+- [x] CI: `close-linked-issues.yml` — auto-close issues on PR merge into `dev`
+- [x] CLAUDE.md §2a: GitHub issue workflow (issue per TODO item, `Closes #N` in PRs)
+- [x] docs/ci-cd.md: workflow reference + maintenance guide
+- [x] GitHub: `scope:*`/`type:*` labels + issues #3–#20 for all open backlog items
+- [x] Push, PR → `dev`, CI green, merged as PR #21
 
 ## Done — `feature/security-and-session` (merged into `dev` via PR #2, 2026-06-10)
 
