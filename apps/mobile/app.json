@@ -25,6 +25,7 @@
       "favicon": "./assets/favicon.png"
     },
     "plugins": [
+      "expo-local-authentication",
       "expo-secure-store",
       [
         "expo-camera",

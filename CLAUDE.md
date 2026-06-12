@@ -162,6 +162,7 @@ A "unit" = one function, feature, fix, or refactor — the smallest shippable sl
 | Tokens, colors, typography, motion, components, a11y | [docs/design-system.md](docs/design-system.md) |
 | Anything under `.github/workflows/` (triggers, steps, pinned actions) | [docs/ci-cd.md](docs/ci-cd.md) |
 | Product feature set vs. real banking apps (gaps, priorities) | [docs/feature-roadmap.md](docs/feature-roadmap.md) |
+| EAS Build/Submit/Update, VM hosting, Play Store, deployment options | [docs/deployment-strategie.md](docs/deployment-strategie.md) |
 | New/moved/renamed files, new commands, new gotchas | **This file** (map in §7, gotchas in §8) |
 | Setup / how-to-run instructions | README.md |
 | Tasks, progress, follow-ups | [TODO.md](TODO.md) — and *only* there |
@@ -192,7 +193,11 @@ the same emails offline → client-side mock demo mode. Mobile API base: `EXPO_P
 ### apps/mobile (Expo SDK 54, RN 0.81, themed dark/light)
 | File | Contents |
 |---|---|
-| `App.tsx` | All app state: auth/token, wallets/transactions/cards/goals, route string (`'overview'`, `'account:<walletId>'`, …), all API handlers (`handleLogin/Transfer/Deposit/OwnTransfer/UpgradePlan`), mock-data builder, deposit + plan-upgrade sheets, Android BackHandler, session restore + splash |
+| `App.tsx` | All app state: auth/token, wallets/transactions/cards/goals, route string (`'overview'`, `'account:<walletId>'`, …), all API handlers (`handleLogin/Transfer/Deposit/OwnTransfer/UpgradePlan`), mock-data builder, deposit + plan-upgrade sheets, Android BackHandler, session restore + splash. `ErrorBoundary` class wraps the root to catch render-time crashes in production builds |
+| `index.ts` | Entry point: `registerRootComponent` + global `ErrorUtils` handler for async crashes in standalone builds |
+| `app.json` | Expo config: `android.package` (`com.tombomekestudio.finvault`), `versionCode`, `owner` (tombomekestudios), EAS `projectId`, plugins (`expo-local-authentication` + `expo-secure-store` + `expo-camera`) — all three plugins are required; missing one = instant crash |
+| `eas.json` | EAS Build profiles: `development` (dev-client APK), `preview` (sideloadable APK), `production` (signed AAB for Play Store) |
+| `metro.config.js` | **Critical for monorepo** — sets `watchFolders` to monorepo root and `nodeModulesPaths` to both workspace + root `node_modules`; without this, hoisted native packages are not compiled in and the standalone APK crashes instantly |
 | `src/session.ts` | SecureStore token persistence: `saveSession/loadSession/clearSession/tryRefreshSession/revokeSession` |
 | `src/biometrics.ts` | Real biometric gate (expo-local-authentication): `isBiometricAvailable/authenticateBiometric` + keystore-persisted opt-in pref |
 | `src/theme.ts` | Theme engine: mutable `THEME` tokens (hex), dark/light palettes × 6 accents, `setAppTheme`/`subscribeTheme`, `themedSheet` StyleSheet proxy, secure-store persistence. Tests: `theme.test.ts` |
@@ -249,3 +254,10 @@ the same emails offline → client-side mock demo mode. Mobile API base: `EXPO_P
   `setTheme` with a new palette directly.
 - Alerts (`Alert.alert`) only for destructive confirmations — all other feedback via toasts.
 - Expo SDK is **54** (`apps/mobile/AGENTS.md` mentions v56 docs — installed SDK wins).
+- **EAS monorepo crash:** `apps/mobile/metro.config.js` MUST stay in sync with the
+  monorepo structure. Without `watchFolders` + `nodeModulesPaths` pointing to the repo
+  root, hoisted native packages (expo-local-authentication, react-native-svg, …) are
+  not compiled into the standalone APK → instant crash on launch. Never delete it.
+- **EAS plugins:** every native Expo package used by the mobile app MUST appear in the
+  `plugins` array in `app.json` (currently: expo-local-authentication, expo-secure-store,
+  expo-camera). Adding a native package without its plugin → crash on standalone build.
