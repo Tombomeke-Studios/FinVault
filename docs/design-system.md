@@ -29,6 +29,13 @@ travel = `#38bdf8` (sky).
 - Never reintroduce raster lockups with a baked-in text color — the old
   `logo-lockup.png` had a white wordmark that disappeared on light themes.
 - `public/favicon.png` is the mark-only raster for the browser tab.
+- **Mobile app icon** (`apps/mobile/assets/`): `icon.png` (2000×2000, teal F on navy
+  `#062437`, iOS + fallback) plus Android adaptive-icon layers derived from it:
+  `android-icon-foreground.png` (full-bleed F on opaque navy, 1024×1024) and
+  `android-icon-monochrome.png` (white silhouette for Android 13+ themed icons);
+  the background layer is the solid `adaptiveIcon.backgroundColor: "#062437"` in
+  `app.json`. **Android launchers use the adaptive icon, not `icon.png`** — when the
+  brand mark changes, regenerate all three together or the launcher keeps the old art.
 
 - Web colors are **OKLCH** and derive accent variants from `--accent-h/c/l`.
 

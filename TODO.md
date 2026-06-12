@@ -10,6 +10,14 @@ Workflow rules live in [CLAUDE.md](CLAUDE.md#workflow-rules); short version:
   written + this file ticked. Only then start the next item.
 - **Branch group complete → push → PR → CI green** (`validate.yml`). Red PR ≠ done.
 
+## Branch: `feature/android-app-icon` — active (#47, supports #46)
+
+- [x] Replace Expo-template adaptive-icon assets with FinVault-branded ones generated
+  from `icon.png` (full-bleed foreground + monochrome silhouette, navy `#062437`
+  background color); docs/design-system.md + CLAUDE.md gotcha updated (#47)
+- [ ] Fresh EAS preview build from `dev` (first build to include crash fix `4a88ebe`);
+  install on device → verify icon **and** that the instant crash is gone (#46)
+
 ## 🔴 TOP PRIORITY — EAS CI/CD Workflow (`feature/eas-workflow`)
 
 > Zie ook: [docs/deployment-strategie.md §9](docs/deployment-strategie.md)
