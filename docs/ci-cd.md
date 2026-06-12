@@ -10,6 +10,7 @@ workflow, update this file in the same commit (CLAUDE.md §5).
 | File | Trigger | What it does |
 |---|---|---|
 | `validate.yml` | push to `dev`/`main`; **every PR** (any base branch) | Install → Prisma generate → build `shared/` → build all workspaces (type-check) → `vitest run` |
+| `build-mobile.yml` | push to `dev`/`main` touching `apps/mobile/**`; manual dispatch | Triggers an EAS Build server-side: `preview` APK from `dev`, `production` AAB from `main`. No-op until the `EXPO_TOKEN` secret exists (#49) |
 
 Local mirror of `validate.yml`: `npm run build && npm test` from the repo root — run it
 before opening any PR (CLAUDE.md §2b, finish protocol).
@@ -39,7 +40,32 @@ on:
      and is skipped; its type-checking is the local `npx tsc --noEmit` bar).
   5. `npm test` — `vitest run`, picks up every colocated `*.test.ts`.
 
-## 3. Issue auto-close — native
+## 3. Anatomy of `build-mobile.yml`
+
+The mobile app is not part of `validate.yml`'s build (no build script; see CLAUDE.md §6),
+so it has its own lane that hands the actual compilation to EAS Build:
+
+- **Triggers:** push to `dev` or `main` filtered to `apps/mobile/**`,
+  `package-lock.json` (hoisted native deps live in the root lockfile), and the
+  workflow file itself — backend-only pushes must not burn EAS build quota.
+  `workflow_dispatch` allows manual runs with an explicit profile choice.
+- **Profile mapping:** `dev` → `preview` (sideloadable APK, internal distribution);
+  `main` → `production` (signed AAB for the Play Store). Profiles are defined in
+  `apps/mobile/eas.json`.
+- **Token guard:** the first step checks the `EXPO_TOKEN` repository secret
+  (an Expo access token — expo.dev → Account settings → Access tokens, #49). If it's
+  missing, every later step is skipped and the run stays green with a `::warning::` —
+  a missing secret must not turn `dev` red.
+- **`--no-wait`:** the workflow only *triggers* the build; compilation happens on EAS
+  servers and status/artifacts live on expo.dev. Waiting in Actions would double-spend
+  CI minutes.
+- **Concurrency:** rapid pushes cancel the queued *trigger* job (not an EAS build that
+  already started).
+- **Versioning note:** `eas.json` uses `appVersionSource: local`, so `versionCode`
+  comes from `app.json` and must be bumped manually for every Play Store upload.
+  When EAS Submit lands (#51), consider `appVersionSource: remote` + `autoIncrement`.
+
+## 4. Issue auto-close — native
 
 GitHub closes linked issues itself when a PR with closing keywords merges into the
 **default branch** — which is `dev` since 2026-06-12. The `close-linked-issues.yml`
@@ -51,7 +77,7 @@ removed (#37).
 - Related repo setting: *Automatically delete head branches* is **on** — merged
   feature branches disappear server-side; run `git fetch --prune` locally.
 
-## 4. Maintenance rules
+## 5. Maintenance rules
 
 ### Pinned action SHAs
 Every third-party action is pinned to a full commit SHA with the tag in a trailing
@@ -88,7 +114,7 @@ in `package.json`, change it here in the same PR — CI and local dev must not d
   reliable check is `node -e "require('js-yaml')..."` or just GitHub's editor; at
   minimum keep indentation at 2 spaces and quote anything with `#` or `:`.
 
-## 5. Troubleshooting a red CI
+## 6. Troubleshooting a red CI
 
 | Symptom | Usual cause |
 |---|---|

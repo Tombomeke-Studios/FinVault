@@ -20,18 +20,17 @@ Workflow rules live in [CLAUDE.md](CLAUDE.md#workflow-rules); short version:
 
 ## 🔴 TOP PRIORITY — EAS CI/CD Workflow (`feature/eas-workflow`)
 
-> Zie ook: [docs/deployment-strategie.md §9](docs/deployment-strategie.md)
+> See also: [docs/deployment-strategy.md §9](docs/deployment-strategy.md)
 
-- [ ] GitHub secret `EXPO_TOKEN` aanmaken op GitHub (Settings → Secrets → Actions)
-      → Expo token genereren via expo.dev → Account Settings → Access Tokens
-- [ ] `.github/workflows/build-mobile.yml` aanmaken:
-      - Trigger: push naar `dev` → EAS preview build (APK)
-      - Trigger: push naar `main` → EAS production build (AAB)
-      - Vereiste stappen: checkout → setup Node → `eas build --non-interactive`
-- [ ] `eas.json` `submit.production` configureren zodra Play Store account aangemaakt is
-- [ ] EAS environment variable `EXPO_PUBLIC_API_URL` instellen op expo.dev
-      (waarde: `https://api.jouwdomein.com` — pas in zodra VM/VPS online)
-- [ ] Docs bijwerken: `ci-cd.md` uitbreiden met mobile build pipeline
+- [ ] Create the `EXPO_TOKEN` GitHub Actions secret (#49) — **user action**: generate
+      an Expo access token (expo.dev → Account settings → Access tokens, org
+      `tombomekestudios`), then `gh secret set EXPO_TOKEN`. Activates the workflow below
+- [x] `.github/workflows/build-mobile.yml` (#50): push to `dev` → EAS preview APK,
+      push to `main` → EAS production AAB, manual dispatch with profile choice;
+      skips with a warning until `EXPO_TOKEN` exists; docs/ci-cd.md table + anatomy
+- [ ] Configure `eas.json` `submit.production` once the Play Store account exists (#51)
+- [ ] Set `EXPO_PUBLIC_API_URL` EAS env var on expo.dev once the backend is hosted (#52)
+- [ ] Translate docs/deployment-strategie.md → English `deployment-strategy.md` (#53)
 
 ## Branch: `feature/transfer-validation` — active (#9 #10 #11 #12)
 

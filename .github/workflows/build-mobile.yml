@@ -1,0 +1,82 @@
+name: Build Mobile (EAS)
+
+on:
+  push:
+    branches: [ dev, main ]
+    # Only mobile-relevant changes should burn an EAS build:
+    paths:
+      - 'apps/mobile/**'
+      - 'package-lock.json'
+      - '.github/workflows/build-mobile.yml'
+  # Manual runs with an explicit profile choice:
+  workflow_dispatch:
+    inputs:
+      profile:
+        description: 'EAS build profile'
+        required: true
+        default: 'preview'
+        type: choice
+        options: [ preview, production ]
+
+# Rapid successive pushes should not queue duplicate EAS builds; only the
+# trigger job is cancelled — an EAS build already started keeps running.
+concurrency:
+  group: build-mobile-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      # The workflow is a no-op (with a visible warning) until the EXPO_TOKEN
+      # secret exists — see issue #49. A missing token must not turn dev red.
+      - name: Check EXPO_TOKEN
+        id: token
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+        run: |
+          if [ -z "$EXPO_TOKEN" ]; then
+            echo "have_token=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::EXPO_TOKEN secret is not set - skipping EAS build (issue #49)"
+          else
+            echo "have_token=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Checkout Code
+        if: steps.token.outputs.have_token == 'true'
+        uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
+
+      - name: Setup Node.js
+        if: steps.token.outputs.have_token == 'true'
+        uses: actions/setup-node@1e60f620b9541d16bece96c5465dc8ee9832be0b # v4.0.3
+        with:
+          node-version: 18
+          cache: 'npm'
+
+      # EAS CLI resolves the Expo config locally before uploading, so the
+      # workspace dependencies must be installed.
+      - name: Install Dependencies
+        if: steps.token.outputs.have_token == 'true'
+        run: npm install
+
+      - name: Resolve Build Profile
+        if: steps.token.outputs.have_token == 'true'
+        id: profile
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "profile=${{ inputs.profile }}" >> "$GITHUB_OUTPUT"
+          elif [ "${{ github.ref_name }}" = "main" ]; then
+            echo "profile=production" >> "$GITHUB_OUTPUT"
+          else
+            echo "profile=preview" >> "$GITHUB_OUTPUT"
+          fi
+
+      # --no-wait: the build runs on EAS servers; status lives on expo.dev.
+      # Waiting here would only burn GitHub Actions minutes.
+      - name: Trigger EAS Build
+        if: steps.token.outputs.have_token == 'true'
+        working-directory: apps/mobile
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+        run: npx eas-cli build --platform android --profile ${{ steps.profile.outputs.profile }} --non-interactive --no-wait
