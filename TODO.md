@@ -10,6 +10,21 @@ Workflow rules live in [CLAUDE.md](CLAUDE.md#workflow-rules); short version:
   written + this file ticked. Only then start the next item.
 - **Branch group complete → push → PR → CI green** (`validate.yml`). Red PR ≠ done.
 
+## 🔴 TOP PRIORITY — EAS CI/CD Workflow (`feature/eas-workflow`)
+
+> Zie ook: [docs/deployment-strategie.md §9](docs/deployment-strategie.md)
+
+- [ ] GitHub secret `EXPO_TOKEN` aanmaken op GitHub (Settings → Secrets → Actions)
+      → Expo token genereren via expo.dev → Account Settings → Access Tokens
+- [ ] `.github/workflows/build-mobile.yml` aanmaken:
+      - Trigger: push naar `dev` → EAS preview build (APK)
+      - Trigger: push naar `main` → EAS production build (AAB)
+      - Vereiste stappen: checkout → setup Node → `eas build --non-interactive`
+- [ ] `eas.json` `submit.production` configureren zodra Play Store account aangemaakt is
+- [ ] EAS environment variable `EXPO_PUBLIC_API_URL` instellen op expo.dev
+      (waarde: `https://api.jouwdomein.com` — pas in zodra VM/VPS online)
+- [ ] Docs bijwerken: `ci-cd.md` uitbreiden met mobile build pipeline
+
 ## Branch: `feature/transfer-validation` — active (#9 #10 #11 #12)
 
 - [x] Backend (#11): request + rejection logging on `/transactions/transfer`, proper
