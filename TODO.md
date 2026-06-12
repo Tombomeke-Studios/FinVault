@@ -30,7 +30,7 @@ Workflow rules live in [CLAUDE.md](CLAUDE.md#workflow-rules); short version:
       skips with a warning until `EXPO_TOKEN` exists; docs/ci-cd.md table + anatomy
 - [ ] Configure `eas.json` `submit.production` once the Play Store account exists (#51)
 - [ ] Set `EXPO_PUBLIC_API_URL` EAS env var on expo.dev once the backend is hosted (#52)
-- [ ] Translate docs/deployment-strategie.md → English `deployment-strategy.md` (#53)
+- [x] Translate docs/deployment-strategie.md → English `deployment-strategy.md` (#53)
 
 ## Branch: `feature/transfer-validation` — active (#9 #10 #11 #12)
 
