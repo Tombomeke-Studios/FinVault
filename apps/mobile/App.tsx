@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect, Component } from 'react';
 import { View, StyleSheet, SafeAreaView, TouchableOpacity, Text, StatusBar, TextInput, Alert, Platform, BackHandler } from 'react-native';
 import { ScreenAuth } from './src/screens/ScreenAuth';
 import { ScreenOverview } from './src/screens/ScreenOverview';
@@ -17,6 +17,26 @@ import { Icon } from './src/components/Icon';
 import { saveSession, loadSession, clearSession, tryRefreshSession, revokeSession } from './src/session';
 import { isBiometricAvailable, authenticateBiometric, getBiometricPref } from './src/biometrics';
 import { THEME, themedSheet, setAppTheme, persistThemeConfig, loadPersistedThemeConfig } from './src/theme';
+
+// ── Global error boundary — catches render-time crashes in production ──────────
+interface EBState { error: Error | null; }
+class ErrorBoundary extends Component<{ children: React.ReactNode }, EBState> {
+  state: EBState = { error: null };
+  static getDerivedStateFromError(e: Error): EBState { return { error: e }; }
+  componentDidCatch(e: Error, info: React.ErrorInfo) {
+    console.error('[ErrorBoundary] Caught:', e.message, info.componentStack);
+  }
+  render() {
+    if (!this.state.error) return this.props.children;
+    return (
+      <View style={{ flex: 1, backgroundColor: '#16161c', justifyContent: 'center', alignItems: 'center', padding: 24 }}>
+        <Text style={{ color: '#fb7185', fontSize: 18, fontWeight: 'bold', marginBottom: 12 }}>FinVault — Crash</Text>
+        <Text style={{ color: '#f7f7f9', fontSize: 13, textAlign: 'center', marginBottom: 8 }}>{this.state.error.message}</Text>
+        <Text style={{ color: '#8c8c9e', fontSize: 11, textAlign: 'center' }}>{this.state.error.stack?.slice(0, 400)}</Text>
+      </View>
+    );
+  }
+}
 
 export interface ThemeConfig {
   mode: 'dark' | 'light';
