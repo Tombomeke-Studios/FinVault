@@ -10,41 +10,13 @@ Workflow rules live in [CLAUDE.md](CLAUDE.md#workflow-rules); short version:
   written + this file ticked. Only then start the next item.
 - **Branch group complete → push → PR → CI green** (`validate.yml`). Red PR ≠ done.
 
-## Branch: `feature/web-receive-qr` — active (#55)
+## Branch: `feature/eas-crash-fix` — active (#57, supports #46)
 
-- [x] Port EPC QR builder to web (`src/lib/epc.ts` + 7 unit tests) (#55)
-- [x] QR code on web Request tab via `qrcode.react` — live preview updates with amount/description (#55)
-- [x] Docs update (design-system.md QR section) + PR → `dev`, CI green, merge (#55)
-
-## Branch: `feature/transfer-validation` — active (#9 #10 #11 #12)
-
-- [x] Backend (#11): request + rejection logging on `/transactions/transfer`, proper
-  error responses, `receiverIban` targets (`iban.ts` + 8 tests)
-- [x] Web + mobile (#11): stop the false "Payment sent" — handleTransfer throws/returns
-  honestly, screens surface the backend reason; mobile drops Alert for warn toasts
-- [x] Web + mobile (#9): recipient input accepts email or IBAN with inline validation
-  (`lib/validate.ts` mirrors on both apps + tests)
-- [x] Web + mobile (#10): editable custom recipient name → transaction description
-- [x] Web + mobile (#12): optimistic sender debit + awaited re-fetch before success UI
-
-## Branch: `feature/beneficiaries` — active (#25)
-
-- [x] Backend: `Beneficiary` model (name + email *or* IBAN, unique per user),
-  GET/POST/DELETE endpoints, auto-upsert on successful transfers, gateway route
-- [x] Web: transfer recipients list shows saved beneficiaries (demo contacts as
-  offline fallback); custom recipients are remembered automatically
-- [x] Mobile: beneficiary chips prefill the transfer form
-- [ ] Docs + roadmap tick, PR → `dev`, CI green, merge
-
-## Branch: `feature/mobile-biometrics` — active (#7)
-
-- [x] `chore(mobile):` expo-local-authentication (#7)
-- [x] `src/biometrics.ts`: availability check, system prompt wrapper, keystore-persisted
-  opt-in preference (#7)
-- [x] Real Face ID button: authenticate → restore stored session (refresh fallback);
-  demo session only when no biometric hardware exists (#7)
-- [x] Opt-in biometric gate on boot session restore; Settings toggle is functional (#7)
-- [ ] PR → `dev`, CI green, merge — **manual device test via Expo Go needed** (like QR)
+- [x] Add `babel.config.js` with `babel-preset-expo` (standalone builds need explicit config) (#57)
+- [x] Install `expo-dev-client` (required by `developmentClient: true` profile) (#57)
+- [x] Set `EXPO_USE_METRO_WORKSPACE_ROOT=1` in all EAS build profiles (#57)
+- [x] Translate README.md from Dutch to English (language policy §1)
+- [ ] Verify EAS preview build no longer crashes on launch (#46)
 
 ## Manual device-test checklist (Expo Go) — before promoting `dev` → `staging`
 
@@ -56,7 +28,6 @@ Workflow rules live in [CLAUDE.md](CLAUDE.md#workflow-rules); short version:
 ## Backlog — ungrouped (assign to a branch group when picked up)
 
 **Roadmap gaps (see [docs/feature-roadmap.md](docs/feature-roadmap.md) for prio/effort)**
-- [ ] Beneficiaries: saved payees + picker in transfer flows (#25)
 - [ ] Scheduled & recurring payments / standing orders (#26)
 - [ ] Transactions: date-range + amount filters (search exists on both apps) (#27)
 - [ ] Budgets: monthly category limits with progress + alerts (#28)
@@ -70,7 +41,7 @@ Workflow rules live in [CLAUDE.md](CLAUDE.md#workflow-rules); short version:
 **Candidate group: `feature/mobile-feature-parity`**
 - [ ] Mobile: per-wallet filter on the transactions screen (web has `?walletId=` filter banner) (#5)
 - [ ] Mobile: wire "Request money" tab to the payment-request backend (currently toast-only) (#6)
-- [ ] Web: receive-QR parity on the Request tab (no camera needed, reuse EPC builder) (#55) — in progress on `feature/web-receive-qr`
+- [x] Web: receive-QR parity on the Request tab (no camera needed, reuse EPC builder) (#55) — done via PR #56
 
 **Smaller / unscheduled**
 - [ ] Backend: tests for `/auth/refresh` rotation + replay-revocation and `/auth/logout` (#13)
@@ -103,6 +74,14 @@ Workflow rules live in [CLAUDE.md](CLAUDE.md#workflow-rules); short version:
 ## Done — `feature/beneficiaries` (merged into `dev` via PR #42, issue #25 auto-closed, 2026-06-12)
 
 - [x] Beneficiary model + CRUD + auto-upsert on transfer; payee grid (web) + prefill chips (mobile)
+
+## Done — `feature/web-receive-qr` (merged into `dev` via PR #56, issue #55 auto-closed, 2026-06-20)
+
+- [x] EPC QR builder ported to web (`src/lib/epc.ts`, 7 tests); live QR on Request tab via `qrcode.react`
+
+## Done — `feature/mobile-biometrics` (merged into `dev` via PR #45, issue #7 auto-closed, 2026-06-12)
+
+- [x] Real biometric login with opt-in session-restore gate; Settings toggle functional
 
 ## Done — `feature/web-session-hardening` (merged into `dev` via PR #41, issues #3/#4 auto-closed, 2026-06-12)
 
