@@ -261,3 +261,7 @@ the same emails offline → client-side mock demo mode. Mobile API base: `EXPO_P
 - **EAS plugins:** every native Expo package used by the mobile app MUST appear in the
   `plugins` array in `app.json` (currently: expo-local-authentication, expo-secure-store,
   expo-camera). Adding a native package without its plugin → crash on standalone build.
+- **Android launcher icon ≠ `icon.png`:** Android uses `android.adaptiveIcon`
+  (foreground/monochrome PNGs + `backgroundColor`), which takes precedence over
+  `icon.png`. Rebrand = regenerate the `android-icon-*.png` assets too
+  (see docs/design-system.md → Logo).
