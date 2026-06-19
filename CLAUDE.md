@@ -162,7 +162,7 @@ A "unit" = one function, feature, fix, or refactor — the smallest shippable sl
 | Tokens, colors, typography, motion, components, a11y | [docs/design-system.md](docs/design-system.md) |
 | Anything under `.github/workflows/` (triggers, steps, pinned actions) | [docs/ci-cd.md](docs/ci-cd.md) |
 | Product feature set vs. real banking apps (gaps, priorities) | [docs/feature-roadmap.md](docs/feature-roadmap.md) |
-| EAS Build/Submit/Update, VM hosting, Play Store, deployment options | [docs/deployment-strategie.md](docs/deployment-strategie.md) |
+| EAS Build/Submit/Update, VM hosting, Play Store, deployment options | [docs/deployment-strategy.md](docs/deployment-strategy.md) |
 | New/moved/renamed files, new commands, new gotchas | **This file** (map in §7, gotchas in §8) |
 | Setup / how-to-run instructions | README.md |
 | Tasks, progress, follow-ups | [TODO.md](TODO.md) — and *only* there |
