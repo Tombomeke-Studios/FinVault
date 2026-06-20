@@ -80,13 +80,30 @@ model Card {
   cvv        String
   holder     String
   exp        String
-  frozen     Boolean  @default(false)
+  frozen                Boolean  @default(false)
+  contactlessEnabled    Boolean  @default(true)
+  foreignEnabled        Boolean  @default(true)
+  cashWithdrawalEnabled Boolean  @default(true)
   scheme     String   // metal, cyan, etc.
   walletId   String
   wallet     Wallet   @relation(fields: [walletId], references: [id], onDelete: Cascade)
   monthSpend Float    @default(0.0)
   limit      Float    @default(2000.0)
   createdAt  DateTime @default(now())
+}
+
+// Saved payees for the transfer flow (#25). Exactly one of email/iban is set.
+model Beneficiary {
+  id         String   @id @default(uuid())
+  userId     String
+  name       String
+  email      String?
+  iban       String?
+  lastUsedAt DateTime @default(now())
+  createdAt  DateTime @default(now())
+
+  @@unique([userId, email])
+  @@unique([userId, iban])
 }
 
 model SavingsGoal {
@@ -99,5 +116,55 @@ model SavingsGoal {
   icon      String
   due       String   @default("No date")
   createdAt DateTime @default(now())
+}
+
+model ScheduledPayment {
+  id              String   @id @default(uuid())
+  userId          String
+  sourceWalletId  String
+  targetEmail     String?
+  targetIban      String?
+  targetName      String   @default("")
+  amount          Float
+  currency        String   @default("EUR")
+  description     String   @default("")
+  frequency       String   // once, daily, weekly, monthly
+  nextRunAt       DateTime
+  lastRunAt       DateTime?
+  status          String   @default("active") // active, paused, completed, failed
+  createdAt       DateTime @default(now())
+}
+
+model Budget {
+  id             String   @id @default(uuid())
+  userId         String
+  category       String
+  monthlyLimit   Float
+  currentSpend   Float    @default(0.0)
+  alertThreshold Float    @default(0.8)
+  month          String   // YYYY-MM format
+  createdAt      DateTime @default(now())
+
+  @@unique([userId, category, month])
+}
+
+model Notification {
+  id        String   @id @default(uuid())
+  userId    String
+  title     String
+  body      String
+  read      Boolean  @default(false)
+  createdAt DateTime @default(now())
+}
+
+model Dispute {
+  id            String   @id @default(uuid())
+  userId        String
+  transactionId String
+  reason        String
+  status        String   @default("open") // open, investigating, resolved, rejected
+  resolution    String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 }
 

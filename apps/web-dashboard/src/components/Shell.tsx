@@ -4,13 +4,29 @@ import { Avatar, Sheet, Toast } from './UI';
 import type { ToastData } from '../App';
 
 // ---- Logo ----
-export function FVLogo({ size = 28 }: { size?: number }) {
+// Theme-aware lockup: gradient brand mark + wordmark in currentColor, so it
+// stays legible on every mode/accent (the old PNG had a baked-in white
+// wordmark that vanished on light themes). `mono` renders the mark in
+// currentColor too — use it on accent/gradient surfaces.
+export function FVLogo({ size = 28, mono = false }: { size?: number; mono?: boolean }) {
   return (
-    <img
-      src="/logo-lockup.png"
-      alt="FinVault"
-      style={{ height: size * 1.1, width: 'auto', display: 'block', objectFit: 'contain' }}
-    />
+    <span role="img" aria-label="FinVault" style={{ display: 'inline-flex', alignItems: 'center', gap: Math.round(size * 0.34), lineHeight: 1 }}>
+      <svg width={size * 1.05} height={size * 0.93} viewBox="0 0 72 64" aria-hidden="true" style={{ display: 'block', flexShrink: 0 }}>
+        {!mono && (
+          <defs>
+            <linearGradient id="fv-logo-grad" x1="0" y1="64" x2="72" y2="0" gradientUnits="userSpaceOnUse">
+              <stop offset="0" stopColor="#19f5c3" />
+              <stop offset="1" stopColor="#00bfa0" />
+            </linearGradient>
+          </defs>
+        )}
+        <g fill={mono ? 'currentColor' : 'url(#fv-logo-grad)'} transform="translate(8 0) skewX(-35)">
+          <rect x="26" y="10" width="38" height="14" rx="7" />
+          <rect x="26" y="32" width="26" height="14" rx="7" />
+        </g>
+      </svg>
+      <span className="display" style={{ fontSize: size * 0.66, fontWeight: 700, letterSpacing: '-0.03em', color: 'inherit' }}>FinVault</span>
+    </span>
   );
 }
 
@@ -32,7 +48,7 @@ function Notifs({ open, onClose, items }: { open: boolean; onClose: () => void; 
   if (!open) return null;
   return (
     <div onClick={onClose} style={{ position: 'fixed', inset: 0, zIndex: 70 }}>
-      <div onClick={e => e.stopPropagation()} className="card" style={{ position: 'absolute', top: 64, right: 18, width: 'min(340px, calc(100% - 36px))', padding: 'var(--pad)', boxShadow: 'var(--shadow)', animation: 'fvRise .2s ease' }}>
+      <div onClick={e => e.stopPropagation()} className="card slide-down" style={{ position: 'absolute', top: 64, right: 18, width: 'min(340px, calc(100% - 36px))', padding: 'var(--pad)', boxShadow: 'var(--shadow)' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
           <span style={{ fontWeight: 700 }}>Notifications</span>
           <button className="btn btn-quiet" onClick={onClose} style={{ padding: 4, fontSize: '0.78rem', color: 'var(--accent)' }}>Mark all read</button>

@@ -4,11 +4,126 @@ Single source of truth for all tasks and progress (CLAUDE.md contains **no** to-
 Workflow rules live in [CLAUDE.md](CLAUDE.md#workflow-rules); short version:
 
 - Tasks are **grouped per branch**. Pick a group, work it top to bottom.
+- Every actionable item has a **GitHub issue ref** `(#N)` — created at the latest when
+  its group is promoted from the backlog (CLAUDE.md §2a). PRs close them via `Closes #N`.
 - **Definition of done per item:** code + one small commit + docs updated + tests
   written + this file ticked. Only then start the next item.
 - **Branch group complete → push → PR → CI green** (`validate.yml`). Red PR ≠ done.
 
-## Branch: `feature/security-and-session` — ✅ complete, ready for PR
+## Branch: `feature/complete-backlog` — active
+
+- [x] Scheduled & recurring payments / standing orders (#26)
+- [x] Transactions: date-range + amount filters (#27)
+- [x] Budgets: monthly category limits with progress + alerts (#28)
+- [x] Direct debits: surface SEPA mandates with cancel control (#29)
+- [x] Security center: change password, active sessions (#30)
+- [x] Notification center with persistence + read state (#31)
+- [x] FX: currency exchange flow for the travel wallet (#32)
+- [x] Round-up savings into a goal (#33)
+- [x] Dispute flow: report a transaction (#34)
+- [x] Mobile: wire "Request money" tab to the payment-request backend (#6)
+- [x] Invoice service frontend surface — receipts + payment requests (#16)
+- [x] Savings goal "due date" — date picker on both apps (#15)
+- [x] Virtualize mobile transaction list with FlatList (#17)
+- [x] Rate limiting — Redis-backed with in-memory fallback (#18)
+
+- [x] Set `EXPO_PUBLIC_API_URL` in eas.json production build env (#52)
+- [x] Configure eas.json submit.production with serviceAccountKeyPath + track + releaseStatus (#51)
+
+## Manual device-test checklist (Expo Go) — before promoting `dev` → `staging`
+
+- [ ] QR (#43): scan an EPC QR (generate one on a second device via Request tab);
+  verify prefill + transfer; deny camera permission once and re-grant
+- [ ] Biometrics (#7): enable the Settings toggle, kill + reopen the app → biometric
+  prompt gates auto-login; cancel → auth screen → Face ID button retry works
+
+**Dev-environment note (not a task):** RabbitMQ is Docker-only for local dev — run
+`docker run -d --name rabbitmq -p 5672:5672 rabbitmq:3` then add
+`RABBITMQ_URL=amqp://guest:guest@localhost:5672` to `.env` to enable async events.
+
+## Done — `feature/android-app-icon` (merged into `dev` via PR #48, issue #47 auto-closed, 2026-06-20)
+
+- [x] FinVault-branded adaptive icon (foreground + monochrome); design-system.md + CLAUDE.md updated
+- [x] EAS preview build verification deferred to device-test checklist (#46 remains open)
+
+## Done — `feature/eas-workflow` (merged into `dev` via PR #54, issues #50/#53 auto-closed, 2026-06-20)
+
+- [x] `build-mobile.yml` — EAS preview on dev, production AAB on main, manual dispatch
+- [x] Translated deployment guide to English (`deployment-strategy.md`)
+- Remaining user-dependent items: #49 (EXPO_TOKEN), #51 (Play Store submit), #52 (API URL)
+
+## Done — `feature/qr-transfers` (merged into `dev` via PR #44, issue #43 auto-closed, 2026-06-12)
+
+- [x] EPC069-12 parser/builder (7 tests); scan-to-pay camera sheet prefills the transfer form
+- [x] Receive-QR on the Request tab; camera permission in app.json (manual device test pending)
+
+## Done — `feature/beneficiaries` (merged into `dev` via PR #42, issue #25 auto-closed, 2026-06-12)
+
+- [x] Beneficiary model + CRUD + auto-upsert on transfer; payee grid (web) + prefill chips (mobile)
+
+## Done — `feature/web-receive-qr` (merged into `dev` via PR #56, issue #55 auto-closed, 2026-06-20)
+
+- [x] EPC QR builder ported to web (`src/lib/epc.ts`, 7 tests); live QR on Request tab via `qrcode.react`
+
+## Done — `feature/mobile-biometrics` (merged into `dev` via PR #45, issue #7 auto-closed, 2026-06-12)
+
+- [x] Real biometric login with opt-in session-restore gate; Settings toggle functional
+
+## Done — `feature/web-session-hardening` (merged into `dev` via PR #41, issues #3/#4 auto-closed, 2026-06-12)
+
+- [x] In-memory access token + rotating refresh token (`src/lib/session.ts`, 10 tests)
+- [x] Sign-out revokes the refresh token server-side; docs/security.md updated
+
+## Done — `feature/transfer-validation` (merged into `dev` via PR #40, issues #9–#12 auto-closed, 2026-06-12)
+
+- [x] Backend: transfer request/rejection logging, `receiverIban` targets (`iban.ts`, 8 tests)
+- [x] Both apps: validated email/IBAN recipients, custom names, honest errors, instant balance updates
+
+## Done — `feature/native-issue-autoclose` (merged into `dev` via PR #39, issue #37 closed natively, 2026-06-12)
+
+- [x] `close-linked-issues.yml` removed — default branch is `dev`, GitHub auto-closes natively
+- [x] `validate.yml` also validates pushes to `dev`; CLAUDE.md §2/§2a + docs/ci-cd.md updated
+
+## Done — `feature/repo-hygiene` (merged into `dev` via PR #38, 2026-06-11)
+
+- [x] Five merged feature branches deleted; repo setting *Automatically delete head branches* enabled
+- [x] CLAUDE.md §2a trigger table + open-issues-are-backlog rule; finish protocol prune step
+
+## Done — `feature/statements-export` (merged into `dev` via PR #36, issue #24 auto-closed, 2026-06-11)
+
+- [x] Web: real CSV download from the Activity screen (filtered rows, UTF-8 BOM, 5 unit tests)
+- [x] Mobile: same CSV via the native share sheet (mirrored lib + tests, no new deps)
+
+## Done — `feature/banking-roadmap` (merged into `dev` via PR #35, issue #20 auto-closed, 2026-06-11)
+
+- [x] docs/feature-roadmap.md: present/missing matrix, P1–P3 priorities, build order
+- [x] Issues #24–#34 for every actionable gap
+
+## Done — `feature/mobile-theming` (merged into `dev` via PR #23, issue #8 auto-closed, 2026-06-11)
+
+- [x] Theme engine: mutable THEME, dark/light palettes × 6 accents, `themedSheet`, vitest coverage
+- [x] Settings presets apply for real; Appearance card (mode toggle + accent dots); secure-store persistence
+- [x] docs/design-system.md mobile theming section
+
+## Done — `feature/web-theme-refactor` (merged into `dev` via PR #22, issue #19 auto-closed, 2026-06-11)
+
+- [x] Removed dead `src/theme.css`; theme-aware `FVLogo` SVG (mono variant) replaces white-wordmark PNG
+- [x] `index.css` restructured into 7 layered sections with a token contract header
+- [x] Light-mode contrast: `--accent-ink`, clamped light accent fills, `--cat-l`/`--cat-soft-a`
+- [x] Motion library: SlideDown/BlurIn/Shake/BounceIn/GradShift, `.stagger`, theme cross-fade
+- [x] Theme engine in `src/theme.ts` + localStorage persistence; Midnight + Mint presets
+- [x] docs/design-system.md: theming contract + motion vocabulary
+
+## Done — `feature/github-workflow` (merged into `dev` via PR #21, 2026-06-11)
+
+- [x] Move stale `feature/security-and-session` group to Done (merged via PR #2)
+- [x] CI: `close-linked-issues.yml` — auto-close issues on PR merge into `dev`
+- [x] CLAUDE.md §2a: GitHub issue workflow (issue per TODO item, `Closes #N` in PRs)
+- [x] docs/ci-cd.md: workflow reference + maintenance guide
+- [x] GitHub: `scope:*`/`type:*` labels + issues #3–#20 for all open backlog items
+- [x] Push, PR → `dev`, CI green, merged as PR #21
+
+## Done — `feature/security-and-session` (merged into `dev` via PR #2, 2026-06-10)
 
 - [x] Backend: protect `/users/profile-by-email` with `X-Service-Secret` (was public via gateway → user enumeration + PII leak)
 - [x] Backend: hash refresh tokens at rest (sha256), `/auth/refresh` rotation + `/auth/logout` revocation
@@ -18,43 +133,7 @@ Workflow rules live in [CLAUDE.md](CLAUDE.md#workflow-rules); short version:
 - [x] Mobile: persistent session (expo-secure-store) — auto-login, silent refresh, server-side revoke on sign-out
 - [x] Mobile: "Security activity" view in Settings (`/api/users/audit-logs`, mock fallback offline)
 - [x] Docs: `docs/architecture.md`, `docs/design-system.md`, `docs/security.md`
-- [ ] Push branch + open PR, verify CI green *(needs remote push approval)*
-
-## Backlog — ungrouped (assign to a branch group when picked up)
-
-**Candidate group: `feature/web-session-hardening`**
-- [ ] Web: adopt refresh-token flow (localStorage → in-memory token + refresh, or httpOnly cookie)
-- [ ] Web: sign-out should revoke the refresh token server-side (parity with mobile)
-
-**Candidate group: `feature/mobile-feature-parity`**
-- [ ] Mobile: per-wallet filter on the transactions screen (web has `?walletId=` filter banner)
-- [ ] Mobile: wire "Request money" tab to the payment-request backend (currently toast-only)
-- [ ] Mobile: real biometrics via `expo-local-authentication` (Face ID button is simulated)
-
-**Candidate group: `feature/mobile-theming`**
-- [ ] Mobile theming engine — Settings presets currently only fire a toast; app is dark-only
-
-**Candidate group: `feature/transfer-validation`**
-- [ ] Transfer screen (mobile + web): validate recipient field before proceeding to amount step
-  — accept IBAN, email, or name; show inline error if format is invalid or lookup returns nothing
-- [ ] Transfer screen: allow entering a **custom recipient name** instead of only hardcoded accounts;
-  the name field must be editable and passed through to the transaction description
-- [ ] Transfer to hardcoded demo accounts shows "succeeded" toast but no transaction is created
-  and nothing appears in logs — the backend call either silently swallows the error or the
-  route is not being hit; add server-side logging + return a proper error response so the
-  UI can surface it (both mobile and web)
-- [ ] After a successful transfer the sender wallet balance must update immediately (optimistic
-  update or re-fetch); currently the overview does not reflect the deduction
-
-**Smaller / unscheduled**
-- [ ] Backend: tests for `/auth/refresh` rotation + replay-revocation and `/auth/logout`
-- [ ] Card "limits & controls" toggles (contactless/foreign) are client-side only — add backend fields
-- [ ] Savings goal "due date" is free text — date picker
-- [ ] Invoice service has no frontend surface yet
-- [ ] Virtualize mobile transaction list if data volumes grow
-- [ ] Rate limiting is per-instance in-memory — Redis when running replicas
-- [ ] RabbitMQ is Docker-only for local dev — run `docker run -d --name rabbitmq -p 5672:5672 rabbitmq:3`
-  then add `RABBITMQ_URL=amqp://guest:guest@localhost:5672` to `.env` to enable async events
+- [x] Push branch + open PR, verify CI green — merged as PR #2
 
 ## Done — UI/UX pass on `(ui/uix)-Rebase-of-UI` (2026-06-10, commit c522017)
 

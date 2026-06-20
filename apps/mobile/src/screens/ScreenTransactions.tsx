@@ -1,8 +1,9 @@
-import React, { useState, useMemo } from 'react';
-import { View, Text, StyleSheet, TextInput, ScrollView, TouchableOpacity } from 'react-native';
+import React, { useState, useMemo, useCallback } from 'react';
+import { View, Text, StyleSheet, TextInput, ScrollView, TouchableOpacity, Share, FlatList } from 'react-native';
 import { Icon } from '../components/Icon';
 import { money, CategoryIcon, relTime } from '../components/UI';
-import { THEME } from '../theme';
+import { buildTransactionsCsv, exportFileName } from '../lib/csv';
+import { THEME, themedSheet } from '../theme';
 import type { AppData } from '../../App';
 
 interface TransactionsProps {
@@ -13,6 +14,9 @@ interface TransactionsProps {
 export function ScreenTransactions({ data, onExport }: TransactionsProps) {
   const [q, setQ] = useState('');
   const [cat, setCat] = useState('all');
+  const [filterWalletId, setFilterWalletId] = useState<string | null>(null);
+
+  const walletName = (w: any) => w.name || (w.type === 'savings' ? 'Savings Vault' : w.type === 'travel' ? 'Travel Multi-Currency' : 'Everyday Checking');
 
   const getDisplayAmt = (t: any) => {
     const isIncoming = t.receiverWalletId && data.wallets.some(w => w.id === t.receiverWalletId);
@@ -24,20 +28,49 @@ export function ScreenTransactions({ data, onExport }: TransactionsProps) {
       const displayCat = t.type === 'deposit' ? 'deposit' : 'transfer';
       const matchesCat = cat === 'all' || displayCat === cat;
       const matchesSearch = q === '' || t.description.toLowerCase().includes(q.toLowerCase());
-      return matchesCat && matchesSearch;
+      const matchesWallet = !filterWalletId || t.senderWalletId === filterWalletId || t.receiverWalletId === filterWalletId;
+      return matchesCat && matchesSearch && matchesWallet;
     });
-  }, [q, cat, data.transactions]);
+  }, [q, cat, filterWalletId, data.transactions]);
 
   const monthIn = useMemo(() => filtered.filter(t => getDisplayAmt(t) > 0).reduce((s, t) => s + getDisplayAmt(t), 0), [filtered]);
   const monthOut = useMemo(() => filtered.filter(t => getDisplayAmt(t) < 0).reduce((s, t) => s + getDisplayAmt(t), 0), [filtered]);
 
-  return (
-    <ScrollView
-      style={styles.container}
-      contentContainerStyle={styles.outerContent}
-      showsVerticalScrollIndicator={false}
-      keyboardShouldPersistTaps="handled"
-    >
+  // Shares exactly what the current filters show via the native share sheet (#24).
+  const exportCsv = async () => {
+    const csv = buildTransactionsCsv(filtered.map(t => ({
+      date: new Date(t.createdAt).toISOString(),
+      description: t.description || 'Transaction',
+      category: t.type === 'deposit' ? 'deposit' : 'transfer',
+      status: t.status,
+      amount: getDisplayAmt(t),
+      currency: t.currency || 'EUR',
+    })));
+    try {
+      const result = await Share.share({ title: exportFileName(), message: csv });
+      if (result.action !== Share.dismissedAction) onExport();
+    } catch { /* share sheet unavailable — stay silent */ }
+  };
+
+  const renderTx = useCallback(({ item: t }: { item: typeof filtered[0] }) => {
+    const displayCat = t.type === 'deposit' ? 'deposit' : 'transfer';
+    const amt = getDisplayAmt(t);
+    return (
+      <View style={[styles.card, styles.txCard]}>
+        <CategoryIcon cat={displayCat} size={40} />
+        <View style={styles.txMeta}>
+          <Text style={styles.txDesc} numberOfLines={1}>{t.description}</Text>
+          <Text style={styles.txTime}>{relTime(new Date(t.createdAt).getTime())}</Text>
+        </View>
+        <Text style={[styles.txAmt, { color: amt > 0 ? THEME.colors.pos : THEME.colors.text }]}>
+          {money(amt, t.currency || 'EUR', { signed: true })}
+        </Text>
+      </View>
+    );
+  }, [data.wallets]);
+
+  const listHeader = useMemo(() => (
+    <>
       {/* Header */}
       <View style={styles.header}>
         <View>
@@ -46,7 +79,8 @@ export function ScreenTransactions({ data, onExport }: TransactionsProps) {
         </View>
         <TouchableOpacity
           style={styles.exportBtn}
-          onPress={onExport}
+          onPress={exportCsv}
+          disabled={filtered.length === 0}
           hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
           accessibilityRole="button"
           accessibilityLabel="Export transactions"
@@ -98,36 +132,69 @@ export function ScreenTransactions({ data, onExport }: TransactionsProps) {
         ))}
       </View>
 
-      {/* Transactions list */}
-      <View style={styles.list}>
-        {filtered.map(t => {
-          const displayCat = t.type === 'deposit' ? 'deposit' : 'transfer';
-          const amt = getDisplayAmt(t);
-          return (
-            <View key={t.id} style={[styles.card, styles.txCard]}>
-              <CategoryIcon cat={displayCat} size={40} />
-              <View style={styles.txMeta}>
-                <Text style={styles.txDesc} numberOfLines={1}>{t.description}</Text>
-                <Text style={styles.txTime}>{relTime(new Date(t.createdAt).getTime())}</Text>
-              </View>
-              <Text style={[styles.txAmt, { color: amt > 0 ? THEME.colors.pos : THEME.colors.text }]}>
-                {money(amt, t.currency || 'EUR', { signed: true })}
-              </Text>
-            </View>
-          );
-        })}
-        {filtered.length === 0 && (
-          <View style={styles.emptyState}>
-            <Icon name="search" size={32} color={THEME.colors.text3} />
-            <Text style={styles.emptyText}>No matching transactions found.</Text>
-          </View>
-        )}
-      </View>
-    </ScrollView>
+      {/* Wallet filter chips (#5) */}
+      {data.wallets.length > 1 && (
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 16, gap: 8, marginBottom: 12 }}>
+          <TouchableOpacity
+            onPress={() => setFilterWalletId(null)}
+            style={[styles.catBtn, !filterWalletId ? styles.catBtnActive : null]}
+            accessibilityRole="tab"
+            accessibilityState={{ selected: !filterWalletId }}
+          >
+            <Text style={[styles.catText, !filterWalletId ? styles.catTextActive : null]}>All wallets</Text>
+          </TouchableOpacity>
+          {data.wallets.map(w => (
+            <TouchableOpacity
+              key={w.id}
+              onPress={() => setFilterWalletId(w.id)}
+              style={[styles.catBtn, filterWalletId === w.id ? styles.catBtnActive : null]}
+              accessibilityRole="tab"
+              accessibilityState={{ selected: filterWalletId === w.id }}
+            >
+              <Text style={[styles.catText, filterWalletId === w.id ? styles.catTextActive : null]}>{walletName(w)}</Text>
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
+      )}
+
+      {/* Active wallet filter banner */}
+      {filterWalletId && (
+        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginHorizontal: 16, marginBottom: 12, paddingVertical: 8, paddingHorizontal: 14, borderRadius: THEME.radius.regular, backgroundColor: THEME.colors.accentSoft, borderWidth: 1, borderColor: THEME.colors.accentLine }}>
+          <Text style={{ color: THEME.colors.accent, fontSize: 13, fontWeight: '600' }}>
+            Showing: {walletName(data.wallets.find(w => w.id === filterWalletId) || data.wallets[0])}
+          </Text>
+          <TouchableOpacity onPress={() => setFilterWalletId(null)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+            <Icon name="x" size={16} color={THEME.colors.accent} />
+          </TouchableOpacity>
+        </View>
+      )}
+    </>
+  ), [q, cat, filterWalletId, monthIn, monthOut, filtered.length, data.wallets]);
+
+  return (
+    <FlatList
+      style={styles.container}
+      contentContainerStyle={styles.outerContent}
+      showsVerticalScrollIndicator={false}
+      keyboardShouldPersistTaps="handled"
+      data={filtered}
+      keyExtractor={t => t.id}
+      renderItem={renderTx}
+      ListHeaderComponent={listHeader}
+      ListEmptyComponent={
+        <View style={styles.emptyState}>
+          <Icon name="search" size={32} color={THEME.colors.text3} />
+          <Text style={styles.emptyText}>No matching transactions found.</Text>
+        </View>
+      }
+      initialNumToRender={15}
+      maxToRenderPerBatch={10}
+      windowSize={5}
+    />
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedSheet(() => StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: THEME.colors.bg,
@@ -283,4 +350,4 @@ const styles = StyleSheet.create({
     fontSize: 14,
     textAlign: 'center',
   },
-});
+}));

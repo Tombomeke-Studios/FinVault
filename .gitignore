@@ -48,6 +48,9 @@ yarn-debug.log*
 yarn-error.log*
 lerna-debug.log*
 
+# Google service account key (EAS Submit)
+google-services.json
+
 # Prisma generated clients (output to service-local generated/ dirs)
 /services/account-service/generated/
 /services/wallet-transaction-service/generated/

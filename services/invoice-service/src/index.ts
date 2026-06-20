@@ -36,10 +36,10 @@ function requireInternalAuth(req: express.Request, res: express.Response, next: 
 }
 
 // =============================================
-// Receipts Endpoints (Kwitanties)
+// Receipts Endpoints
 // =============================================
 
-// Intern endpoint: Wallet Service roept dit aan om automatisch een kwitantie aan te maken
+// Internal: Wallet Service calls this to auto-create a receipt after transfer
 app.post('/receipts', async (req, res) => {
   const { transactionRef, payerUserId, payeeUserId, payerEmail, payeeEmail, amount, currency, description } = req.body;
 
@@ -86,7 +86,7 @@ app.post('/receipts', async (req, res) => {
   }
 });
 
-// Haal alle kwitanties op van de ingelogde gebruiker (zowel betaald als ontvangen)
+// Get all receipts for the authenticated user (sent and received)
 app.get('/receipts', requireAuth, async (req, res) => {
   const userId = (req as any).user.userId;
 
@@ -107,7 +107,7 @@ app.get('/receipts', requireAuth, async (req, res) => {
   }
 });
 
-// Download de PDF van een specifieke kwitantie
+// Download the PDF for a specific receipt
 app.get('/receipts/:id/pdf', requireAuth, async (req, res) => {
   const userId = (req as any).user.userId;
   const { id } = req.params;
@@ -178,7 +178,7 @@ app.post('/payment-requests', requireAuth, async (req, res) => {
         receiverWalletId: userId,
         amount,
         currency: 'EUR',
-        description: `Betalingsverzoek van ${email}: ${description}`
+        description: `Payment request from ${email}: ${description}`
       }
     }, process.env.GATEWAY_URL);
 
@@ -188,7 +188,7 @@ app.post('/payment-requests', requireAuth, async (req, res) => {
   }
 });
 
-// Haal alle verzoeken op (verzonden en ontvangen)
+// Get all payment requests (sent and received)
 app.get('/payment-requests', requireAuth, async (req, res) => {
   const { userId, email } = (req as any).user;
 
@@ -209,7 +209,7 @@ app.get('/payment-requests', requireAuth, async (req, res) => {
   }
 });
 
-// Betalen van betalingsverzoek (atomaire P2P transfer via Wallet Service)
+// Pay a payment request (atomic P2P transfer via Wallet Service)
 app.post('/payment-requests/:id/pay', requireAuth, async (req, res) => {
   const { userId, email } = (req as any).user;
   const { id } = req.params;
@@ -265,7 +265,7 @@ app.post('/payment-requests/:id/pay', requireAuth, async (req, res) => {
         senderWalletId: buyerCheckingWallet.id,
         receiverEmail: request.creatorEmail,
         amount: request.amount,
-        description: `Voldaan betalingsverzoek: ${request.description}`
+        description: `Paid request: ${request.description}`
       })
     });
 
@@ -285,7 +285,7 @@ app.post('/payment-requests/:id/pay', requireAuth, async (req, res) => {
     });
 
     res.status(200).json({
-      message: 'Betalingsverzoek succesvol voldaan.',
+      message: 'Payment request fulfilled successfully.',
       request: updatedRequest,
       transaction: transferData.transaction
     });
@@ -294,7 +294,7 @@ app.post('/payment-requests/:id/pay', requireAuth, async (req, res) => {
   }
 });
 
-// Weigeren van betalingsverzoek
+// Decline a payment request
 app.post('/payment-requests/:id/decline', requireAuth, async (req, res) => {
   const { email } = (req as any).user;
   const { id } = req.params;
@@ -318,14 +318,14 @@ app.post('/payment-requests/:id/decline', requireAuth, async (req, res) => {
       data: { status: 'declined' }
     });
 
-    res.status(200).json({ message: 'Betalingsverzoek geweigerd.', request: updatedRequest });
+    res.status(200).json({ message: 'Payment request declined.', request: updatedRequest });
   } catch (error: any) {
     res.status(500).json({ error: 'Failed to decline request', message: error.message });
   }
 });
 
 // =============================================
-// Mandates Endpoints (Automatische Incasso)
+// Mandates Endpoints (Direct Debit)
 // =============================================
 
 app.post('/mandates', requireAuth, async (req, res) => {
@@ -392,7 +392,7 @@ app.get('/mandates', requireAuth, async (req, res) => {
   }
 });
 
-// Annuleren van mandaat
+// Cancel a mandate
 app.post('/mandates/:id/cancel', requireAuth, async (req, res) => {
   const userId = (req as any).user.userId;
   const { id } = req.params;
@@ -447,7 +447,7 @@ app.post('/mandates/process-charges', requireInternalAuth, async (req, res) => {
             senderUserId: mandate.payerUserId,
             receiverUserId: mandate.payeeUserId,
             amount: mandate.amount,
-            description: `Mandaat afschrijving: ${mandate.description}`,
+            description: `Mandate direct debit: ${mandate.description}`,
             reference
           })
         });

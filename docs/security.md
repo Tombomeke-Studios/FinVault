@@ -16,7 +16,7 @@ Security posture of the demo and the reasoning behind it. Last updated: 2026-06-
 | Rate limits | login 5/15 min/IP, registration 3/h/IP, gateway-wide 500/min/IP |
 | Error hygiene | Login failures return a single generic message — no account-existence or attempt-count leak (details go to the audit log only) |
 | Mobile storage | Token pair in iOS Keychain / Android Keystore (`expo-secure-store`); auto-refresh on expiry; server-side revocation on sign-out |
-| Web storage | `localStorage` (`finvault_token`) — *known gap, see below* |
+| Web storage | Access token **in memory only**; rotating refresh token in `localStorage` (`fv_refresh`). Boot exchanges it for a fresh pair; a 401 mid-session triggers one silent refresh; sign-out revokes server-side (`src/lib/session.ts`, mirrors mobile) |
 
 ## Service-to-service trust
 
@@ -49,11 +49,16 @@ any service.
 
 ## Known gaps / future work
 
-- Web dashboard keeps the access token in `localStorage` and has no refresh flow yet
-  (mobile does). Consider httpOnly cookie sessions or in-memory token + refresh.
+- Web refresh token lives in `localStorage`: rotation + replay-revocation limit the
+  blast radius, but an httpOnly cookie session (needs cookie handling in the gateway)
+  would also take it out of XSS reach entirely.
 - Rate limiting is in-memory per instance — use Redis when running replicas.
 - Account freeze-on-lockout has no self-service unfreeze flow (support-only by design).
 - Card PAN/CVV are demo values stored in plain text — fine for fake data, never for
   real card data (PCI scope).
-- No 2FA; the mobile "Face ID" button simulates biometrics rather than calling
-  `expo-local-authentication`.
+- No 2FA (TOTP tracked in #30). Mobile biometrics are real since #7
+  (`expo-local-authentication`: Face ID button + opt-in gate on session restore,
+  preference in the keystore). After first login, a prompt asks the user to
+  enable biometrics (#62) — dismissed state is persisted so it only asks once.
+  Remaining hardening: SecureStore `requireAuthentication` to hardware-encrypt
+  the refresh token behind biometrics — needs a dev build, not available in Expo Go.

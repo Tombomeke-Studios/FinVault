@@ -1,29 +1,44 @@
 import React, { useState } from 'react';
+import { QRCodeSVG as _QRCodeSVG } from 'qrcode.react';
+const QRCodeSVG = _QRCodeSVG as React.ComponentType<{ size: number; value: string }>;
 import { Icon } from '../components/Icon';
 import { money, Avatar, Segmented, PageHead } from '../components/UI';
-import type { AppData } from '../App';
+import { classifyRecipient, normalizeIban } from '../lib/validate';
+import { buildEpcQr } from '../lib/epc';
+import type { AppData, Beneficiary } from '../App';
 
 interface TransferProps {
   compact: boolean;
   navigate: (r: string) => void;
   fire: (title: string, body: string, type?: string) => void;
   data: AppData;
-  onTransfer: (email: string, amount: number, desc: string, walletId: string) => Promise<void>;
+  beneficiaries?: Beneficiary[];
+  onTransfer: (target: { email?: string; iban?: string }, amount: number, desc: string, walletId: string) => Promise<void>;
   onRequest: (email: string, amount: number, desc: string) => Promise<void>;
 }
 
-const CONTACTS = [
-  { id: 'p1', name: 'Lena Mertens',  handle: 'lena@finvault.com', initials: 'LM', hue: 320 },
-  { id: 'p2', name: 'Sam Janssens',  handle: 'sam@finvault.com',  initials: 'SJ', hue: 230 },
-  { id: 'p3', name: 'Maya Peeters',  handle: 'maya@finvault.com', initials: 'MP', hue: 158 },
-  { id: 'p4', name: 'Noah De Smet',  handle: 'noah@finvault.com', initials: 'ND', hue: 28  },
-  { id: 'p5', name: 'Eva Claes',     handle: 'eva@finvault.com',  initials: 'EC', hue: 265 },
+interface Recipient {
+  name: string;
+  handle: string;
+  initials: string;
+  hue: number;
+  kind: 'email' | 'iban';
+}
+
+const CONTACTS: Recipient[] = [
+  { name: 'Lena Mertens',  handle: 'lena@finvault.com', initials: 'LM', hue: 320, kind: 'email' },
+  { name: 'Sam Janssens',  handle: 'sam@finvault.com',  initials: 'SJ', hue: 230, kind: 'email' },
+  { name: 'Maya Peeters',  handle: 'maya@finvault.com', initials: 'MP', hue: 158, kind: 'email' },
+  { name: 'Noah De Smet',  handle: 'noah@finvault.com', initials: 'ND', hue: 28,  kind: 'email' },
+  { name: 'Eva Claes',     handle: 'eva@finvault.com',  initials: 'EC', hue: 265, kind: 'email' },
 ];
 
-export function ScreenTransfer({ compact, navigate, fire, data, onTransfer, onRequest }: TransferProps) {
+export function ScreenTransfer({ compact, navigate, fire, data, beneficiaries, onTransfer, onRequest }: TransferProps) {
   const [tab, setTab] = useState<'send' | 'request'>('send');
   const [step, setStep] = useState(0);
-  const [to, setTo] = useState<typeof CONTACTS[0] | null>(null);
+  const [to, setTo] = useState<Recipient | null>(null);
+  const [query, setQuery] = useState('');
+  const [customName, setCustomName] = useState('');
   const [amt, setAmt] = useState('');
   const [note, setNote] = useState('');
   const [fromIdx, setFromIdx] = useState(0);
@@ -34,7 +49,34 @@ export function ScreenTransfer({ compact, navigate, fire, data, onTransfer, onRe
   const [reqDesc, setReqDesc] = useState('');
 
   const wallet = data.wallets[fromIdx] || data.wallets[0];
-  const reset = () => { setStep(0); setTo(null); setAmt(''); setNote(''); };
+  const reset = () => { setStep(0); setTo(null); setAmt(''); setNote(''); setQuery(''); setCustomName(''); };
+
+  // Saved beneficiaries replace the demo contacts when available (#25).
+  const HUES = [320, 230, 158, 28, 265, 200];
+  const saved: Recipient[] = (beneficiaries || []).map((b, i) => ({
+    name: b.name,
+    handle: b.email || b.iban || '',
+    initials: (b.name.split(' ').map(p => p[0]).join('').slice(0, 2) || '??').toUpperCase(),
+    hue: HUES[i % HUES.length],
+    kind: b.iban ? 'iban' as const : 'email' as const,
+  }));
+  const contactList = saved.length > 0 ? saved : CONTACTS;
+
+  // Recipient validation (#9/#10): the input accepts an email or IBAN; names
+  // match the contact list. Anything else gets an inline error.
+  const q = query.trim();
+  const matchedContacts = q === '' ? contactList : contactList.filter(c =>
+    c.name.toLowerCase().includes(q.toLowerCase()) || c.handle.toLowerCase().includes(q.toLowerCase()));
+  const queryKind = classifyRecipient(q);
+  const queryInvalid = q !== '' && queryKind === 'invalid' && matchedContacts.length === 0;
+
+  const selectCustom = () => {
+    if (queryKind === 'invalid') return;
+    const handle = queryKind === 'iban' ? normalizeIban(q) : q.toLowerCase();
+    const name = customName.trim() || (queryKind === 'iban' ? 'IBAN recipient' : handle.split('@')[0]);
+    setTo({ name, handle, initials: name.slice(0, 2).toUpperCase(), hue: 200, kind: queryKind });
+    setStep(1);
+  };
 
   const press = (k: string) => setAmt(a => {
     if (k === 'del') return a.slice(0, -1);
@@ -48,11 +90,13 @@ export function ScreenTransfer({ compact, navigate, fire, data, onTransfer, onRe
     if (!to || !wallet) return;
     setLoading(true);
     try {
-      await onTransfer(to.handle, amtNum, note || `To ${to.name}`, wallet.id);
+      const target = to.kind === 'iban' ? { iban: to.handle } : { email: to.handle };
+      await onTransfer(target, amtNum, note || `To ${to.name}`, wallet.id);
       setStep(3);
       fire('Payment sent', `${money(amtNum)} to ${to.name}`, 'success');
-    } catch {
-      fire('Transfer failed', 'Please try again.', 'warn');
+    } catch (err: any) {
+      // Honest failure (#11): no success step, surface the real reason.
+      fire('Transfer failed', err?.message || 'Please try again.', 'warn');
     } finally {
       setLoading(false);
     }
@@ -85,6 +129,27 @@ export function ScreenTransfer({ compact, navigate, fire, data, onTransfer, onRe
             <button type="submit" className="btn btn-primary btn-block" disabled={loading}><Icon name="qr" size={17} /> Send request</button>
           </form>
         </div>
+
+        {/* Receive via QR (#55): EPC code others can scan to pay you */}
+        {data.wallets[0] && (
+          <div className="card" style={{ padding: 'var(--pad-lg)', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 'var(--gap)' }}>
+            <div className="eyebrow">Or let them scan your QR</div>
+            <div style={{ background: '#ffffff', padding: 16, borderRadius: 'var(--r-lg)', display: 'inline-flex' }}>
+              <QRCodeSVG
+                size={200}
+                value={buildEpcQr({
+                  name: `${data.user.firstName} ${data.user.lastName}`,
+                  iban: data.wallets[0].iban,
+                  amount: parseFloat(reqAmt) > 0 ? parseFloat(reqAmt) : undefined,
+                  description: reqDesc || undefined,
+                })}
+              />
+            </div>
+            <div style={{ color: 'var(--text-3)', fontSize: '0.82rem', textAlign: 'center' }}>
+              SEPA QR for {data.wallets[0].iban}{parseFloat(reqAmt) > 0 ? ` · ${money(parseFloat(reqAmt))}` : ''}
+            </div>
+          </div>
+        )}
       </div>
     );
   }
@@ -117,12 +182,42 @@ export function ScreenTransfer({ compact, navigate, fire, data, onTransfer, onRe
           <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--gap)' }}>
             <div style={{ position: 'relative' }}>
               <Icon name="search" size={18} style={{ position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-3)' }} />
-              <input className="field" placeholder="Name, email or IBAN" style={{ paddingLeft: 42 }} />
+              <input
+                className="field"
+                value={query}
+                onChange={e => setQuery(e.target.value)}
+                placeholder="Name, email or IBAN"
+                style={{ paddingLeft: 42, borderColor: queryInvalid ? 'var(--neg)' : undefined }}
+                aria-invalid={queryInvalid}
+              />
             </div>
-            <div className="eyebrow" style={{ marginTop: 4 }}>Recent</div>
+            {queryInvalid && (
+              <div className="shake" style={{ color: 'var(--neg)', fontSize: '0.84rem', display: 'flex', alignItems: 'center', gap: 6 }}>
+                <Icon name="x" size={14} /> No contact matches and this is not a valid email or IBAN.
+              </div>
+            )}
+            {queryKind !== 'invalid' && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10, padding: '12px 14px', border: '1px solid var(--accent-line)', borderRadius: 'var(--r)', background: 'var(--accent-soft)' }}>
+                <div style={{ fontSize: '0.86rem', fontWeight: 600 }}>
+                  Send to {queryKind === 'iban' ? 'IBAN' : 'email'}: <span className="num">{queryKind === 'iban' ? normalizeIban(q) : q.toLowerCase()}</span>
+                </div>
+                <input
+                  className="field"
+                  value={customName}
+                  onChange={e => setCustomName(e.target.value)}
+                  placeholder="Recipient name (used in the description)"
+                  style={{ background: 'var(--surface)' }}
+                />
+                <button className="btn btn-primary" onClick={selectCustom}>Continue <Icon name="arrowRight" size={16} /></button>
+              </div>
+            )}
+            <div className="eyebrow" style={{ marginTop: 4 }}>{saved.length > 0 ? 'Saved payees' : 'Recent'}</div>
+            {matchedContacts.length === 0 && q !== '' && (
+              <div style={{ color: 'var(--text-3)', fontSize: '0.86rem' }}>No contacts match "{q}".</div>
+            )}
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(72px, 1fr))', gap: 'var(--gap)' }}>
-              {CONTACTS.map(c => (
-                <button key={c.id} onClick={() => { setTo(c); setStep(1); }} style={{ background: 'none', border: 'none', cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8, padding: 6 }}>
+              {matchedContacts.map(c => (
+                <button key={c.handle} onClick={() => { setTo(c); setStep(1); }} style={{ background: 'none', border: 'none', cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8, padding: 6 }}>
                   <Avatar initials={c.initials} hue={c.hue} size={54} />
                   <span style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--text-2)', textAlign: 'center' }}>{c.name.split(' ')[0]}</span>
                 </button>

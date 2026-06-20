@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect, Component } from 'react';
 import { View, StyleSheet, SafeAreaView, TouchableOpacity, Text, StatusBar, TextInput, Alert, Platform, BackHandler } from 'react-native';
 import { ScreenAuth } from './src/screens/ScreenAuth';
 import { ScreenOverview } from './src/screens/ScreenOverview';
@@ -9,13 +9,42 @@ import { ScreenSavings } from './src/screens/ScreenSavings';
 import { ScreenAnalytics } from './src/screens/ScreenAnalytics';
 import { ScreenSettings } from './src/screens/ScreenSettings';
 import { ScreenAccountDashboard } from './src/screens/ScreenAccountDashboard';
+import { ScreenScheduledPayments } from './src/screens/ScreenScheduledPayments';
+import { ScreenBudgets } from './src/screens/ScreenBudgets';
+import { ScreenNotifications } from './src/screens/ScreenNotifications';
+import { ScreenSecurityCenter } from './src/screens/ScreenSecurityCenter';
+import { ScreenMandates } from './src/screens/ScreenMandates';
+import { ScreenFxExchange } from './src/screens/ScreenFxExchange';
+import { ScreenInvoices } from './src/screens/ScreenInvoices';
+import { ScreenDisputes } from './src/screens/ScreenDisputes';
 import { Shell } from './src/components/Shell';
 import { money } from './src/components/UI';
 import { MobileSheet } from './src/components/MobileExtras';
 import { ToastHost, useToasts } from './src/components/Toast';
 import { Icon } from './src/components/Icon';
 import { saveSession, loadSession, clearSession, tryRefreshSession, revokeSession } from './src/session';
-import { THEME } from './src/theme';
+import { isBiometricAvailable, authenticateBiometric, getBiometricPref, setBiometricPref, hasDismissedBioPrompt, setDismissedBioPrompt } from './src/biometrics';
+import { THEME, themedSheet, setAppTheme, persistThemeConfig, loadPersistedThemeConfig } from './src/theme';
+
+// ── Global error boundary — catches render-time crashes in production ──────────
+interface EBState { error: Error | null; }
+class ErrorBoundary extends Component<{ children: React.ReactNode }, EBState> {
+  state: EBState = { error: null };
+  static getDerivedStateFromError(e: Error): EBState { return { error: e }; }
+  componentDidCatch(e: Error, info: React.ErrorInfo) {
+    console.error('[ErrorBoundary] Caught:', e.message, info.componentStack);
+  }
+  render() {
+    if (!this.state.error) return this.props.children;
+    return (
+      <View style={{ flex: 1, backgroundColor: '#16161c', justifyContent: 'center', alignItems: 'center', padding: 24 }}>
+        <Text style={{ color: '#fb7185', fontSize: 18, fontWeight: 'bold', marginBottom: 12 }}>FinVault — Crash</Text>
+        <Text style={{ color: '#f7f7f9', fontSize: 13, textAlign: 'center', marginBottom: 8 }}>{this.state.error.message}</Text>
+        <Text style={{ color: '#8c8c9e', fontSize: 11, textAlign: 'center' }}>{this.state.error.stack?.slice(0, 400)}</Text>
+      </View>
+    );
+  }
+}
 
 export interface ThemeConfig {
   mode: 'dark' | 'light';
@@ -82,6 +111,13 @@ interface CardItem {
   walletId: string;
   monthSpend: number;
   limit: number;
+}
+
+export interface Beneficiary {
+  id: string;
+  name: string;
+  email?: string | null;
+  iban?: string | null;
 }
 
 interface Goal {
@@ -264,7 +300,7 @@ function UpgradePlanSheet({ open, onClose, currentPlan, onUpgrade }: { open: boo
   );
 }
 
-const upgStyles = StyleSheet.create({
+const upgStyles = themedSheet(() => StyleSheet.create({
   planCard: {
     backgroundColor: THEME.colors.surface2,
     borderWidth: 1,
@@ -288,7 +324,7 @@ const upgStyles = StyleSheet.create({
   confirmBtnMuted: { backgroundColor: THEME.colors.surface2, borderWidth: 1, borderColor: THEME.colors.line },
   confirmTxt: { fontSize: 15, fontWeight: 'bold', color: THEME.colors.onAccent },
   confirmTxtMuted: { color: THEME.colors.text2 },
-});
+}));
 
 export default function App() {
   // --- Auth State ---
@@ -299,9 +335,11 @@ export default function App() {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [cards, setCards] = useState<CardItem[]>([]);
   const [goals, setGoals] = useState<Goal[]>([]);
+  const [beneficiaries, setBeneficiaries] = useState<Beneficiary[]>([]);
   const [authError, setAuthError] = useState('');
   const [authSuccess, setAuthSuccess] = useState('');
   const [upgradeOpen, setUpgradeOpen] = useState(false);
+  const [bioPromptOpen, setBioPromptOpen] = useState(false);
 
   const initializeGoals = useCallback(() => {
     setGoals([
@@ -338,6 +376,24 @@ export default function App() {
     mode: 'dark', accent: 'emerald', font: 'grotesk', radius: 'soft', density: 'regular', card: 'elevated'
   });
 
+  // Apply the palette mutation *before* the state update so the very next
+  // render (and the themedSheet rebuilds) already see the new colors.
+  const applyAndSetTheme = useCallback((t: ThemeConfig) => {
+    setAppTheme({ mode: t.mode, accent: t.accent });
+    persistThemeConfig(t as any);
+    setTheme(t);
+  }, []);
+
+  // Restore the persisted theme on boot.
+  useEffect(() => {
+    loadPersistedThemeConfig<ThemeConfig>().then(cfg => {
+      if (cfg) {
+        setAppTheme({ mode: cfg.mode, accent: cfg.accent });
+        setTheme(prev => ({ ...prev, ...cfg }));
+      }
+    });
+  }, []);
+
   // Non-blocking toast feedback (Alert is reserved for destructive confirms).
   const { toasts, fire, dismiss } = useToasts();
 
@@ -373,12 +429,24 @@ export default function App() {
   // Configure via apps/mobile/.env → EXPO_PUBLIC_API_URL=http://<your-lan-ip>:8000
   const API_URL = process.env.EXPO_PUBLIC_API_URL || 'http://192.168.0.6:8000';
 
-  // Restore the persisted session once on launch (keystore-backed).
+  // Restore the persisted session once on launch (keystore-backed). When the
+  // user enabled biometric sign-in, the auto-login is gated behind the system
+  // biometric prompt (#7); declining lands on the auth screen where the
+  // Face ID button offers a retry.
   useEffect(() => {
     let cancelled = false;
-    loadSession().then(({ accessToken }) => {
-      if (!cancelled && accessToken) setToken(accessToken);
-    }).finally(() => { if (!cancelled) setRestoring(false); });
+    (async () => {
+      try {
+        const { accessToken } = await loadSession();
+        if (!accessToken || cancelled) return;
+        if (await getBiometricPref()) {
+          if (!(await isBiometricAvailable()) || !(await authenticateBiometric('Unlock FinVault'))) return;
+        }
+        if (!cancelled) setToken(accessToken);
+      } finally {
+        if (!cancelled) setRestoring(false);
+      }
+    })();
     return () => { cancelled = true; };
   }, []);
 
@@ -422,6 +490,16 @@ export default function App() {
     } catch {}
   }, [token]);
 
+  const fetchBeneficiaries = useCallback(async () => {
+    if (!token || token === 'mock-token') return;
+    try {
+      const res = await fetch(`${API_URL}/api/beneficiaries`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (res.ok) setBeneficiaries(await res.json());
+    } catch {}
+  }, [token]);
+
   const fetchProfile = useCallback(async () => {
     if (!token || token === 'mock-token') {
       setupMockSession();
@@ -438,6 +516,7 @@ export default function App() {
         fetchTransactions();
         fetchCards();
         fetchGoals();
+        fetchBeneficiaries();
       } else {
         // Access token expired/invalid — try one silent refresh before signing out.
         const refreshed = await tryRefreshSession(API_URL);
@@ -473,6 +552,8 @@ export default function App() {
         await saveSession(data.accessToken, data.refreshToken);
         setToken(data.accessToken);
         setAuthSuccess('Welcome back!');
+        const [bioAvail, bioDismissed] = await Promise.all([isBiometricAvailable(), hasDismissedBioPrompt()]);
+        if (bioAvail && !bioDismissed) setBioPromptOpen(true);
       } else {
         const errorData = await res.json();
         setAuthError(errorData.error || errorData.message || 'Invalid credentials.');
@@ -490,14 +571,38 @@ export default function App() {
     }
   };
 
-  const handleFaceIdLogin = () => {
+  // Real biometric login (#7): authenticate, then restore the stored session
+  // (refreshing it when the access token went stale). Falls back to the demo
+  // session only when biometrics are unavailable on the device, so the demo
+  // flow keeps working in simulators.
+  const handleFaceIdLogin = async () => {
     setAuthError('');
     setAuthSuccess('');
-    setRawUser(null);
-    saveSession('mock-token');
-    setToken('mock-token');
-    setupMockSession();
-    setAuthSuccess('Face ID scan successful!');
+    if (!(await isBiometricAvailable())) {
+      setRawUser(null);
+      saveSession('mock-token');
+      setToken('mock-token');
+      setupMockSession();
+      setAuthSuccess('Biometrics unavailable — demo session started.');
+      return;
+    }
+    if (!(await authenticateBiometric('Sign in to FinVault'))) {
+      setAuthError('Biometric authentication was cancelled.');
+      return;
+    }
+    const { accessToken } = await loadSession();
+    if (accessToken) {
+      setToken(accessToken);
+      setAuthSuccess('Welcome back!');
+      return;
+    }
+    const refreshed = await tryRefreshSession(API_URL);
+    if (refreshed) {
+      setToken(refreshed);
+      setAuthSuccess('Welcome back!');
+    } else {
+      setAuthError('No saved session on this device — sign in with your password first.');
+    }
   };
 
   const handleRegister = async (firstName: string, lastName: string, email: string, pw: string) => {
@@ -551,9 +656,16 @@ export default function App() {
     }
   };
 
-  const handleTransfer = async (email: string, amount: number, desc: string, walletId: string) => {
+  // Returns true on success so the screen only resets the form for real
+  // transfers (#11); failures surface the backend reason as a warn toast.
+  const handleTransfer = async (target: { email?: string; iban?: string }, amount: number, desc: string, walletId: string): Promise<boolean> => {
     const wallet = wallets.find(w => w.id === walletId) || wallets[0];
-    if (!wallet) return;
+    if (!wallet) return false;
+    const label = target.email || target.iban || '';
+
+    const applyLocalDebit = () => {
+      setWallets(prev => prev.map(w => w.id === walletId ? { ...w, balance: w.balance - amount } : w));
+    };
 
     if (token && token !== 'mock-token') {
       try {
@@ -563,34 +675,51 @@ export default function App() {
             'Content-Type': 'application/json',
             Authorization: `Bearer ${token}`
           },
-          body: JSON.stringify({ receiverEmail: email, amount, description: desc, senderWalletId: walletId })
+          body: JSON.stringify({ receiverEmail: target.email, receiverIban: target.iban, amount, description: desc, senderWalletId: walletId })
         });
         if (res.ok) {
-          fire('Transfer completed', `${money(amount)} sent to ${email}.`, 'success');
-          fetchWallets();
-          fetchTransactions();
-          return;
+          // Immediate balance feedback, then reconcile with the server (#12).
+          applyLocalDebit();
+          fire('Transfer completed', `${money(amount)} sent to ${label}.`, 'success');
+          fetchBeneficiaries(); // backend auto-upserts the payee (#25)
+          await Promise.all([fetchWallets(), fetchTransactions()]);
+          return true;
         } else {
           const err = await res.json();
-          Alert.alert('Transfer failed', err.message || 'Could not complete transfer.');
-          return;
+          fire('Transfer failed', err.error || err.message || 'Could not complete transfer.', 'warn');
+          return false;
         }
       } catch {
-        // Fallback
+        // Network unreachable — fall through to the offline demo path.
       }
     }
 
-    setWallets(prev => prev.map(w => w.id === walletId ? { ...w, balance: w.balance - amount } : w));
+    applyLocalDebit();
     setTransactions(prev => [{
       id: Math.random().toString(), senderWalletId: walletId, receiverWalletId: null,
       amount, currency: wallet.currency, status: 'confirmed', type: 'transfer',
       description: desc, createdAt: new Date().toISOString()
     }, ...prev]);
-    fire('Transfer completed (Demo)', `${money(amount)} sent to ${email}.`, 'success');
+    fire('Transfer completed (Demo)', `${money(amount)} sent to ${label}.`, 'success');
+    return true;
   };
 
   const handleRequest = async (email: string, amount: number, desc: string) => {
-    fire('Request sent', `Payment request of ${money(amount)} sent to ${email}.`, 'success');
+    try {
+      const res = await fetch(`${API_URL}/api/invoices/payment-requests`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ recipientEmail: email, amount, description: desc || 'Payment request', currency: 'EUR' }),
+      });
+      if (res.ok) {
+        fire('Request sent', `Payment request of ${money(amount)} sent to ${email}.`, 'success');
+      } else {
+        const err = await res.json();
+        fire('Error', err.error || 'Failed to send request.', 'error');
+      }
+    } catch {
+      fire('Request sent', `Payment request of ${money(amount)} sent to ${email}.`, 'success');
+    }
   };
 
   const handleDeposit = () => {
@@ -723,9 +852,9 @@ export default function App() {
       case 'overview':
         return <ScreenOverview navigate={setRoute} data={appData} onTopup={() => setDepositOpen(true)} />;
       case 'transactions':
-        return <ScreenTransactions data={appData} onExport={() => fire('Export ledger', 'Ledger CSV export completed.')} />;
+        return <ScreenTransactions data={appData} onExport={() => fire('Export complete', 'Your transactions CSV was shared.', 'success')} />;
       case 'transfer':
-        return <ScreenTransfer data={appData} onTransfer={handleTransfer} onRequest={handleRequest} />;
+        return <ScreenTransfer data={appData} beneficiaries={beneficiaries} onTransfer={handleTransfer} onRequest={handleRequest} />;
       case 'cards':
         return <ScreenCards data={appData} fire={fire} cards={cards} setCards={setCards} token={token} apiUrl={API_URL} navigate={setRoute} />;
       case 'analytics':
@@ -733,15 +862,33 @@ export default function App() {
       case 'savings':
         return <ScreenSavings data={appData} fire={fire} goals={goals} setGoals={setGoals} wallets={wallets} setWallets={setWallets} setTransactions={setTransactions} token={token} apiUrl={API_URL} />;
       case 'settings':
-        return <ScreenSettings data={appData} theme={theme} setTheme={setTheme} onLogout={handleLogout} fire={fire} openUpgrade={() => setUpgradeOpen(true)} token={token} apiUrl={API_URL} />;
+        return <ScreenSettings data={appData} theme={theme} setTheme={applyAndSetTheme} onLogout={handleLogout} fire={fire} openUpgrade={() => setUpgradeOpen(true)} token={token} apiUrl={API_URL} navigate={setRoute} />;
+      case 'scheduled-payments':
+        return <ScreenScheduledPayments token={token} apiUrl={API_URL} wallets={wallets} fire={fire} />;
+      case 'budgets':
+        return <ScreenBudgets token={token} apiUrl={API_URL} fire={fire} />;
+      case 'notifications':
+        return <ScreenNotifications token={token} apiUrl={API_URL} fire={fire} onBack={() => setRoute('overview')} />;
+      case 'security':
+        return <ScreenSecurityCenter token={token} apiUrl={API_URL} fire={fire} onBack={() => setRoute('settings')} onPasswordChanged={(at, rt) => { setToken(at); saveSession(at, rt); }} />;
+      case 'mandates':
+        return <ScreenMandates token={token} apiUrl={API_URL} fire={fire} onBack={() => setRoute('settings')} />;
+      case 'fx-exchange':
+        return <ScreenFxExchange token={token} apiUrl={API_URL} wallets={wallets} fire={fire} onBack={() => setRoute('overview')} onRefresh={() => { fetchWallets(); fetchTransactions(); }} />;
+      case 'invoices':
+        return <ScreenInvoices token={token} apiUrl={API_URL} fire={fire} onBack={() => setRoute('settings')} />;
+      case 'disputes':
+        return <ScreenDisputes token={token} apiUrl={API_URL} transactions={transactions} fire={fire} onBack={() => setRoute('settings')} />;
       default:
         return <ScreenOverview navigate={setRoute} data={appData} onTopup={() => setDepositOpen(true)} />;
     }
   };
 
   return (
-    <SafeAreaView style={styles.container}>
-      <StatusBar barStyle="light-content" />
+    // Key forces a clean remount on theme switch so every component re-reads
+    // the mutated THEME object (inline styles + themedSheet proxies).
+    <SafeAreaView key={`${theme.mode}-${theme.accent}`} style={styles.container}>
+      <StatusBar barStyle={THEME.statusBarStyle} backgroundColor={THEME.colors.bg} />
 
       {/* Session restore splash, Auth screen, or Main application shell */}
       {restoring ? (
@@ -772,6 +919,32 @@ export default function App() {
         currentPlan={rawUser?.plan || 'Metal'}
         onUpgrade={(p) => { setUpgradeOpen(false); handleUpgradePlan(p); }}
       />
+
+      {/* Biometric opt-in prompt (#62) — shown once after first login */}
+      <MobileSheet open={bioPromptOpen} onClose={async () => { await setDismissedBioPrompt(true); setBioPromptOpen(false); }} title="Enable Face ID?">
+        <View style={{ gap: 16, paddingVertical: 8 }}>
+          <Text style={{ color: THEME.colors.text2, fontSize: 14, textAlign: 'center', lineHeight: 20 }}>
+            Sign in faster next time with biometrics. You can change this later in Settings.
+          </Text>
+          <TouchableOpacity
+            style={{ backgroundColor: THEME.colors.accent, paddingVertical: 14, borderRadius: THEME.radius.regular, alignItems: 'center' }}
+            onPress={async () => {
+              await setBiometricPref(true);
+              await setDismissedBioPrompt(true);
+              setBioPromptOpen(false);
+              fire('Biometrics enabled', 'Face ID will be used on next sign-in.', 'success');
+            }}
+          >
+            <Text style={{ color: THEME.colors.onAccent, fontWeight: '700', fontSize: 15 }}>Enable</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={{ paddingVertical: 12, alignItems: 'center' }}
+            onPress={async () => { await setDismissedBioPrompt(true); setBioPromptOpen(false); }}
+          >
+            <Text style={{ color: THEME.colors.text3, fontSize: 14 }}>Not now</Text>
+          </TouchableOpacity>
+        </View>
+      </MobileSheet>
 
       {/* Dynamic topup modal sheet */}
       <MobileSheet open={depositOpen} onClose={() => setDepositOpen(false)} title="Top up account">
@@ -846,7 +1019,7 @@ export default function App() {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedSheet(() => StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: THEME.colors.bg,
@@ -927,4 +1100,4 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: 'bold',
   },
-});
+}));

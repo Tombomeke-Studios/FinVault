@@ -4,7 +4,7 @@ import { Icon } from '../components/Icon';
 import { money, Sparkline, relTime, CategoryIcon, Ring, catColor, Delta } from '../components/UI';
 import { BankCard } from '../components/BankCard';
 import { PressableScale, FadeSlideIn, AnimatedProgressBar } from '../components/Motion';
-import { THEME } from '../theme';
+import { THEME, themedSheet } from '../theme';
 import type { AppData } from '../../App';
 
 interface OverviewProps {
@@ -272,7 +272,7 @@ export function ScreenOverview({ navigate, data, onTopup }: OverviewProps) {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedSheet(() => StyleSheet.create({
   container: { flex: 1, backgroundColor: THEME.colors.bg },
   content: { padding: 16, gap: 14, paddingBottom: 88 },
 
@@ -346,4 +346,4 @@ const styles = StyleSheet.create({
   goalName: { fontSize: 14, fontWeight: '600', color: THEME.colors.text },
   goalPct: { fontSize: 14, fontWeight: 'bold' },
   goalSub: { fontSize: 11, color: THEME.colors.text3, marginTop: 4 },
-});
+}));

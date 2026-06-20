@@ -9,7 +9,7 @@ import { Icon } from './Icon';
 import { BankCard } from './BankCard';
 import { money } from './UI';
 import { useReducedMotion } from './Motion';
-import { THEME } from '../theme';
+import { THEME, themedSheet } from '../theme';
 
 const SCREEN_H = Dimensions.get('window').height;
 
@@ -291,7 +291,7 @@ export function LimitsSheet({ card, open, onClose, fire, onSaveLimits }: {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedSheet(() => StyleSheet.create({
   backdrop: {
     ...StyleSheet.absoluteFillObject,
     backgroundColor: 'rgba(0, 0, 0, 0.55)',
@@ -478,4 +478,4 @@ const styles = StyleSheet.create({
   chipTextActive: {
     color: THEME.colors.accent,
   },
-});
+}));

@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, KeyboardAvoidingView, Platform, ScrollView, ActivityIndicator } from 'react-native';
 import { Icon } from '../components/Icon';
 import { FadeSlideIn } from '../components/Motion';
-import { THEME } from '../theme';
+import { THEME, themedSheet } from '../theme';
 
 interface AuthProps {
   onLogin: (email: string, pw: string) => Promise<void>;
@@ -207,7 +207,7 @@ export function ScreenAuth({ onLogin, onRegister, authError, authSuccess, onFace
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedSheet(() => StyleSheet.create({
   keyboard: {
     flex: 1,
     backgroundColor: THEME.colors.bg,
@@ -378,4 +378,4 @@ const styles = StyleSheet.create({
     fontSize: 14.5,
     fontWeight: '600',
   },
-});
+}));

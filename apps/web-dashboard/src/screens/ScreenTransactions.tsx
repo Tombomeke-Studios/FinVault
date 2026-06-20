@@ -2,6 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { Icon } from '../components/Icon';
 import { money, dayLabel, relTime, CategoryIcon, PageHead } from '../components/UI';
+import { buildTransactionsCsv, exportFileName } from '../lib/csv';
 import type { AppData } from '../App';
 
 const CATS_META: Record<string, { label: string; hue: number; icon: string }> = {
@@ -78,10 +79,31 @@ export function ScreenTransactions({ compact, data, onExport }: TransactionsProp
 
   const cats = ['all', 'deposit', 'transfer'];
 
+  // Exports exactly what the current filters show (#24).
+  const exportCsv = () => {
+    const csv = buildTransactionsCsv(filtered.map(t => ({
+      date: new Date(t.createdAt).toISOString(),
+      description: t.name,
+      category: t.category,
+      status: t.status,
+      amount: getDisplayAmt(t),
+      currency: t.currency || 'EUR',
+    })));
+    // UTF-8 BOM so Excel opens the file with the right encoding
+    const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = exportFileName();
+    a.click();
+    URL.revokeObjectURL(url);
+    onExport();
+  };
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--gap-lg)' }}>
       <PageHead title="Transactions" subtitle="Your immutable account ledger." action={
-        <button className="btn btn-ghost" onClick={onExport}><Icon name="download" size={17} /> {compact ? '' : 'Export'}</button>
+        <button className="btn btn-ghost" onClick={exportCsv} disabled={filtered.length === 0}><Icon name="download" size={17} /> {compact ? '' : 'Export'}</button>
       } />
 
       {activeWallet && (
