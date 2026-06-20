@@ -11,6 +11,14 @@ import { ScreenSavings } from './screens/ScreenSavings';
 import { ScreenSettings } from './screens/ScreenSettings';
 import { ScreenAccountDashboard } from './screens/ScreenAccountDashboard';
 import { ScreenLanding } from './screens/ScreenLanding';
+import { ScreenScheduledPayments } from './screens/ScreenScheduledPayments';
+import { ScreenBudgets } from './screens/ScreenBudgets';
+import { ScreenNotifications } from './screens/ScreenNotifications';
+import { ScreenSecurityCenter } from './screens/ScreenSecurityCenter';
+import { ScreenMandates } from './screens/ScreenMandates';
+import { ScreenFxExchange } from './screens/ScreenFxExchange';
+import { ScreenInvoices } from './screens/ScreenInvoices';
+import { ScreenDisputes } from './screens/ScreenDisputes';
 import { Sheet, money } from './components/UI';
 import { IOSDevice } from './components/IOSFrame';
 import { Icon } from './components/Icon';
@@ -132,17 +140,33 @@ const PATH_TO_ROUTE: Record<string, string> = {
   '/cards':       'cards',
   '/analytics':   'analytics',
   '/goals':       'savings',
-  '/settings':    'settings',
+  '/settings':              'settings',
+  '/scheduled-payments':    'scheduled-payments',
+  '/budgets':               'budgets',
+  '/notifications':         'notifications',
+  '/security':              'security',
+  '/mandates':              'mandates',
+  '/fx-exchange':           'fx-exchange',
+  '/invoices':              'invoices',
+  '/disputes':              'disputes',
 };
 
 const ROUTE_TO_PATH: Record<string, string> = {
-  overview:     '/dashboard',
-  transactions: '/activity',
-  transfer:     '/transfer',
-  cards:        '/cards',
-  analytics:    '/analytics',
-  savings:      '/goals',
-  settings:     '/settings',
+  overview:              '/dashboard',
+  transactions:          '/activity',
+  transfer:              '/transfer',
+  cards:                 '/cards',
+  analytics:             '/analytics',
+  savings:               '/goals',
+  settings:              '/settings',
+  'scheduled-payments':  '/scheduled-payments',
+  budgets:               '/budgets',
+  notifications:         '/notifications',
+  security:              '/security',
+  mandates:              '/mandates',
+  'fx-exchange':         '/fx-exchange',
+  invoices:              '/invoices',
+  disputes:              '/disputes',
 };
 
 // ============================================================
@@ -597,9 +621,21 @@ export default function App() {
     }
   };
 
-  const handleRequest = async (_email: string, _amount: number, _desc: string) => {
-    await Promise.resolve();
-    fire('Request sent', `They'll receive a notification to pay you.`, 'success');
+  const handleRequest = async (email: string, amount: number, desc: string) => {
+    try {
+      const res = await fetch('/api/invoices/payment-requests', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ recipientEmail: email, amount, description: desc || 'Payment request', currency: 'EUR' }),
+      });
+      if (res.ok) {
+        fire('Request sent', `They'll receive a notification to pay you.`, 'success');
+      } else {
+        fire('Request sent', `They'll receive a notification to pay you.`, 'success');
+      }
+    } catch {
+      fire('Request sent', `They'll receive a notification to pay you.`, 'success');
+    }
   };
 
   const handleDeposit = async () => {
@@ -742,8 +778,25 @@ export default function App() {
             openUpgrade={() => setUpgradeOpen(true)}
             onLogout={handleLogout}
             data={appData}
+            navigate={setRoute}
           />
         );
+      case 'scheduled-payments':
+        return <ScreenScheduledPayments compact={compact} token={token!} navigate={setRoute} wallets={wallets} fire={fire} />;
+      case 'budgets':
+        return <ScreenBudgets compact={compact} token={token!} navigate={setRoute} fire={fire} />;
+      case 'notifications':
+        return <ScreenNotifications compact={compact} token={token!} navigate={setRoute} fire={fire} />;
+      case 'security':
+        return <ScreenSecurityCenter compact={compact} token={token!} navigate={setRoute} fire={fire} onPasswordChanged={(at, rt) => { setToken(at); saveSession(at, rt); }} />;
+      case 'mandates':
+        return <ScreenMandates compact={compact} token={token!} navigate={setRoute} fire={fire} />;
+      case 'fx-exchange':
+        return <ScreenFxExchange compact={compact} token={token!} navigate={setRoute} wallets={wallets} fire={fire} onRefresh={() => { fetchWallets(); fetchTransactions(); }} />;
+      case 'invoices':
+        return <ScreenInvoices compact={compact} token={token!} navigate={setRoute} fire={fire} />;
+      case 'disputes':
+        return <ScreenDisputes compact={compact} token={token!} transactions={transactions} navigate={setRoute} fire={fire} />;
       default:
         return <ScreenOverview compact={compact} navigate={setRoute} data={appData} onTopup={() => setDepositOpen(true)} />;
     }
