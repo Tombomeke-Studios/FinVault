@@ -39,7 +39,7 @@ Workflow rules live in [CLAUDE.md](CLAUDE.md#workflow-rules); short version:
 - [ ] Dispute flow: report a transaction (#34)
 
 **Candidate group: `feature/mobile-feature-parity`**
-- [ ] Mobile: per-wallet filter on the transactions screen (web has `?walletId=` filter banner) (#5)
+- [x] Mobile: per-wallet filter on the transactions screen (web has `?walletId=` filter banner) (#5)
 - [ ] Mobile: wire "Request money" tab to the payment-request backend (currently toast-only) (#6)
 - [x] Web: receive-QR parity on the Request tab (no camera needed, reuse EPC builder) (#55) — done via PR #56
 
