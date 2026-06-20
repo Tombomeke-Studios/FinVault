@@ -2,18 +2,20 @@
   "expo": {
     "name": "FinVault",
     "slug": "finvault",
+    "owner": "tombomekestudios",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
-    "userInterfaceStyle": "light",
+    "userInterfaceStyle": "dark",
     "ios": {
       "supportsTablet": true
     },
     "android": {
+      "package": "com.tombomekestudio.finvault",
+      "versionCode": 1,
       "adaptiveIcon": {
-        "backgroundColor": "#E6F4FE",
+        "backgroundColor": "#062437",
         "foregroundImage": "./assets/android-icon-foreground.png",
-        "backgroundImage": "./assets/android-icon-background.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"
       },
       "predictiveBackGestureEnabled": false
@@ -22,7 +24,20 @@
       "favicon": "./assets/favicon.png"
     },
     "plugins": [
-      "expo-secure-store"
-    ]
+      "expo-local-authentication",
+      "expo-secure-store",
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "FinVault uses the camera to scan SEPA payment QR codes."
+        }
+      ],
+      "expo-font"
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "374d270a-9ecc-427f-9800-14499846f46b"
+      }
+    }
   }
 }

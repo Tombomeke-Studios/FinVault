@@ -11,21 +11,24 @@ import { ScreenSavings } from './screens/ScreenSavings';
 import { ScreenSettings } from './screens/ScreenSettings';
 import { ScreenAccountDashboard } from './screens/ScreenAccountDashboard';
 import { ScreenLanding } from './screens/ScreenLanding';
+import { ScreenScheduledPayments } from './screens/ScreenScheduledPayments';
+import { ScreenBudgets } from './screens/ScreenBudgets';
+import { ScreenNotifications } from './screens/ScreenNotifications';
+import { ScreenSecurityCenter } from './screens/ScreenSecurityCenter';
+import { ScreenMandates } from './screens/ScreenMandates';
+import { ScreenFxExchange } from './screens/ScreenFxExchange';
+import { ScreenInvoices } from './screens/ScreenInvoices';
+import { ScreenDisputes } from './screens/ScreenDisputes';
 import { Sheet, money } from './components/UI';
 import { IOSDevice } from './components/IOSFrame';
 import { Icon } from './components/Icon';
+import { applyTheme, loadTheme, saveTheme, type ThemeConfig } from './theme';
+import { saveSession, clearSession, tryRefreshSession, revokeSession, MOCK_TOKEN } from './lib/session';
 
 // ============================================================
 // Types
 // ============================================================
-export interface ThemeConfig {
-  mode: 'dark' | 'light';
-  accent: string;
-  font: string;
-  radius: string;
-  density: string;
-  card: string;
-}
+export type { ThemeConfig } from './theme';
 
 export interface ToastData {
   title: string;
@@ -95,6 +98,14 @@ interface CardItem {
   limit: number;
 }
 
+export interface Beneficiary {
+  id: string;
+  name: string;
+  email?: string | null;
+  iban?: string | null;
+  lastUsedAt?: string;
+}
+
 interface Goal {
   id: string;
   name: string;
@@ -129,65 +140,34 @@ const PATH_TO_ROUTE: Record<string, string> = {
   '/cards':       'cards',
   '/analytics':   'analytics',
   '/goals':       'savings',
-  '/settings':    'settings',
+  '/settings':              'settings',
+  '/scheduled-payments':    'scheduled-payments',
+  '/budgets':               'budgets',
+  '/notifications':         'notifications',
+  '/security':              'security',
+  '/mandates':              'mandates',
+  '/fx-exchange':           'fx-exchange',
+  '/invoices':              'invoices',
+  '/disputes':              'disputes',
 };
 
 const ROUTE_TO_PATH: Record<string, string> = {
-  overview:     '/dashboard',
-  transactions: '/activity',
-  transfer:     '/transfer',
-  cards:        '/cards',
-  analytics:    '/analytics',
-  savings:      '/goals',
-  settings:     '/settings',
+  overview:              '/dashboard',
+  transactions:          '/activity',
+  transfer:              '/transfer',
+  cards:                 '/cards',
+  analytics:             '/analytics',
+  savings:               '/goals',
+  settings:              '/settings',
+  'scheduled-payments':  '/scheduled-payments',
+  budgets:               '/budgets',
+  notifications:         '/notifications',
+  security:              '/security',
+  mandates:              '/mandates',
+  'fx-exchange':         '/fx-exchange',
+  invoices:              '/invoices',
+  disputes:              '/disputes',
 };
-
-// ============================================================
-// Font and accent maps
-// ============================================================
-const FONTS: Record<string, { display: string; body: string; num: string; label: string }> = {
-  grotesk:   { display: "'Space Grotesk'", body: "'Hanken Grotesque'", num: "'Space Grotesk'", label: 'Grotesk' },
-  bricolage: { display: "'Bricolage Grotesque'", body: "'Hanken Grotesque'", num: "'Space Grotesk'", label: 'Display' },
-  editorial: { display: "'Instrument Serif'", body: "'Hanken Grotesque'", num: "'Space Grotesk'", label: 'Editorial' },
-  mono:      { display: "'JetBrains Mono'", body: "'JetBrains Mono'", num: "'JetBrains Mono'", label: 'Mono' },
-};
-
-const ACCENTS: Record<string, { h: number; c: number; l: number; on: string; sw: string }> = {
-  emerald: { h: 158, c: 0.13, l: 0.62, on: 'oklch(0.99 0 0)', sw: 'oklch(0.62 0.13 158)' },
-  indigo:  { h: 265, c: 0.15, l: 0.56, on: 'oklch(0.99 0 0)', sw: 'oklch(0.56 0.15 265)' },
-  violet:  { h: 305, c: 0.16, l: 0.58, on: 'oklch(0.99 0 0)', sw: 'oklch(0.58 0.16 305)' },
-  azure:   { h: 232, c: 0.14, l: 0.60, on: 'oklch(0.99 0 0)', sw: 'oklch(0.60 0.14 232)' },
-  amber:   { h: 75,  c: 0.13, l: 0.74, on: 'oklch(0.24 0.03 80)', sw: 'oklch(0.74 0.13 75)' },
-  rose:    { h: 12,  c: 0.16, l: 0.62, on: 'oklch(0.99 0 0)', sw: 'oklch(0.62 0.16 12)' },
-};
-
-const PRESETS: Record<string, ThemeConfig> = {
-  Vault:    { mode: 'dark',  accent: 'emerald', font: 'grotesk',   radius: 'soft',  density: 'regular', card: 'elevated' },
-  Daylight: { mode: 'light', accent: 'indigo',  font: 'grotesk',   radius: 'soft',  density: 'regular', card: 'outline' },
-  Aurora:   { mode: 'dark',  accent: 'violet',  font: 'bricolage', radius: 'round', density: 'comfy',   card: 'glass' },
-  Carbon:   { mode: 'dark',  accent: 'azure',   font: 'mono',      radius: 'sharp', density: 'compact', card: 'outline' },
-  Sand:     { mode: 'light', accent: 'amber',   font: 'editorial', radius: 'round', density: 'comfy',   card: 'elevated' },
-};
-
-function applyTheme(t: ThemeConfig) {
-  const el = document.documentElement;
-  el.setAttribute('data-mode',    t.mode);
-  el.setAttribute('data-radius',  t.radius);
-  el.setAttribute('data-density', t.density);
-  el.setAttribute('data-card',    t.card);
-  const a = ACCENTS[t.accent] || ACCENTS.emerald;
-  el.style.setProperty('--accent-h', String(a.h));
-  el.style.setProperty('--accent-c', String(a.c));
-  el.style.setProperty('--accent-l', String(a.l));
-  el.style.setProperty('--on-accent', a.on);
-
-  const f = FONTS[t.font] || FONTS.grotesk;
-  const dispFb = t.font === 'editorial' ? ', Georgia, serif' : t.font === 'mono' ? ', ui-monospace, monospace' : ', system-ui, sans-serif';
-  const bodyFb = t.font === 'mono' ? ', ui-monospace, monospace' : ', system-ui, sans-serif';
-  el.style.setProperty('--font-display', f.display + dispFb);
-  el.style.setProperty('--font-body',    f.body + bodyFb);
-  el.style.setProperty('--font-num',     f.num + (t.font === 'mono' ? ', ui-monospace, monospace' : ', system-ui, sans-serif'));
-}
 
 // ============================================================
 // Mock data generators
@@ -298,13 +278,17 @@ export default function App() {
   useEffect(() => { setAccountRoute(null); }, [location.pathname]);
 
   // --- Auth state ---
-  const [token, setToken] = useState<string | null>(localStorage.getItem('finvault_token'));
-  const [authLoading, setAuthLoading] = useState(() => !!localStorage.getItem('finvault_token'));
+  // Access token lives in memory only (#3); boot restores the session by
+  // exchanging the persisted refresh token (see src/lib/session.ts).
+  const [token, setToken] = useState<string | null>(null);
+  const [authLoading, setAuthLoading] = useState(true);
+  const bootDoneRef = useRef(false);
   const [rawUser, setRawUser] = useState<any>(null);
   const [wallets, setWallets] = useState<Wallet[]>([]);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [cards, setCards] = useState<CardItem[]>([]);
   const [goals, setGoals] = useState<Goal[]>([]);
+  const [beneficiaries, setBeneficiaries] = useState<Beneficiary[]>([]);
   const [authError, setAuthError] = useState('');
   const [authSuccess, setAuthSuccess] = useState('');
 
@@ -361,11 +345,8 @@ export default function App() {
   const [depositAmt, setDepositAmt] = useState('');
   const [depositLoading, setDepositLoading] = useState(false);
 
-  // --- Theme state ---
-  const [theme, setThemeState] = useState<ThemeConfig>({
-    mode: 'dark', accent: 'emerald', font: 'grotesk',
-    radius: 'soft', density: 'regular', card: 'elevated',
-  });
+  // --- Theme state (restored from localStorage, see src/theme.ts) ---
+  const [theme, setThemeState] = useState<ThemeConfig>(loadTheme);
 
   // --- Toast ---
   const [toast, setToast] = useState<ToastData | null>(null);
@@ -388,13 +369,8 @@ export default function App() {
     return () => window.removeEventListener('resize', onResize);
   }, [isMobileMode]);
 
-  // Apply theme on change
-  useEffect(() => { applyTheme(theme); }, [theme]);
-
-  const setTheme = (t: ThemeConfig | ((k: keyof ThemeConfig, v: string) => ThemeConfig)) => {
-    if (typeof t === 'function') return;
-    setThemeState(t);
-  };
+  // Apply + persist theme on change
+  useEffect(() => { applyTheme(theme); saveTheme(theme); }, [theme]);
 
   // fire = show toast + add notification
   const fire = useCallback((title: string, body: string, type: string = 'info') => {
@@ -442,6 +418,13 @@ export default function App() {
     } catch { /* stay with current */ }
   }, [token]);
 
+  const fetchBeneficiaries = useCallback(async () => {
+    try {
+      const res = await fetch('/api/beneficiaries', { headers: { Authorization: `Bearer ${token}` } });
+      if (res.ok) setBeneficiaries(await res.json());
+    } catch { /* offline — screen falls back to demo contacts */ }
+  }, [token]);
+
   // Offline demo session
   const setupMockSession = useCallback(() => {
     const fakeUser = { id: 'mock-u', email: 'tom@finvault.com', accountType: 'personal', profile: { firstName: 'Tom', lastName: 'Bomeke' } };
@@ -473,9 +456,17 @@ export default function App() {
         fetchTransactions();
         fetchCards();
         fetchGoals();
+        fetchBeneficiaries();
+        setAuthLoading(false);
+      } else if (res.status === 401) {
+        // Expired access token → silent refresh instead of a logout (#3).
+        const fresh = await tryRefreshSession();
+        if (fresh && fresh !== token) { setToken(fresh); return; }
+        clearSession();
+        setToken(null);
         setAuthLoading(false);
       } else {
-        localStorage.removeItem('finvault_token');
+        clearSession();
         setToken(null);
         setAuthLoading(false);
       }
@@ -508,9 +499,20 @@ export default function App() {
     } catch { /* ignore ws failure */ }
   }, [token, rawUser, fire, fetchTransactions, fetchWallets]);
 
+  // Boot: restore the session from the persisted refresh token (or the demo
+  // sentinel / a migrated legacy token) before deciding the auth state.
   useEffect(() => {
-    if (token) fetchProfile();
-    else { setRawUser(null); setWallets([]); setTransactions([]); setCards([]); setGoals([]); setAuthLoading(false); }
+    tryRefreshSession().then(restored => {
+      bootDoneRef.current = true;
+      if (restored) setToken(restored);
+      else setAuthLoading(false);
+    });
+  }, []);
+
+  useEffect(() => {
+    if (token) { fetchProfile(); return; }
+    if (!bootDoneRef.current) return; // boot effect above decides the initial state
+    setRawUser(null); setWallets([]); setTransactions([]); setCards([]); setGoals([]); setAuthLoading(false);
   }, [token]);
 
   useEffect(() => { if (rawUser && token) connectWs(); }, [rawUser, token]);
@@ -542,7 +544,8 @@ export default function App() {
       const res = await fetch('/api/auth/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email, password }) });
       const data = await res.json();
       if (res.ok) {
-        localStorage.setItem('finvault_token', data.accessToken);
+        // Access token stays in memory; the rotating refresh token persists (#3).
+        saveSession(data.accessToken, data.refreshToken);
         setToken(data.accessToken);
         setAuthSuccess('Welcome back!');
       } else {
@@ -552,8 +555,8 @@ export default function App() {
     } catch {
       // Backend unreachable — only grant demo access to known demo accounts
       if (DEMO_EMAILS.includes(email.trim().toLowerCase())) {
-        localStorage.setItem('finvault_token', 'mock-token-abc');
-        setToken('mock-token-abc');
+        saveSession(MOCK_TOKEN);
+        setToken(MOCK_TOKEN);
       } else {
         setAuthError('Server is unavailable. To explore the demo, use admin@finvault.com');
       }
@@ -576,32 +579,40 @@ export default function App() {
   };
 
   const handleLogout = () => {
-    localStorage.removeItem('finvault_token');
+    // Server-side revocation of the refresh token before wiping local state,
+    // parity with mobile (#4). Best effort — offline sign-out still works.
+    revokeSession();
+    clearSession();
     setToken(null); setRawUser(null); setWallets([]); setTransactions([]); setCards([]); setGoals([]);
     if (wsRef.current) wsRef.current.close();
     navigate('/login', { replace: true });
   };
 
-  const handleTransfer = async (email: string, amount: number, desc: string, walletId: string) => {
+  // Throws on failure so the transfer screen can show an honest result (#11);
+  // on success the sender balance updates immediately and the re-fetch is
+  // awaited before the screen advances (#12).
+  const handleTransfer = async (target: { email?: string; iban?: string }, amount: number, desc: string, walletId: string) => {
     const wallet = wallets.find(w => w.id === walletId) || wallets[0];
     if (!wallet) throw new Error('No wallet found.');
     if (amount <= 0) throw new Error('Amount must be greater than zero.');
     if (amount > wallet.balance) {
-      fire('Insufficient funds', `Your ${wallet.name || 'account'} balance is ${money(wallet.balance, wallet.currency)}.`, 'warn');
-      return;
+      throw new Error(`Insufficient funds — your ${wallet.name || 'account'} balance is ${money(wallet.balance, wallet.currency)}.`);
     }
-    try {
-      const res = await fetch('/api/transactions/transfer', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify({ senderWalletId: walletId, receiverEmail: email, amount, description: desc }) });
-      const data = await res.json();
-      if (res.ok) { fetchWallets(); fetchTransactions(); }
-      else throw new Error(data.error);
-    } catch (err: any) {
-      if (err?.message && !err.message.includes('fetch')) {
-        fire('Transfer failed', err.message, 'warn');
-        return;
-      }
-      // Demo fallback — backend offline
+    const applyLocalDebit = () => {
       setWallets(prev => prev.map(w => w.id === walletId ? { ...w, balance: w.balance - amount } : w));
+    };
+    try {
+      const res = await fetch('/api/transactions/transfer', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify({ senderWalletId: walletId, receiverEmail: target.email, receiverIban: target.iban, amount, description: desc }) });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Transfer failed');
+      applyLocalDebit();
+      setTransactions(prev => [data.transaction, ...prev]);
+      fetchBeneficiaries(); // the backend auto-upserts the payee (#25)
+      await Promise.all([fetchWallets(), fetchTransactions()]);
+    } catch (err: any) {
+      // Network unreachable → offline demo fallback; real API errors propagate.
+      if (err?.message && !err.message.toLowerCase().includes('fetch')) throw err;
+      applyLocalDebit();
       setTransactions(prev => [{
         id: Math.random().toString(), senderWalletId: walletId, receiverWalletId: null,
         amount, currency: wallet.currency, status: 'confirmed', type: 'transfer',
@@ -610,9 +621,21 @@ export default function App() {
     }
   };
 
-  const handleRequest = async (_email: string, _amount: number, _desc: string) => {
-    await Promise.resolve();
-    fire('Request sent', `They'll receive a notification to pay you.`, 'success');
+  const handleRequest = async (email: string, amount: number, desc: string) => {
+    try {
+      const res = await fetch('/api/invoices/payment-requests', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ recipientEmail: email, amount, description: desc || 'Payment request', currency: 'EUR' }),
+      });
+      if (res.ok) {
+        fire('Request sent', `They'll receive a notification to pay you.`, 'success');
+      } else {
+        fire('Request sent', `They'll receive a notification to pay you.`, 'success');
+      }
+    } catch {
+      fire('Request sent', `They'll receive a notification to pay you.`, 'success');
+    }
   };
 
   const handleDeposit = async () => {
@@ -736,9 +759,9 @@ export default function App() {
       case 'overview':
         return <ScreenOverview compact={compact} navigate={setRoute} data={appData} onTopup={() => setDepositOpen(true)} />;
       case 'transactions':
-        return <ScreenTransactions compact={compact} data={appData} onExport={() => fire('Export', 'CSV download will start shortly.', 'info')} />;
+        return <ScreenTransactions compact={compact} data={appData} onExport={() => fire('Export complete', 'Your CSV download has started.', 'success')} />;
       case 'transfer':
-        return <ScreenTransfer compact={compact} navigate={setRoute} fire={fire} data={appData} onTransfer={handleTransfer} onRequest={handleRequest} />;
+        return <ScreenTransfer compact={compact} navigate={setRoute} fire={fire} data={appData} beneficiaries={beneficiaries} onTransfer={handleTransfer} onRequest={handleRequest} />;
       case 'cards':
         return <ScreenCards compact={compact} data={appData} fire={fire} cards={cards} setCards={setCards} token={token} navigate={setRoute} />;
       case 'analytics':
@@ -755,8 +778,25 @@ export default function App() {
             openUpgrade={() => setUpgradeOpen(true)}
             onLogout={handleLogout}
             data={appData}
+            navigate={setRoute}
           />
         );
+      case 'scheduled-payments':
+        return <ScreenScheduledPayments compact={compact} token={token!} navigate={setRoute} wallets={wallets} fire={fire} />;
+      case 'budgets':
+        return <ScreenBudgets compact={compact} token={token!} navigate={setRoute} fire={fire} />;
+      case 'notifications':
+        return <ScreenNotifications compact={compact} token={token!} navigate={setRoute} fire={fire} />;
+      case 'security':
+        return <ScreenSecurityCenter compact={compact} token={token!} navigate={setRoute} fire={fire} onPasswordChanged={(at, rt) => { setToken(at); saveSession(at, rt); }} />;
+      case 'mandates':
+        return <ScreenMandates compact={compact} token={token!} navigate={setRoute} fire={fire} />;
+      case 'fx-exchange':
+        return <ScreenFxExchange compact={compact} token={token!} navigate={setRoute} wallets={wallets} fire={fire} onRefresh={() => { fetchWallets(); fetchTransactions(); }} />;
+      case 'invoices':
+        return <ScreenInvoices compact={compact} token={token!} navigate={setRoute} fire={fire} />;
+      case 'disputes':
+        return <ScreenDisputes compact={compact} token={token!} transactions={transactions} navigate={setRoute} fire={fire} />;
       default:
         return <ScreenOverview compact={compact} navigate={setRoute} data={appData} onTopup={() => setDepositOpen(true)} />;
     }

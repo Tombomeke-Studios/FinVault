@@ -4,7 +4,7 @@ import { Icon } from '../components/Icon';
 import { BankCard, CARD_SCHEMES } from '../components/BankCard';
 import { MobileCardDetail, LimitsSheet, MobileSheet } from '../components/MobileExtras';
 import { useReducedMotion } from '../components/Motion';
-import { THEME } from '../theme';
+import { THEME, themedSheet } from '../theme';
 import { money, Ring } from '../components/UI';
 import type { AppData } from '../../App';
 
@@ -92,6 +92,33 @@ export function ScreenCards({ data, fire, cards, setCards, token, apiUrl, naviga
       }
     } catch (e: any) {
       fire('Error', 'Failed to toggle card lock: ' + e.message, 'error');
+    }
+  };
+
+  const toggleControl = async (id: string, field: 'contactlessEnabled' | 'foreignEnabled' | 'cashWithdrawalEnabled') => {
+    const card = cards.find((c: any) => c.id === id);
+    if (!card) return;
+    const newVal = !(card as any)[field];
+    const label = field === 'contactlessEnabled' ? 'Contactless' : field === 'foreignEnabled' ? 'Foreign payments' : 'ATM withdrawals';
+
+    if (!token || token === 'mock-token') {
+      setCards((prev: any[]) => prev.map((c: any) => c.id === id ? { ...c, [field]: newVal } : c));
+      fire(newVal ? `${label} enabled` : `${label} disabled`, '', 'success');
+      return;
+    }
+    try {
+      const res = await fetch(`${apiUrl}/api/cards/${id}/controls`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ [field]: newVal })
+      });
+      if (res.ok) {
+        const updated = await res.json();
+        setCards(prev => prev.map(c => c.id === id ? updated : c));
+        fire(updated[field] ? `${label} enabled` : `${label} disabled`, '', 'success');
+      }
+    } catch (e: any) {
+      fire('Error', `Failed to toggle ${label}: ` + e.message, 'error');
     }
   };
 
@@ -250,6 +277,31 @@ export function ScreenCards({ data, fire, cards, setCards, token, apiUrl, naviga
             />
           </View>
 
+          {/* Card control toggles (#14) */}
+          {[
+            { field: 'contactlessEnabled' as const, icon: 'card', label: 'Contactless', desc: 'Tap-to-pay transactions', hue: 'rgba(52,211,153,0.14)' },
+            { field: 'foreignEnabled' as const, icon: 'globe', label: 'Foreign Payments', desc: 'Transactions abroad', hue: 'rgba(56,189,248,0.14)' },
+            { field: 'cashWithdrawalEnabled' as const, icon: 'dollarSign', label: 'ATM Withdrawals', desc: 'Cash machine access', hue: 'rgba(251,191,36,0.14)' },
+          ].map(ctrl => (
+            <View key={ctrl.field} style={styles.controlRow}>
+              <View style={styles.controlLabelCol}>
+                <View style={[styles.controlCircle, { backgroundColor: ctrl.hue }]}>
+                  <Icon name={ctrl.icon} size={16} color={THEME.colors.text2} />
+                </View>
+                <View>
+                  <Text style={styles.controlTitle}>{ctrl.label}</Text>
+                  <Text style={styles.controlDesc}>{ctrl.desc}</Text>
+                </View>
+              </View>
+              <Switch
+                value={(activeCard as any)[ctrl.field] !== false}
+                onValueChange={() => toggleControl(activeCard.id, ctrl.field)}
+                trackColor={{ false: THEME.colors.surfaceHi, true: THEME.colors.accent }}
+                thumbColor="#fff"
+              />
+            </View>
+          ))}
+
           <TouchableOpacity style={styles.controlRow} onPress={() => setDetailsOpen(true)}>
             <View style={styles.controlLabelCol}>
               <View style={[styles.controlCircle, { backgroundColor: 'rgba(168, 85, 247, 0.16)' }]}>
@@ -390,7 +442,7 @@ export function ScreenCards({ data, fire, cards, setCards, token, apiUrl, naviga
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedSheet(() => StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: THEME.colors.bg,
@@ -617,4 +669,4 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: 'bold',
   },
-});
+}));

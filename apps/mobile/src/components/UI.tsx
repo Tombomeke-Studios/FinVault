@@ -2,7 +2,7 @@ import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import Svg, { Circle, Path } from 'react-native-svg';
 import { Icon } from './Icon';
-import { THEME } from '../theme';
+import { THEME, themedSheet } from '../theme';
 
 // ---- Formatters ----
 // `whole` drops cents via Intl options — never strip ".00" from the formatted
@@ -214,7 +214,7 @@ export function Avatar({ initials, size = 38 }: { initials: string; size?: numbe
 }
 
 // ---- Styles ----
-const styles = StyleSheet.create({
+const styles = themedSheet(() => StyleSheet.create({
   catCircle: {
     justifyContent: 'center',
     alignItems: 'center',
@@ -242,4 +242,4 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontWeight: 'bold',
   },
-});
+}));

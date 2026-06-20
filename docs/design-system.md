@@ -21,9 +21,51 @@ Dark-first fintech look: emerald accent, soft-radius surfaces, spring-physics mo
 Wallet-type accents (both apps): checking = emerald, savings = `#a78bfa` (violet),
 travel = `#38bdf8` (sky).
 
+### Logo
+- **Web:** `FVLogo` (`components/Shell.tsx`) — inline SVG lockup: gradient brand mark
+  (`#19f5c3 → #00bfa0`, two skewed bars) + wordmark in `currentColor`, so it adapts to
+  every mode/accent. Pass `mono` on accent or gradient surfaces (e.g. the auth brand
+  panel) to render the mark in `currentColor` too.
+- Never reintroduce raster lockups with a baked-in text color — the old
+  `logo-lockup.png` had a white wordmark that disappeared on light themes.
+- `public/favicon.png` is the mark-only raster for the browser tab.
+- **Mobile app icon** (`apps/mobile/assets/`): `icon.png` (2000×2000, teal F on navy
+  `#062437`, iOS + fallback) plus Android adaptive-icon layers derived from it:
+  `android-icon-foreground.png` (full-bleed F on opaque navy, 1024×1024) and
+  `android-icon-monochrome.png` (white silhouette for Android 13+ themed icons);
+  the background layer is the solid `adaptiveIcon.backgroundColor: "#062437"` in
+  `app.json`. **Android launchers use the adaptive icon, not `icon.png`** — when the
+  brand mark changes, regenerate all three together or the launcher keeps the old art.
+
 - Web colors are **OKLCH** and derive accent variants from `--accent-h/c/l`.
-- Web supports light mode + 6 accent presets + radius/density/card variants via
-  `data-*` attributes on `<html>` (see `Tweaks.tsx`). Mobile is dark-only for now.
+
+### Mobile theming engine
+- **`src/theme.ts`** exports a mutable `THEME` singleton (original shape, ~500 call
+  sites untouched). `setAppTheme({ mode, accent })` swaps the dark/light palette and
+  one of six accents (same hues as web), flips `THEME.statusBarStyle`, and bumps a
+  version counter.
+- Module-level StyleSheets that reference THEME colors **must** be wrapped:
+  `const styles = themedSheet(() => StyleSheet.create({...}))` — plain
+  `StyleSheet.create` freezes colors at import time.
+- App.tsx calls `setAppTheme` *before* `setTheme` state updates (next render sees new
+  colors) and remounts the subtree via a mode+accent key. Choice persists through
+  `persistThemeConfig`/`loadPersistedThemeConfig` (expo-secure-store, lazy import).
+- Settings: presets (web parity, 7) + Appearance card (mode toggle, accent dots).
+- The engine module has no react-native imports — palette logic is vitest-tested
+  (`src/theme.test.ts`).
+
+### Web theming engine
+- **`src/theme.ts`** owns the JS side: `ThemeConfig` (mode/accent/font/radius/density/card),
+  `ACCENTS` (6), `FONTS` (4), `PRESETS` (7: Vault, Daylight, Aurora, Carbon, Sand,
+  Midnight, Mint), `applyTheme()` and `loadTheme()/saveTheme()` (localStorage `fv_theme`,
+  validated on read; runtime switches get a 350ms color cross-fade via `.theme-anim`).
+- **`src/index.css`** owns the tokens, organized in 7 layers with a token-contract
+  header: primitives → mode palettes → style axes → base → components → motion →
+  accessibility. JS only writes `--accent-h/c/l`, `--on-accent`, fonts, and the
+  `data-*` attributes — every other token is derived in CSS.
+- **Light-mode contrast rules:** accent *fill* lightness is clamped to 0.66;
+  accent-as-*text* must use `--accent-ink` (darker per mode), never raw `--accent`.
+  Category hues read `--cat-l` / `--cat-soft-a` so charts/icons stay readable in light.
 
 ### Typography
 - Web: **Space Grotesk** (display + numerals, `.display`/`.num` with tabular figures),
@@ -52,6 +94,24 @@ One rhythm everywhere — spring physics, enter slower than exit, reduced-motion
 Rules of thumb: micro-interactions 150–300 ms; animate transform/opacity only;
 1–2 animated elements per view; exits ≈60% of enter duration.
 
+### Web motion vocabulary (`index.css` §6)
+| Class | Use for |
+|---|---|
+| `.rise` + `.rise-d1…d6` | Single-element entrance with manual stagger delays |
+| `.stagger` | Auto-staggered entrance of a list's children (55ms steps) |
+| `.page-enter` | Route/screen change |
+| `.slide-down` | Dropdowns, popovers anchored to the top (notifications) |
+| `.slide-right` / `.slide-left` | Directional screen transitions (compact shell) |
+| `.scale-in` / `.bounce-in` / `.blur-in` | Modals, confirmations, hero reveals |
+| `.shake` | Inline error feedback (auth error banner) |
+| `.shimmer` | Loading skeletons |
+| `.num-flash` | Balance/number updates |
+| `.card-lift` | Hoverable cards |
+| `.float` / `.glow-pulse` / `.gradient-animate` | Marketing/hero accents — use sparingly |
+
+The runtime theme switch cross-fades colors (`html.theme-anim`); the
+`prefers-reduced-motion` kill-switch in §7 neutralizes all of the above.
+
 ## Components (mobile)
 
 - **Icon** (`Icon.tsx`) — semantic name → Feather glyph; `MCI_MAPPING` for gaps
@@ -66,6 +126,20 @@ Rules of thumb: micro-interactions 150–300 ms; animate transform/opacity only;
   `CARD_SCHEMES` for pickers.
 - **UI.tsx** — `money()` (nl-NL; `{ whole: true }` for round amounts — never string-strip),
   `Ring`, `Donut`, `Sparkline` (measures its container), `Bars`, `CategoryIcon`, `Delta`.
+
+## SEPA QR codes (EPC069-12)
+
+Both apps can generate SEPA Credit Transfer QR codes in the EPC069-12 format
+(the standard used by Payconiq-class payment apps).
+
+- **Mobile** (`src/lib/epc.ts` + `react-native-qrcode-svg`): the Request tab shows a
+  live QR that encodes the user's IBAN, name, and optionally the amount/description.
+  The Send tab has a scan-to-pay sheet (`QrScanSheet.tsx`) that reads EPC QRs via
+  the camera and prefills the transfer form.
+- **Web** (`src/lib/epc.ts` + `qrcode.react`): the Request tab renders the same live
+  QR. No camera scanning (desktop has no use case) — generate on web, scan on mobile.
+
+The EPC builder and parser are unit-tested on both apps (7 tests each).
 
 ## Accessibility checklist
 

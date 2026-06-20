@@ -35,13 +35,55 @@ feature/<topic>  →  dev  →  staging  →  main
 - `staging` only receives merges from `dev` — never individual feature branches.
 - `main` only receives merges from `staging` — never from `dev` or feature branches.
 - A red CI on `dev` is everyone's problem — fix it before opening new PRs.
+- The GitHub **default branch is `dev`** (since 2026-06-12): new PRs target it by
+  default, fresh clones check it out, and issue auto-close fires on merges into it.
+  This changes nothing about the release flow above — `main` stays the production tier.
 
-## 2a. The iteration loop (follow for every unit of work)
+## 2a. GitHub issues — every task is a trackable issue
+
+Tasks live in two places that must stay in sync:
+
+- **TODO.md** — the working checklist, grouped per branch (single source of truth for *progress*)
+- **GitHub issues** — the trackable mirror of every open TODO item (single source of truth for *linking*: PRs, commits, discussion)
+
+**Trigger table — when X happens, the agent does Y, immediately and unprompted:**
+
+| Moment | Action |
+|---|---|
+| You add an actionable item to TODO.md | Create its GitHub issue (rule 1) and put the `(#N)` ref on the TODO line |
+| You promote a backlog group to `feature/<topic>` | Verify every item in it has an issue; create any missing ones first |
+| You discover a bug while working | Issue immediately (`type:bug`), then decide: fix now or backlog |
+| You open a PR | One `Closes #N` line per completed issue in the PR body |
+| The PR merges | Verify the issues auto-closed; move the group to Done in TODO.md; `git fetch --prune` (GitHub deletes the head branch automatically) |
+
+**Rules:**
+
+1. **Every actionable TODO item gets a GitHub issue** — at the latest when its backlog
+   group is promoted to an active `feature/<topic>` group; bugs get one immediately.
+   Create with `gh issue create --title "..." --body "..." --label scope:<x> --label type:<y>`.
+2. **Title** = the TODO line, imperative. **Body** = context, acceptance criteria,
+   affected files, links to the relevant doc (§5).
+3. **Labels:** one `scope:*` label (mobile/web/gateway/account/wallet/invoice/shared/
+   security/docs/ci) + one `type:*` label (bug/feature/refactor/test/docs). Keep the
+   label set in sync with the commit scopes in §3.
+4. **TODO.md items carry their issue ref:** `- [ ] Fix X (#12)` — add the ref the
+   moment the issue exists.
+5. **PR bodies close their issues:** list every completed issue as `Closes #N` (one per
+   line) in the PR description. GitHub closes them natively when the PR merges —
+   auto-close fires on default-branch merges, and the default branch is `dev` (§2).
+   The issue's Development sidebar shows the linked PR automatically.
+6. An issue is only ever closed by a merged PR — or manually with a comment explaining
+   why (duplicate, obsolete, won't fix). Never silently.
+7. Open issues are the **backlog**, not a failure signal: an issue stays open until its
+   feature branch ships. Don't close issues to "clean up" — close them by shipping.
+
+## 2b. The iteration loop (follow for every unit of work)
 
 A "unit" = one function, feature, fix, or refactor — the smallest shippable slice.
 
 1. **Pick** the next unticked item from the active branch group in TODO.md.
-   No active group? Promote backlog items into a new `feature/<topic>` group first.
+   No active group? Promote backlog items into a new `feature/<topic>` group first —
+   and create the GitHub issues for them (§2a) as part of that promotion.
 2. **Read context** before touching code: the codebase map below + the matching doc
    (§5). Don't rediscover what's already documented.
 3. **Implement** the slice. Match surrounding style; reuse the shared primitives
@@ -60,12 +102,17 @@ A "unit" = one function, feature, fix, or refactor — the smallest shippable sl
 **Branch finish protocol** (after the last item on a feature branch):
 1. Mirror CI locally from the repo root: `npm run build && npm test` — both must pass.
 2. Push the final state and open a PR **targeting `dev`**: summary per commit, what was
-   tested, link the relevant docs. Never open a PR with failing local checks.
+   tested, link the relevant docs, and a `Closes #N` line per completed issue (§2a).
+   Never open a PR with failing local checks.
 3. CI is `.github/workflows/validate.yml` (install → prisma generate → shared build →
-   workspace builds → `vitest run`) and runs on every PR. **A red PR is not done** —
-   keep fixing (and pushing) on the branch until it's green.
+   workspace builds → `vitest run`) and runs on every PR — see [docs/ci-cd.md](docs/ci-cd.md)
+   for the full pipeline reference and how to maintain the workflow files.
+   **A red PR is not done** — keep fixing (and pushing) on the branch until it's green.
 4. After the feature PR merges into `dev` and CI is green: move the branch group in
-   TODO.md to the Done section.
+   TODO.md to the Done section and verify the linked issues were auto-closed.
+5. The remote head branch is deleted automatically on merge (repo setting
+   *Automatically delete head branches*). Locally run `git fetch --prune` and
+   `git branch -d feature/<topic>` — merged branches never linger.
 
 **Promoting `dev` → `staging` → `main`:**
 1. Open a PR `dev → staging` only when a full milestone is complete and `dev` CI is
@@ -113,6 +160,9 @@ A "unit" = one function, feature, fix, or refactor — the smallest shippable sl
 | Services, endpoints, events, infra topology | [docs/architecture.md](docs/architecture.md) |
 | Auth, sessions, secrets, rate limits, known gaps | [docs/security.md](docs/security.md) |
 | Tokens, colors, typography, motion, components, a11y | [docs/design-system.md](docs/design-system.md) |
+| Anything under `.github/workflows/` (triggers, steps, pinned actions) | [docs/ci-cd.md](docs/ci-cd.md) |
+| Product feature set vs. real banking apps (gaps, priorities) | [docs/feature-roadmap.md](docs/feature-roadmap.md) |
+| EAS Build/Submit/Update, VM hosting, Play Store, deployment options | [docs/deployment-strategy.md](docs/deployment-strategy.md) |
 | New/moved/renamed files, new commands, new gotchas | **This file** (map in §7, gotchas in §8) |
 | Setup / how-to-run instructions | README.md |
 | Tasks, progress, follow-ups | [TODO.md](TODO.md) — and *only* there |
@@ -140,16 +190,24 @@ the same emails offline → client-side mock demo mode. Mobile API base: `EXPO_P
 
 ## 7. Codebase map — where is what
 
-### apps/mobile (Expo SDK 54, RN 0.81, dark-only)
+### apps/mobile (Expo SDK 54, RN 0.81, themed dark/light)
 | File | Contents |
 |---|---|
-| `App.tsx` | All app state: auth/token, wallets/transactions/cards/goals, route string (`'overview'`, `'account:<walletId>'`, …), all API handlers (`handleLogin/Transfer/Deposit/OwnTransfer/UpgradePlan`), mock-data builder, deposit + plan-upgrade sheets, Android BackHandler, session restore + splash |
+| `App.tsx` | All app state: auth/token, wallets/transactions/cards/goals, route string (`'overview'`, `'account:<walletId>'`, …), all API handlers (`handleLogin/Transfer/Deposit/OwnTransfer/UpgradePlan`), mock-data builder, deposit + plan-upgrade sheets, Android BackHandler, session restore + splash. `ErrorBoundary` class wraps the root to catch render-time crashes in production builds |
+| `index.ts` | Entry point: `registerRootComponent` + global `ErrorUtils` handler for async crashes in standalone builds |
+| `app.json` | Expo config: `android.package` (`com.tombomekestudio.finvault`), `versionCode`, `owner` (tombomekestudios), EAS `projectId`, plugins (`expo-local-authentication` + `expo-secure-store` + `expo-camera`) — all three plugins are required; missing one = instant crash |
+| `babel.config.js` | **Required for standalone builds** — `babel-preset-expo`; Expo Go provides this implicitly but EAS-built APKs crash without it |
+| `eas.json` | EAS Build profiles: `development` (dev-client APK), `preview` (sideloadable APK), `production` (signed AAB for Play Store); all profiles set `EXPO_USE_METRO_WORKSPACE_ROOT=1` for monorepo support |
+| `metro.config.js` | **Critical for monorepo** — sets `watchFolders` to monorepo root and `nodeModulesPaths` to both workspace + root `node_modules`; without this, hoisted native packages are not compiled in and the standalone APK crashes instantly |
 | `src/session.ts` | SecureStore token persistence: `saveSession/loadSession/clearSession/tryRefreshSession/revokeSession` |
-| `src/theme.ts` | `THEME` tokens (colors/radius/spacing) — hex, single dark palette |
+| `src/biometrics.ts` | Real biometric gate (expo-local-authentication): `isBiometricAvailable/authenticateBiometric` + keystore-persisted opt-in pref + `hasDismissedBioPrompt/setDismissedBioPrompt` (first-login prompt dismissal) |
+| `src/theme.ts` | Theme engine: mutable `THEME` tokens (hex), dark/light palettes × 6 accents, `setAppTheme`/`subscribeTheme`, `themedSheet` StyleSheet proxy, secure-store persistence. Tests: `theme.test.ts` |
 | `src/components/Icon.tsx` | Name → Feather glyph map + `MCI_MAPPING` (MaterialCommunityIcons fallback: `flame`, `faceId`). Unmapped → help-circle |
 | `src/components/Motion.tsx` | `PressableScale`, `FadeSlideIn`, `AnimatedProgressBar`, `useReducedMotion` — use these, no ad-hoc Animated code |
 | `src/components/Toast.tsx` | `useToasts()` + `<ToastHost/>`; `fire(title, body, type)` success/info/warn/error |
 | `src/components/MobileExtras.tsx` | `MobileSheet` (bottom sheet: spring, drag-dismiss, keyboard-aware), `MobileCardDetail` (reveal + clipboard copy), `LimitsSheet` |
+| `src/components/QrScanSheet.tsx` | Scan-to-pay sheet: expo-camera + permission flow, accepts EPC069-12 SEPA QR only |
+| `src/lib/` | `epc.ts` (EPC QR build/parse), `validate.ts` (email/IBAN), `csv.ts` (export) — all unit-tested |
 | `src/components/BankCard.tsx` | Card visual; `CARD_SCHEMES` (metal/cyan/violet/gold/accent) |
 | `src/components/UI.tsx` | `money()` (nl-NL! use `{whole:true}`, never string-strip), `relTime`, `Ring`, `Donut`, `Sparkline`, `Bars`, `CategoryIcon`, `Delta`, `Avatar` |
 | `src/components/Shell.tsx` | Top bar (logo + avatar→settings) + bottom nav (5 items, center Send FAB) |
@@ -158,9 +216,11 @@ the same emails offline → client-side mock demo mode. Mobile API base: `EXPO_P
 ### apps/web-dashboard (Vite + React 18 + React Router)
 | File | Contents |
 |---|---|
-| `src/App.tsx` | Routing (PATH_TO_ROUTE), theming engine (`applyTheme`, ACCENTS/FONTS/PRESETS), auth with localStorage token, data fetching, mock fallback |
-| `src/index.css` | The only CSS entry: OKLCH tokens per `data-mode/radius/density/card`, `.btn/.field/.chip/.card`, all `fv*` keyframes, reduced-motion kill-switch |
-| `src/components/` | `Shell` (sidebar/bottom-nav via `compact` prop), `UI` (money en-US, Toast, Sheet), `Icon`/`Icons` (SVG path registry), `BankCard` + `SwipeableCards`, `IOSFrame` (device mockup), `Tweaks` (theme panel), `Logo` |
+| `src/App.tsx` | Routing (PATH_TO_ROUTE), auth (in-memory access token, boot restore + silent refresh via `lib/session.ts`), data fetching, mock fallback; re-exports `ThemeConfig` |
+| `src/lib/` | `session.ts` (refresh-token persistence/rotation/revocation, mirrors mobile), `validate.ts` (email/IBAN recipient checks), `csv.ts` (transaction export), `epc.ts` (EPC QR build/parse, mirrors mobile) — all unit-tested |
+| `src/theme.ts` | Theme engine: `ThemeConfig`, `ACCENTS`/`FONTS`/`PRESETS`, `applyTheme()` (data-attrs + accent vars on `<html>`, runtime cross-fade), `loadTheme()`/`saveTheme()` persistence (localStorage `fv_theme`) |
+| `src/index.css` | The only CSS entry — 7 layers with a token-contract header: primitives → mode palettes → style axes (`data-mode/radius/density/card`) → base → components (`.btn/.field/.chip/.card/.nav-item`) → motion (`fv*` keyframes + utilities, `.stagger`, theme cross-fade) → reduced-motion kill-switch. Accent-as-text uses `--accent-ink`, category hues use `--cat-l`/`--cat-soft-a` |
+| `src/components/` | `Shell` (sidebar/bottom-nav via `compact` prop; `FVLogo` theme-aware SVG lockup, `mono` variant for accent surfaces), `UI` (money en-US, Toast, Sheet), `Icon`/`Icons` (SVG path registry), `BankCard` + `SwipeableCards`, `IOSFrame` (device mockup), `Tweaks` (theme panel) |
 | `src/screens/` | Same screen set as mobile + `ScreenLanding` |
 
 ### services (Express + Prisma/SQLite each, ESM)
@@ -189,5 +249,23 @@ the same emails offline → client-side mock demo mode. Mobile API base: `EXPO_P
   (`walletLabel()` server-side, inline ternaries client-side).
 - Services run on Node ESM + tsx; Prisma clients are generated into `generated/prisma`.
 - Mobile screens need `paddingBottom: 88` in scroll content to clear the bottom nav.
+- **Mobile theming:** module-level StyleSheets that use THEME colors must be wrapped in
+  `themedSheet(() => StyleSheet.create({...}))`; theme changes go through
+  `applyAndSetTheme` in App.tsx (mutate first, then setState) — never call
+  `setTheme` with a new palette directly.
 - Alerts (`Alert.alert`) only for destructive confirmations — all other feedback via toasts.
 - Expo SDK is **54** (`apps/mobile/AGENTS.md` mentions v56 docs — installed SDK wins).
+- **EAS monorepo crash:** `apps/mobile/metro.config.js` MUST stay in sync with the
+  monorepo structure. Without `watchFolders` + `nodeModulesPaths` pointing to the repo
+  root, hoisted native packages (expo-local-authentication, react-native-svg, …) are
+  not compiled into the standalone APK → instant crash on launch. Never delete it.
+- **EAS standalone builds require three configs** that Expo Go provides implicitly:
+  `babel.config.js` (with `babel-preset-expo`), `metro.config.js` (monorepo roots),
+  and `EXPO_USE_METRO_WORKSPACE_ROOT=1` in `eas.json` env. Missing any one → crash.
+- **EAS plugins:** every native Expo package used by the mobile app MUST appear in the
+  `plugins` array in `app.json` (currently: expo-local-authentication, expo-secure-store,
+  expo-camera). Adding a native package without its plugin → crash on standalone build.
+- **Android launcher icon ≠ `icon.png`:** Android uses `android.adaptiveIcon`
+  (foreground/monochrome PNGs + `backgroundColor`), which takes precedence over
+  `icon.png`. Rebrand = regenerate the `android-icon-*.png` assets too
+  (see docs/design-system.md → Logo).

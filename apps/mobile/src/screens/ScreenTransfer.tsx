@@ -1,43 +1,70 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, TextInput, TouchableOpacity, ScrollView, Alert } from 'react-native';
+import { View, Text, StyleSheet, TextInput, TouchableOpacity, ScrollView } from 'react-native';
 import { Icon } from '../components/Icon';
 import { money } from '../components/UI';
-import { THEME } from '../theme';
-import type { AppData } from '../../App';
+import QRCode from 'react-native-qrcode-svg';
+import { classifyRecipient, isEmail, normalizeIban } from '../lib/validate';
+import { buildEpcQr } from '../lib/epc';
+import { QrScanSheet } from '../components/QrScanSheet';
+import { THEME, themedSheet } from '../theme';
+import type { AppData, Beneficiary } from '../../App';
 
 interface TransferProps {
   data: AppData;
-  onTransfer: (email: string, amt: number, desc: string, walletId: string) => Promise<void>;
+  beneficiaries?: Beneficiary[];
+  onTransfer: (target: { email?: string; iban?: string }, amt: number, desc: string, walletId: string) => Promise<boolean>;
   onRequest: (email: string, amt: number, desc: string) => Promise<void>;
 }
 
-export function ScreenTransfer({ data, onTransfer, onRequest }: TransferProps) {
+export function ScreenTransfer({ data, beneficiaries, onTransfer, onRequest }: TransferProps) {
   const [mode, setMode] = useState<'send' | 'request'>('send');
-  const [email, setEmail] = useState('');
+  const [recipient, setRecipient] = useState('');
+  const [recipientName, setRecipientName] = useState('');
   const [amt, setAmt] = useState('');
   const [desc, setDesc] = useState('');
   const [selWallet, setSelWallet] = useState(data.wallets[0]?.id || '');
   const [loading, setLoading] = useState(false);
+  const [formError, setFormError] = useState('');
+  const [scanOpen, setScanOpen] = useState(false);
 
   const activeWallet = data.wallets.find(w => w.id === selWallet) || data.wallets[0];
 
+  // Inline validation instead of blocking Alerts (#9) — Alerts stay reserved
+  // for destructive confirmations.
   const submit = async () => {
+    setFormError('');
     const val = parseFloat(amt);
-    if (!email) { Alert.alert('Error', 'Please enter a recipient email.'); return; }
-    if (!val || val <= 0) { Alert.alert('Error', 'Please enter a valid amount.'); return; }
+    const kind = classifyRecipient(recipient);
+
+    if (mode === 'request' && !isEmail(recipient)) {
+      setFormError('Enter a valid payer email address.');
+      return;
+    }
+    if (mode === 'send' && kind === 'invalid') {
+      setFormError('Enter a valid email address or IBAN.');
+      return;
+    }
+    if (!val || val <= 0) { setFormError('Enter an amount greater than zero.'); return; }
 
     setLoading(true);
     try {
       if (mode === 'send') {
         if (activeWallet && activeWallet.balance < val) {
-          Alert.alert('Insufficient Balance', 'Your wallet balance is too low.');
+          setFormError(`Insufficient balance — ${money(activeWallet.balance, activeWallet.currency)} available.`);
           return;
         }
-        await onTransfer(email, val, desc || 'Transfer', selWallet);
+        const target = kind === 'iban'
+          ? { iban: normalizeIban(recipient) }
+          : { email: recipient.trim().toLowerCase() };
+        // Custom recipient name flows into the description (#10).
+        const description = desc || (recipientName.trim() ? `To ${recipientName.trim()}` : 'Transfer');
+        const ok = await onTransfer(target, val, description, selWallet);
+        if (!ok) return; // keep the form so the user can correct and retry (#11)
       } else {
-        await onRequest(email, val, desc || 'Request');
+        await onRequest(recipient, val, desc || 'Request');
       }
-      setEmail('');
+      setRecipient('');
+      setRecipientName('');
       setAmt('');
       setDesc('');
     } finally {
@@ -93,16 +120,51 @@ export function ScreenTransfer({ data, onTransfer, onRequest }: TransferProps) {
           </View>
         )}
 
-        {/* Recipient Email */}
+        {/* Saved payees prefill the form (#25) */}
+        {mode === 'send' && (beneficiaries?.length ?? 0) > 0 && (
+          <View>
+            <Text style={styles.label}>Saved payees</Text>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+              <View style={{ flexDirection: 'row', gap: 8 }}>
+                {beneficiaries!.map(b => (
+                  <TouchableOpacity
+                    key={b.id}
+                    onPress={() => { setRecipient(b.email || b.iban || ''); setRecipientName(b.name); setFormError(''); }}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Use payee ${b.name}`}
+                    style={{ paddingVertical: 8, paddingHorizontal: 14, borderRadius: THEME.radius.pill, backgroundColor: THEME.colors.surface2, borderWidth: 1, borderColor: THEME.colors.line }}
+                  >
+                    <Text style={{ color: THEME.colors.text, fontWeight: '600', fontSize: 13 }}>{b.name}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </ScrollView>
+          </View>
+        )}
+
+        {/* Scan to pay (#43) */}
+        {mode === 'send' && (
+          <TouchableOpacity
+            onPress={() => setScanOpen(true)}
+            accessibilityRole="button"
+            accessibilityLabel="Scan a payment QR code"
+            style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 12, borderRadius: THEME.radius.regular, backgroundColor: THEME.colors.accentSoft, borderWidth: 1, borderColor: THEME.colors.accentLine }}
+          >
+            <Icon name="card" size={16} color={THEME.colors.accent} />
+            <Text style={{ color: THEME.colors.accent, fontWeight: '700', fontSize: 14 }}>Scan QR to pay</Text>
+          </TouchableOpacity>
+        )}
+
+        {/* Recipient */}
         <View>
-          <Text style={styles.label}>{mode === 'send' ? 'Recipient email' : 'Payer email'}</Text>
+          <Text style={styles.label}>{mode === 'send' ? 'Recipient email or IBAN' : 'Payer email'}</Text>
           <View style={styles.inputWrapper}>
             <Icon name="user" size={16} color={THEME.colors.text3} style={styles.inputIcon} />
             <TextInput
               style={[styles.input, { paddingLeft: 42 }]}
-              value={email}
-              onChangeText={setEmail}
-              placeholder="name@email.com"
+              value={recipient}
+              onChangeText={v => { setRecipient(v); if (formError) setFormError(''); }}
+              placeholder={mode === 'send' ? 'name@email.com or BE89 …' : 'name@email.com'}
               placeholderTextColor={THEME.colors.text3}
               keyboardType="email-address"
               autoCapitalize="none"
@@ -111,6 +173,20 @@ export function ScreenTransfer({ data, onTransfer, onRequest }: TransferProps) {
             />
           </View>
         </View>
+
+        {/* Custom recipient name → description (#10) */}
+        {mode === 'send' && (
+          <View>
+            <Text style={styles.label}>Recipient name (optional)</Text>
+            <TextInput
+              style={styles.input}
+              value={recipientName}
+              onChangeText={setRecipientName}
+              placeholder="Shown in the transaction description"
+              placeholderTextColor={THEME.colors.text3}
+            />
+          </View>
+        )}
 
         {/* Amount */}
         <View>
@@ -137,6 +213,35 @@ export function ScreenTransfer({ data, onTransfer, onRequest }: TransferProps) {
           />
         </View>
 
+        {/* Inline form error (#9/#11) */}
+        {formError !== '' && (
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }} accessibilityLiveRegion="polite">
+            <Icon name="alertTriangle" size={14} color={THEME.colors.neg} />
+            <Text style={{ color: THEME.colors.neg, fontSize: 13, flex: 1 }}>{formError}</Text>
+          </View>
+        )}
+
+        {/* Receive via QR (#43): EPC code others can scan to pay you */}
+        {mode === 'request' && data.wallets[0] && (
+          <View style={{ alignItems: 'center', gap: 10, paddingVertical: 6 }}>
+            <Text style={styles.label}>Or let them scan your QR</Text>
+            <View style={{ backgroundColor: '#ffffff', padding: 14, borderRadius: THEME.radius.lg }}>
+              <QRCode
+                size={170}
+                value={buildEpcQr({
+                  name: `${data.user.firstName} ${data.user.lastName}`,
+                  iban: data.wallets[0].iban,
+                  amount: parseFloat(amt) > 0 ? parseFloat(amt) : undefined,
+                  description: desc || undefined,
+                })}
+              />
+            </View>
+            <Text style={{ color: THEME.colors.text3, fontSize: 12, textAlign: 'center' }}>
+              SEPA QR for {data.wallets[0].iban}{parseFloat(amt) > 0 ? ` · ${money(parseFloat(amt))}` : ''}
+            </Text>
+          </View>
+        )}
+
         {/* Submit button */}
         <TouchableOpacity
           style={[styles.submitBtn, loading && { opacity: 0.7 }]}
@@ -151,11 +256,25 @@ export function ScreenTransfer({ data, onTransfer, onRequest }: TransferProps) {
           </Text>
         </TouchableOpacity>
       </View>
+
+      <QrScanSheet
+        open={scanOpen}
+        onClose={() => setScanOpen(false)}
+        onScanned={p => {
+          // Prefill the whole form from the scanned EPC payload (#43); the
+          // transfer itself rides the receiverIban path.
+          setRecipient(p.iban);
+          setRecipientName(p.name);
+          if (p.amount) setAmt(String(p.amount));
+          if (p.description) setDesc(p.description);
+          setFormError('');
+        }}
+      />
     </ScrollView>
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedSheet(() => StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: THEME.colors.bg,
@@ -298,4 +417,4 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: 'bold',
   },
-});
+}));

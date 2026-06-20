@@ -5,6 +5,7 @@ import helmet from 'helmet';
 import { PrismaClient } from '../generated/prisma/index.js';
 import { publishEvent, requireAuth, extractTokenFromRequest, computeTransactionHash, consumeRabbitQueue, SERVICE_SECRET } from 'shared';
 import { validateSEPAXML } from './sepa-validator.js';
+import { normalizeIban, isValidIbanFormat } from './iban.js';
 
 const prisma = new PrismaClient();
 const app = express();
@@ -592,7 +593,7 @@ app.post('/wallets/simulate-time', requireAuth, async (req, res) => {
     // 2. Loop through all accounts, calculate interest for savings and roodstand/credit lines
     for (const wallet of wallets) {
       if (wallet.type === 'savings' && wallet.interestRate > 0) {
-        // Rente = Saldo * Rentepercentage * (maanden / 12)
+        // Interest = Balance * Rate * (months / 12)
         const interestAmount = parseFloat((wallet.balance * wallet.interestRate * (simulatedMonths / 12)).toFixed(2));
         
         if (interestAmount > 0) {
@@ -734,7 +735,7 @@ app.post('/wallets/simulate-time', requireAuth, async (req, res) => {
     }
 
     res.status(200).json({
-      message: `Tijdsimulatie van ${simulatedMonths} maanden succesvol uitgevoerd.`,
+      message: `Time simulation of ${simulatedMonths} months completed successfully.`,
       updatedAccounts: updatedWallets
     });
 
@@ -859,21 +860,32 @@ app.post('/wallets/deposit', requireAuth, async (req, res) => {
 
 app.get('/transactions', requireAuth, async (req, res) => {
   const userId = (req as any).user.userId;
+  const { from, to, minAmount, maxAmount, walletId } = req.query;
 
   try {
-    // 1. Get all wallets of the user
-    const wallets = await prisma.wallet.findMany({
-      where: { userId }
-    });
+    const wallets = await prisma.wallet.findMany({ where: { userId } });
     const walletIds = wallets.map(w => w.id);
 
-    // 2. Get all transactions involving these wallets
+    const dateFilter: any = {};
+    if (from) dateFilter.gte = new Date(from as string);
+    if (to) dateFilter.lte = new Date(to as string);
+
+    const amountFilter: any = {};
+    if (minAmount) amountFilter.gte = parseFloat(minAmount as string);
+    if (maxAmount) amountFilter.lte = parseFloat(maxAmount as string);
+
+    const targetWalletIds = walletId && walletIds.includes(walletId as string)
+      ? [walletId as string]
+      : walletIds;
+
     const transactions = await prisma.transaction.findMany({
       where: {
         OR: [
-          { senderWalletId: { in: walletIds } },
-          { receiverWalletId: { in: walletIds } }
-        ]
+          { senderWalletId: { in: targetWalletIds } },
+          { receiverWalletId: { in: targetWalletIds } }
+        ],
+        ...(Object.keys(dateFilter).length > 0 && { createdAt: dateFilter }),
+        ...(Object.keys(amountFilter).length > 0 && { amount: amountFilter })
       },
       orderBy: { createdAt: 'desc' }
     });
@@ -979,15 +991,23 @@ app.post('/transactions/own-transfer', requireAuth, async (req, res) => {
 
 // P2P Transfer (Atomically) — with idempotency + integrity hash + auto-receipt
 app.post('/transactions/transfer', requireAuth, async (req, res) => {
-  const { senderWalletId, receiverEmail, amount, description } = req.body;
+  const { senderWalletId, receiverEmail, receiverIban, amount, description } = req.body;
   const userId = (req as any).user.userId;
 
-  if (!senderWalletId || !receiverEmail || !amount || amount <= 0) {
-    return res.status(400).json({ error: 'Invalid transfer details' });
+  // Every request and every rejection is logged — a transfer that fails must
+  // never be silent on the server (#11).
+  console.log(`[Wallet Service] Transfer request: sender=${senderWalletId} target=${receiverEmail || receiverIban || '(none)'} amount=${amount}`);
+  const reject = (status: number, error: string) => {
+    console.warn(`[Wallet Service] Transfer rejected (${status}): ${error}`);
+    return res.status(status).json({ error });
+  };
+
+  if (!senderWalletId || (!receiverEmail && !receiverIban) || !amount || amount <= 0) {
+    return reject(400, 'Invalid transfer details');
   }
 
   if (amount > 1_000_000) {
-    return res.status(400).json({ error: 'Maximum single transfer is €1,000,000' });
+    return reject(400, 'Maximum single transfer is €1,000,000');
   }
 
   // Idempotency check
@@ -1006,7 +1026,7 @@ app.post('/transactions/transfer', requireAuth, async (req, res) => {
   });
 
   if (recentTx) {
-    return res.status(409).json({ error: 'Duplicate transaction detected. Please wait 10 seconds.' });
+    return reject(409, 'Duplicate transaction detected. Please wait 10 seconds.');
   }
 
   try {
@@ -1015,8 +1035,8 @@ app.post('/transactions/transfer', requireAuth, async (req, res) => {
       where: { id: senderWalletId },
       include: { creditLine: true }
     });
-    if (!senderWallet) return res.status(404).json({ error: 'Sender wallet not found' });
-    if (senderWallet.userId !== userId) return res.status(403).json({ error: 'Unauthorized to spend from this wallet' });
+    if (!senderWallet) return reject(404, 'Sender wallet not found');
+    if (senderWallet.userId !== userId) return reject(403, 'Unauthorized to spend from this wallet');
 
     let availableCredit = 0.0;
     if (senderWallet.creditLine && ['active', 'suspended'].includes(senderWallet.creditLine.status)) {
@@ -1024,37 +1044,55 @@ app.post('/transactions/transfer', requireAuth, async (req, res) => {
     }
 
     if (senderWallet.balance + availableCredit < amount) {
-      return res.status(400).json({ error: 'Insufficient balance' });
+      return reject(400, 'Insufficient balance');
     }
 
-    // 2. Find receiver via Account Service
-    let receiverUserId: string | null = null;
-    try {
-      const response = await fetch(`${ACCOUNT_SERVICE_URL}/users/profile-by-email?email=${encodeURIComponent(receiverEmail)}`, { headers: { 'X-Service-Secret': SERVICE_SECRET } });
-      if (response.ok) {
-        const data = await response.json();
-        receiverUserId = data.id;
+    // 2. Resolve the receiver wallet — by IBAN directly, or by email via the
+    // Account Service (#9: transfers now also accept an IBAN target).
+    let receiverWallet: { id: string; userId: string; currency: string; iban: string } | null = null;
+
+    if (receiverIban) {
+      const iban = normalizeIban(receiverIban);
+      if (!isValidIbanFormat(iban)) {
+        return reject(400, 'Invalid IBAN format');
       }
-    } catch (err: any) {
-      console.error('[Wallet Service] Failed to call Account Service to resolve email:', err.message);
-    }
+      receiverWallet = await prisma.wallet.findUnique({ where: { iban } });
+      if (!receiverWallet) {
+        return reject(404, 'No FinVault wallet found for this IBAN');
+      }
+      if (receiverWallet.currency !== senderWallet.currency) {
+        return reject(400, 'Receiver wallet uses a different currency');
+      }
+    } else {
+      let receiverUserId: string | null = null;
+      try {
+        const response = await fetch(`${ACCOUNT_SERVICE_URL}/users/profile-by-email?email=${encodeURIComponent(receiverEmail)}`, { headers: { 'X-Service-Secret': SERVICE_SECRET } });
+        if (response.ok) {
+          const data = await response.json();
+          receiverUserId = data.id;
+        }
+      } catch (err: any) {
+        console.error('[Wallet Service] Failed to call Account Service to resolve email:', err.message);
+      }
 
-    if (!receiverUserId) {
-      return res.status(404).json({ error: `No FinVault account found for email: ${receiverEmail}` });
-    }
+      if (!receiverUserId) {
+        return reject(404, `No FinVault account found for email: ${receiverEmail}`);
+      }
 
-    // 3. Find receiver wallet
-    const receiverWallet = await prisma.wallet.findFirst({
-      where: { userId: receiverUserId, currency: senderWallet.currency }
-    });
+      receiverWallet = await prisma.wallet.findFirst({
+        where: { userId: receiverUserId, currency: senderWallet.currency }
+      });
 
-    if (!receiverWallet) {
-      return res.status(404).json({ error: 'Receiver has no matching wallet for this currency' });
+      if (!receiverWallet) {
+        return reject(404, 'Receiver has no matching wallet for this currency');
+      }
     }
 
     if (senderWallet.id === receiverWallet.id) {
-      return res.status(400).json({ error: 'Cannot transfer to the same wallet' });
+      return reject(400, 'Cannot transfer to the same wallet');
     }
+
+    const targetLabel = receiverEmail || receiverWallet.iban;
 
     const reference = `TX-${Math.random().toString(36).substring(2, 9).toUpperCase()}`;
 
@@ -1085,7 +1123,7 @@ app.post('/transactions/transfer', requireAuth, async (req, res) => {
           currency: senderWallet.currency,
           status: 'confirmed',
           type: 'transfer',
-          description: description || `Transfer to ${receiverEmail}`,
+          description: description || `Transfer to ${targetLabel}`,
           integrityHash
         }
       });
@@ -1096,7 +1134,7 @@ app.post('/transactions/transfer', requireAuth, async (req, res) => {
           walletId: senderWallet.id,
           amount: -amount,
           balanceAfter: debitRes.newBalance,
-          reason: description || `Transfer to ${receiverEmail}`
+          reason: description || `Transfer to ${targetLabel}`
         }
       });
 
@@ -1154,11 +1192,26 @@ app.post('/transactions/transfer', requireAuth, async (req, res) => {
       payerUserId: senderWallet.userId,
       payeeUserId: receiverWallet.userId,
       payerEmail: (req as any).user.email,
-      payeeEmail: receiverEmail,
+      payeeEmail: receiverEmail || receiverWallet.iban,
       amount,
       currency: senderWallet.currency,
-      description: description || `Transfer to ${receiverEmail}`
+      description: description || `Transfer to ${targetLabel}`
     });
+
+    // Remember the payee for the next transfer (#25) — best effort, the
+    // frontends send descriptions like "To <name>".
+    const payeeName = (description || '').replace(/^To /, '').trim() || targetLabel;
+    prisma.beneficiary.upsert({
+      where: receiverEmail
+        ? { userId_email: { userId, email: String(receiverEmail).toLowerCase() } }
+        : { userId_iban: { userId, iban: normalizeIban(receiverIban) } },
+      update: { lastUsedAt: new Date() },
+      create: {
+        userId, name: payeeName,
+        email: receiverEmail ? String(receiverEmail).toLowerCase() : null,
+        iban: receiverEmail ? null : normalizeIban(receiverIban),
+      },
+    }).catch((e: any) => console.warn('[Wallet Service] Beneficiary upsert failed:', e.message));
 
     const responseBody = { message: 'Transfer successful', transaction };
     await storeIdempotencyResult(req.headers['x-idempotency-key'] as string, 200, responseBody);
@@ -1725,6 +1778,75 @@ app.put('/cards/:id/limit', requireAuth, async (req, res) => {
   }
 });
 
+app.put('/cards/:id/controls', requireAuth, async (req, res) => {
+  const userId = (req as any).user.userId;
+  const { id } = req.params;
+  const { contactlessEnabled, foreignEnabled, cashWithdrawalEnabled } = req.body;
+  try {
+    const card = await prisma.card.findFirst({ where: { id, wallet: { userId } } });
+    if (!card) return res.status(404).json({ error: 'Card not found' });
+
+    const data: Record<string, boolean> = {};
+    if (typeof contactlessEnabled === 'boolean') data.contactlessEnabled = contactlessEnabled;
+    if (typeof foreignEnabled === 'boolean') data.foreignEnabled = foreignEnabled;
+    if (typeof cashWithdrawalEnabled === 'boolean') data.cashWithdrawalEnabled = cashWithdrawalEnabled;
+
+    const updated = await prisma.card.update({ where: { id }, data });
+    res.status(200).json(updated);
+  } catch (error: any) {
+    res.status(500).json({ error: 'Failed to update card controls', message: error.message });
+  }
+});
+
+// ---- Beneficiaries (#25): saved payees for the transfer flow ----
+app.get('/beneficiaries', requireAuth, async (req, res) => {
+  const userId = (req as any).user.userId;
+  try {
+    const list = await prisma.beneficiary.findMany({ where: { userId }, orderBy: { lastUsedAt: 'desc' } });
+    res.json(list);
+  } catch (error: any) {
+    res.status(500).json({ error: 'Failed to load beneficiaries', message: error.message });
+  }
+});
+
+app.post('/beneficiaries', requireAuth, async (req, res) => {
+  const userId = (req as any).user.userId;
+  const { name, email, iban } = req.body;
+  if (!name || String(name).trim() === '' || (!email && !iban) || (email && iban)) {
+    return res.status(400).json({ error: 'Provide a name and exactly one of email or IBAN' });
+  }
+  if (iban && !isValidIbanFormat(normalizeIban(iban))) {
+    return res.status(400).json({ error: 'Invalid IBAN format' });
+  }
+  try {
+    const cleanName = String(name).trim();
+    const cleanEmail = email ? String(email).trim().toLowerCase() : null;
+    const cleanIban = iban ? normalizeIban(iban) : null;
+    const saved = await prisma.beneficiary.upsert({
+      where: cleanEmail
+        ? { userId_email: { userId, email: cleanEmail } }
+        : { userId_iban: { userId, iban: cleanIban! } },
+      update: { name: cleanName, lastUsedAt: new Date() },
+      create: { userId, name: cleanName, email: cleanEmail, iban: cleanIban },
+    });
+    res.status(201).json(saved);
+  } catch (error: any) {
+    res.status(500).json({ error: 'Failed to save beneficiary', message: error.message });
+  }
+});
+
+app.delete('/beneficiaries/:id', requireAuth, async (req, res) => {
+  const userId = (req as any).user.userId;
+  try {
+    const b = await prisma.beneficiary.findUnique({ where: { id: req.params.id } });
+    if (!b || b.userId !== userId) return res.status(404).json({ error: 'Beneficiary not found' });
+    await prisma.beneficiary.delete({ where: { id: b.id } });
+    res.status(204).end();
+  } catch (error: any) {
+    res.status(500).json({ error: 'Failed to delete beneficiary', message: error.message });
+  }
+});
+
 app.get('/goals', requireAuth, async (req, res) => {
   const userId = (req as any).user.userId;
   try {
@@ -2035,6 +2157,379 @@ app.delete('/goals/:id', requireAuth, async (req, res) => {
     res.status(200).json({ status: 'deleted' });
   } catch (error: any) {
     res.status(500).json({ error: 'Failed to delete goal', message: error.message });
+  }
+});
+
+// =============================================
+// Scheduled Payments
+// =============================================
+app.get('/scheduled-payments', requireAuth, async (req, res) => {
+  const userId = (req as any).user.userId;
+  try {
+    const payments = await prisma.scheduledPayment.findMany({
+      where: { userId },
+      orderBy: { nextRunAt: 'asc' }
+    });
+    res.status(200).json(payments);
+  } catch (error: any) {
+    res.status(500).json({ error: 'Failed to retrieve scheduled payments', message: error.message });
+  }
+});
+
+app.post('/scheduled-payments', requireAuth, async (req, res) => {
+  const userId = (req as any).user.userId;
+  const { sourceWalletId, targetEmail, targetIban, targetName, amount, currency, description, frequency, nextRunAt } = req.body;
+
+  if (!sourceWalletId || !amount || amount <= 0 || !frequency || !nextRunAt) {
+    return res.status(400).json({ error: 'sourceWalletId, amount, frequency, and nextRunAt are required' });
+  }
+  if (!targetEmail && !targetIban) {
+    return res.status(400).json({ error: 'Either targetEmail or targetIban is required' });
+  }
+  if (!['once', 'daily', 'weekly', 'monthly'].includes(frequency)) {
+    return res.status(400).json({ error: 'frequency must be one of: once, daily, weekly, monthly' });
+  }
+
+  try {
+    const wallet = await prisma.wallet.findUnique({ where: { id: sourceWalletId } });
+    if (!wallet || wallet.userId !== userId) {
+      return res.status(404).json({ error: 'Source wallet not found' });
+    }
+
+    const payment = await prisma.scheduledPayment.create({
+      data: {
+        userId,
+        sourceWalletId,
+        targetEmail: targetEmail || null,
+        targetIban: targetIban || null,
+        targetName: targetName || '',
+        amount,
+        currency: currency || 'EUR',
+        description: description || '',
+        frequency,
+        nextRunAt: new Date(nextRunAt)
+      }
+    });
+    res.status(201).json(payment);
+  } catch (error: any) {
+    res.status(500).json({ error: 'Failed to create scheduled payment', message: error.message });
+  }
+});
+
+app.put('/scheduled-payments/:id', requireAuth, async (req, res) => {
+  const userId = (req as any).user.userId;
+  const { id } = req.params;
+  const { status } = req.body;
+
+  if (!status || !['active', 'paused', 'completed'].includes(status)) {
+    return res.status(400).json({ error: 'status must be one of: active, paused, completed' });
+  }
+
+  try {
+    const existing = await prisma.scheduledPayment.findUnique({ where: { id } });
+    if (!existing || existing.userId !== userId) {
+      return res.status(404).json({ error: 'Scheduled payment not found' });
+    }
+
+    const updated = await prisma.scheduledPayment.update({
+      where: { id },
+      data: { status }
+    });
+    res.status(200).json(updated);
+  } catch (error: any) {
+    res.status(500).json({ error: 'Failed to update scheduled payment', message: error.message });
+  }
+});
+
+app.delete('/scheduled-payments/:id', requireAuth, async (req, res) => {
+  const userId = (req as any).user.userId;
+  const { id } = req.params;
+
+  try {
+    const existing = await prisma.scheduledPayment.findUnique({ where: { id } });
+    if (!existing || existing.userId !== userId) {
+      return res.status(404).json({ error: 'Scheduled payment not found' });
+    }
+
+    await prisma.scheduledPayment.delete({ where: { id } });
+    res.status(200).json({ status: 'deleted' });
+  } catch (error: any) {
+    res.status(500).json({ error: 'Failed to delete scheduled payment', message: error.message });
+  }
+});
+
+// =============================================
+// Budgets
+// =============================================
+app.get('/budgets', requireAuth, async (req, res) => {
+  const userId = (req as any).user.userId;
+  const month = (req.query.month as string) || new Date().toISOString().slice(0, 7);
+  try {
+    const budgets = await prisma.budget.findMany({
+      where: { userId, month },
+      orderBy: { category: 'asc' }
+    });
+    res.status(200).json(budgets);
+  } catch (error: any) {
+    res.status(500).json({ error: 'Failed to retrieve budgets', message: error.message });
+  }
+});
+
+app.post('/budgets', requireAuth, async (req, res) => {
+  const userId = (req as any).user.userId;
+  const { category, monthlyLimit, alertThreshold, month } = req.body;
+
+  if (!category || !monthlyLimit || monthlyLimit <= 0) {
+    return res.status(400).json({ error: 'category and a positive monthlyLimit are required' });
+  }
+
+  const budgetMonth = month || new Date().toISOString().slice(0, 7);
+
+  try {
+    const budget = await prisma.budget.upsert({
+      where: { userId_category_month: { userId, category, month: budgetMonth } },
+      update: { monthlyLimit, alertThreshold: alertThreshold ?? 0.8 },
+      create: {
+        userId,
+        category,
+        monthlyLimit,
+        alertThreshold: alertThreshold ?? 0.8,
+        month: budgetMonth
+      }
+    });
+    res.status(201).json(budget);
+  } catch (error: any) {
+    res.status(500).json({ error: 'Failed to create/update budget', message: error.message });
+  }
+});
+
+app.delete('/budgets/:id', requireAuth, async (req, res) => {
+  const userId = (req as any).user.userId;
+  const { id } = req.params;
+  try {
+    const existing = await prisma.budget.findUnique({ where: { id } });
+    if (!existing || existing.userId !== userId) {
+      return res.status(404).json({ error: 'Budget not found' });
+    }
+    await prisma.budget.delete({ where: { id } });
+    res.status(200).json({ status: 'deleted' });
+  } catch (error: any) {
+    res.status(500).json({ error: 'Failed to delete budget', message: error.message });
+  }
+});
+
+// =============================================
+// Notifications
+// =============================================
+app.get('/notifications', requireAuth, async (req, res) => {
+  const userId = (req as any).user.userId;
+  try {
+    const notifications = await prisma.notification.findMany({
+      where: { userId },
+      orderBy: { createdAt: 'desc' },
+      take: 50
+    });
+    res.status(200).json(notifications);
+  } catch (error: any) {
+    res.status(500).json({ error: 'Failed to retrieve notifications', message: error.message });
+  }
+});
+
+app.put('/notifications/:id/read', requireAuth, async (req, res) => {
+  const userId = (req as any).user.userId;
+  const { id } = req.params;
+  try {
+    const existing = await prisma.notification.findUnique({ where: { id } });
+    if (!existing || existing.userId !== userId) {
+      return res.status(404).json({ error: 'Notification not found' });
+    }
+    const updated = await prisma.notification.update({
+      where: { id },
+      data: { read: true }
+    });
+    res.status(200).json(updated);
+  } catch (error: any) {
+    res.status(500).json({ error: 'Failed to mark notification as read', message: error.message });
+  }
+});
+
+app.put('/notifications/read-all', requireAuth, async (req, res) => {
+  const userId = (req as any).user.userId;
+  try {
+    await prisma.notification.updateMany({
+      where: { userId, read: false },
+      data: { read: true }
+    });
+    res.status(200).json({ status: 'all read' });
+  } catch (error: any) {
+    res.status(500).json({ error: 'Failed to mark all as read', message: error.message });
+  }
+});
+
+// =============================================
+// Disputes
+// =============================================
+app.get('/disputes', requireAuth, async (req, res) => {
+  const userId = (req as any).user.userId;
+  try {
+    const disputes = await prisma.dispute.findMany({
+      where: { userId },
+      orderBy: { createdAt: 'desc' }
+    });
+    res.status(200).json(disputes);
+  } catch (error: any) {
+    res.status(500).json({ error: 'Failed to retrieve disputes', message: error.message });
+  }
+});
+
+app.post('/disputes', requireAuth, async (req, res) => {
+  const userId = (req as any).user.userId;
+  const { transactionId, reason } = req.body;
+
+  if (!transactionId || !reason) {
+    return res.status(400).json({ error: 'transactionId and reason are required' });
+  }
+
+  try {
+    const wallets = await prisma.wallet.findMany({ where: { userId } });
+    const walletIds = wallets.map(w => w.id);
+    const tx = await prisma.transaction.findUnique({ where: { id: transactionId } });
+    if (!tx || (!walletIds.includes(tx.senderWalletId || '') && !walletIds.includes(tx.receiverWalletId || ''))) {
+      return res.status(404).json({ error: 'Transaction not found' });
+    }
+
+    const existing = await prisma.dispute.findFirst({ where: { transactionId, userId } });
+    if (existing) {
+      return res.status(409).json({ error: 'A dispute already exists for this transaction' });
+    }
+
+    const dispute = await prisma.dispute.create({
+      data: { userId, transactionId, reason }
+    });
+
+    await prisma.notification.create({
+      data: {
+        userId,
+        title: 'Dispute opened',
+        body: `Your dispute for transaction ${tx.reference} has been received and is under review.`
+      }
+    });
+
+    res.status(201).json(dispute);
+  } catch (error: any) {
+    res.status(500).json({ error: 'Failed to create dispute', message: error.message });
+  }
+});
+
+// =============================================
+// FX Exchange
+// =============================================
+const FX_RATES: Record<string, Record<string, number>> = {
+  EUR: { USD: 1.08, GBP: 0.86, CHF: 0.97, JPY: 162.5, SEK: 11.42, NOK: 11.65, DKK: 7.46, PLN: 4.33, CZK: 25.2, TRY: 34.8 },
+  USD: { EUR: 0.93, GBP: 0.80, CHF: 0.90, JPY: 150.5 },
+  GBP: { EUR: 1.16, USD: 1.25, CHF: 1.13, JPY: 189.0 },
+};
+
+app.get('/fx/rates', requireAuth, async (_req, res) => {
+  res.status(200).json(FX_RATES);
+});
+
+app.post('/fx/exchange', requireAuth, async (req, res) => {
+  const userId = (req as any).user.userId;
+  const { fromWalletId, toWalletId, amount, fromCurrency, toCurrency } = req.body;
+
+  if (!fromWalletId || !toWalletId || !amount || amount <= 0 || !fromCurrency || !toCurrency) {
+    return res.status(400).json({ error: 'fromWalletId, toWalletId, amount, fromCurrency, and toCurrency are required' });
+  }
+
+  const rates = FX_RATES[fromCurrency];
+  if (!rates || !rates[toCurrency]) {
+    return res.status(400).json({ error: `Exchange rate not available for ${fromCurrency} → ${toCurrency}` });
+  }
+
+  const rate = rates[toCurrency];
+  const convertedAmount = parseFloat((amount * rate).toFixed(2));
+
+  try {
+    const [fromWallet, toWallet] = await Promise.all([
+      prisma.wallet.findUnique({ where: { id: fromWalletId } }),
+      prisma.wallet.findUnique({ where: { id: toWalletId } }),
+    ]);
+
+    if (!fromWallet || fromWallet.userId !== userId) return res.status(404).json({ error: 'Source wallet not found' });
+    if (!toWallet || toWallet.userId !== userId) return res.status(404).json({ error: 'Destination wallet not found' });
+    if (fromWallet.balance < amount) return res.status(400).json({ error: 'Insufficient balance' });
+
+    const ref = `FX-${Math.random().toString(36).substring(2, 9).toUpperCase()}`;
+    const newFromBal = parseFloat((fromWallet.balance - amount).toFixed(2));
+    const newToBal = parseFloat((toWallet.balance + convertedAmount).toFixed(2));
+
+    await prisma.$transaction([
+      prisma.wallet.update({ where: { id: fromWalletId }, data: { balance: newFromBal } }),
+      prisma.wallet.update({ where: { id: toWalletId }, data: { balance: newToBal } }),
+      prisma.transaction.create({
+        data: {
+          reference: ref,
+          senderWalletId: fromWalletId,
+          receiverWalletId: toWalletId,
+          amount,
+          currency: fromCurrency,
+          status: 'confirmed',
+          type: 'transfer',
+          description: `FX exchange: ${amount} ${fromCurrency} → ${convertedAmount} ${toCurrency} @ ${rate}`
+        }
+      }),
+      prisma.balanceHistory.create({ data: { walletId: fromWalletId, amount: -amount, balanceAfter: newFromBal, reason: `FX exchange to ${toCurrency}` } }),
+      prisma.balanceHistory.create({ data: { walletId: toWalletId, amount: convertedAmount, balanceAfter: newToBal, reason: `FX exchange from ${fromCurrency}` } }),
+    ]);
+
+    res.status(200).json({ reference: ref, rate, fromAmount: amount, toAmount: convertedAmount, fromCurrency, toCurrency });
+  } catch (error: any) {
+    res.status(500).json({ error: 'Exchange failed', message: error.message });
+  }
+});
+
+// =============================================
+// Round-up Savings
+// =============================================
+app.post('/goals/:id/round-up', requireAuth, async (req, res) => {
+  const userId = (req as any).user.userId;
+  const { id } = req.params;
+  const { transactionAmount } = req.body;
+
+  if (!transactionAmount || transactionAmount <= 0) {
+    return res.status(400).json({ error: 'transactionAmount is required' });
+  }
+
+  const roundUp = parseFloat((Math.ceil(transactionAmount) - transactionAmount).toFixed(2));
+  if (roundUp === 0) {
+    return res.status(200).json({ roundUp: 0, message: 'No round-up needed' });
+  }
+
+  try {
+    const goal = await prisma.savingsGoal.findUnique({ where: { id } });
+    if (!goal || goal.userId !== userId) return res.status(404).json({ error: 'Goal not found' });
+
+    const checkingWallet = await prisma.wallet.findFirst({ where: { userId, type: 'checking', status: 'active' } });
+    const savingsWallet = await prisma.wallet.findFirst({ where: { userId, type: 'savings', status: 'active' } });
+    if (!checkingWallet || !savingsWallet) return res.status(400).json({ error: 'Checking or savings wallet not found' });
+    if (checkingWallet.balance < roundUp) return res.status(400).json({ error: 'Insufficient balance for round-up' });
+
+    const newCheckBal = parseFloat((checkingWallet.balance - roundUp).toFixed(2));
+    const newSavBal = parseFloat((savingsWallet.balance + roundUp).toFixed(2));
+    const newSaved = parseFloat((goal.saved + roundUp).toFixed(2));
+
+    await prisma.$transaction([
+      prisma.wallet.update({ where: { id: checkingWallet.id }, data: { balance: newCheckBal } }),
+      prisma.wallet.update({ where: { id: savingsWallet.id }, data: { balance: newSavBal } }),
+      prisma.savingsGoal.update({ where: { id }, data: { saved: newSaved } }),
+      prisma.balanceHistory.create({ data: { walletId: checkingWallet.id, amount: -roundUp, balanceAfter: newCheckBal, reason: `Round-up to ${goal.name}` } }),
+      prisma.balanceHistory.create({ data: { walletId: savingsWallet.id, amount: roundUp, balanceAfter: newSavBal, reason: `Round-up to ${goal.name}` } }),
+    ]);
+
+    res.status(200).json({ roundUp, newSaved, goalTarget: goal.target });
+  } catch (error: any) {
+    res.status(500).json({ error: 'Round-up failed', message: error.message });
   }
 });
 

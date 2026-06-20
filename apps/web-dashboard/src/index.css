@@ -1,12 +1,32 @@
 /* ============================================================
-   FinVault — Theme system
-   Tokens driven by data-attributes on <html>:
-     data-mode      dark | light
-     data-radius    sharp | soft | round
-     data-density   compact | regular | comfy
-     data-card      flat | outline | elevated | glass
+   FinVault — Web theme system (the single CSS entry)
+
+   TOKEN CONTRACT
+   ──────────────
+   Inputs (written onto <html> by src/theme.ts):
+     --accent-h/-c/-l   OKLCH components of the chosen accent
+     --on-accent        text/icon color on accent fills
+     --font-display/-body/-num
+     data-mode          dark | light        → §2 palettes
+     data-radius        sharp | soft | round → §3 axes
+     data-density       compact | regular | comfy
+     data-card          flat | outline | elevated | glass
+
+   Derived (never set from JS — defined in §1/§2 only):
+     --accent / -hi / -lo / -soft / -line   accent family
+     --bg / --bg-grad / --surface / -2 / -hi  canvas + surfaces
+     --line / --line-2                      hairlines
+     --text / -2 / -3                       type hierarchy
+     --pos / --neg / --warn                 semantic money colors
+     --shadow / --shadow-sm / --glass-bg
+     --r-xs … --r-pill                      radius scale
+     --gap / --gap-lg / --pad / --pad-lg / --row-h
+
+   Layers: 1 primitives · 2 mode palettes · 3 style axes · 4 base
+           · 5 components · 6 motion · 7 accessibility
    ============================================================ */
 
+/* ── 1. PRIMITIVES — accent inputs + fonts (defaults; theme.ts overrides) ── */
 :root {
   --accent-h: 158;
   --accent-c: 0.12;
@@ -23,6 +43,12 @@
   --accent-lo: oklch(calc(var(--accent-l) - 0.08) var(--accent-c) var(--accent-h));
   --accent-soft: oklch(var(--accent-l) var(--accent-c) var(--accent-h) / 0.13);
   --accent-line: oklch(var(--accent-l) var(--accent-c) var(--accent-h) / 0.32);
+  /* accent as *text* on app surfaces — light mode darkens it (see §2) */
+  --accent-ink: var(--accent);
+
+  /* category hue colors (Avatar/CategoryIcon/charts) — per-mode lightness */
+  --cat-l: 0.68;
+  --cat-soft-a: 0.16;
 
   /* semantic money colors */
   --pos: oklch(0.72 0.15 158);
@@ -32,7 +58,8 @@
   color-scheme: dark;
 }
 
-/* ---------- DARK (default) ---------- */
+/* ── 2. MODE PALETTES ───────────────────────────────────────── */
+/* dark (default) */
 :root,
 [data-mode="dark"] {
   --bg: oklch(0.165 0.012 265);
@@ -52,7 +79,7 @@
   color-scheme: dark;
 }
 
-/* ---------- LIGHT ---------- */
+/* light */
 [data-mode="light"] {
   --bg: oklch(0.965 0.006 95);
   --bg-grad: oklch(0.93 0.009 95);
@@ -70,19 +97,27 @@
   --pos: oklch(0.58 0.15 158);
   --neg: oklch(0.56 0.20 22);
   --warn: oklch(0.70 0.15 70);
+  /* Light accents (notably amber, l=0.74) are too pale on a light canvas:
+     clamp fill lightness and derive a darker ink for accent-colored text. */
+  --accent: oklch(min(var(--accent-l), 0.66) var(--accent-c) var(--accent-h));
+  --accent-hi: oklch(calc(min(var(--accent-l), 0.66) + 0.08) var(--accent-c) var(--accent-h));
+  --accent-lo: oklch(calc(min(var(--accent-l), 0.66) - 0.08) var(--accent-c) var(--accent-h));
+  --accent-ink: oklch(min(calc(var(--accent-l) - 0.14), 0.52) var(--accent-c) var(--accent-h));
+  --cat-l: 0.54;
+  --cat-soft-a: 0.12;
   color-scheme: light;
 }
 
-/* ---------- RADIUS ---------- */
+/* ── 3. STYLE AXES — radius / density ──────────────────────── */
 [data-radius="sharp"]  { --r-xs: 2px;  --r-sm: 3px;  --r: 5px;   --r-lg: 7px;   --r-xl: 9px;  --r-pill: 7px; }
 [data-radius="soft"]   { --r-xs: 5px;  --r-sm: 8px;  --r: 12px;  --r-lg: 16px;  --r-xl: 22px; --r-pill: 999px; }
 [data-radius="round"]  { --r-xs: 9px;  --r-sm: 14px; --r: 20px;  --r-lg: 26px;  --r-xl: 34px; --r-pill: 999px; }
 
-/* ---------- DENSITY ---------- */
 [data-density="compact"] { --gap: 12px; --gap-lg: 16px; --pad: 14px; --pad-lg: 18px; --row-h: 52px; --scale: 0.94; }
 [data-density="regular"] { --gap: 16px; --gap-lg: 22px; --pad: 20px; --pad-lg: 26px; --row-h: 64px; --scale: 1; }
 [data-density="comfy"]   { --gap: 22px; --gap-lg: 30px; --pad: 26px; --pad-lg: 34px; --row-h: 74px; --scale: 1.05; }
 
+/* ── 4. BASE — reset, document, type helpers, scrollbar ─────── */
 * { box-sizing: border-box; margin: 0; padding: 0; }
 
 html, body, #root {
@@ -111,14 +146,24 @@ body {
 .num { font-family: var(--font-num); font-variant-numeric: tabular-nums; font-feature-settings: "tnum"; letter-spacing: -0.01em; }
 .display { font-family: var(--font-display); letter-spacing: -0.025em; }
 
+::selection { background: var(--accent); color: var(--on-accent); }
+
 ::-webkit-scrollbar { width: 9px; height: 9px; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: var(--line-2); border-radius: 99px; border: 2px solid transparent; background-clip: padding-box; }
 ::-webkit-scrollbar-thumb:hover { background: var(--text-3); background-clip: padding-box; }
 
-/* ============================================================
-   CARD — variant driven by data-card
-   ============================================================ */
+/* focus rings */
+.btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.field:focus-visible { outline: none; }
+a:focus-visible, button:focus-visible, [tabindex]:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: var(--r-sm); }
+
+/* utility */
+.hide-scroll { scrollbar-width: none; }
+.hide-scroll::-webkit-scrollbar { display: none; }
+
+/* ── 5. COMPONENTS ──────────────────────────────────────────── */
+/* card — variant driven by data-card */
 .card {
   background: var(--surface);
   border-radius: var(--r-lg);
@@ -130,9 +175,17 @@ body {
 [data-card="elevated"] .card { border-color: var(--line); box-shadow: var(--shadow); }
 [data-card="glass"]    .card { background: var(--glass-bg); backdrop-filter: blur(18px) saturate(1.4); -webkit-backdrop-filter: blur(18px) saturate(1.4); border-color: var(--line-2); box-shadow: var(--shadow-sm); }
 
-/* ============================================================
-   BUTTONS
-   ============================================================ */
+/* hero card */
+.card-hero { position: relative; overflow: hidden; }
+.card-hero::after {
+  content: '';
+  position: absolute; inset: 0; pointer-events: none; border-radius: inherit;
+  background:
+    radial-gradient(ellipse 65% 90% at 5% 115%, var(--accent-soft) 0%, transparent 55%),
+    radial-gradient(ellipse 45% 55% at 95% -15%, oklch(0.72 0.12 250 / 0.07) 0%, transparent 60%);
+}
+
+/* buttons */
 .btn {
   font-family: var(--font-body);
   font-weight: 600;
@@ -150,11 +203,16 @@ body {
   -webkit-tap-highlight-color: transparent;
 }
 .btn:active { transform: translateY(1px) scale(0.99); }
-.btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-.field:focus-visible { outline: none; }
-a:focus-visible, button:focus-visible, [tabindex]:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: var(--r-sm); }
-.btn-primary { background: var(--accent); color: var(--on-accent); box-shadow: 0 6px 18px -8px var(--accent-line); }
-.btn-primary:hover { background: var(--accent-hi); box-shadow: 0 10px 26px -10px var(--accent-line); }
+.btn-primary {
+  background: linear-gradient(180deg, var(--accent-hi), var(--accent));
+  color: var(--on-accent);
+  box-shadow: 0 6px 18px -8px var(--accent-line), inset 0 1px 0 oklch(1 0 0 / 0.18);
+}
+.btn-primary:hover {
+  background: linear-gradient(180deg, var(--accent-hi), var(--accent-hi));
+  box-shadow: 0 10px 26px -10px var(--accent-line), inset 0 1px 0 oklch(1 0 0 / 0.18);
+  transform: translateY(-1px);
+}
 .btn-ghost { background: var(--surface-2); color: var(--text); border-color: var(--line); }
 .btn-ghost:hover { background: var(--surface-hi); border-color: var(--line-2); }
 .btn-quiet { background: transparent; color: var(--text-2); }
@@ -186,25 +244,11 @@ a:focus-visible, button:focus-visible, [tabindex]:focus-visible { outline: 2px s
   background: var(--surface-2); color: var(--text-2);
   border: 1px solid var(--line);
 }
-.chip-accent { background: var(--accent-soft); color: var(--accent); border-color: var(--accent-line); }
+.chip-accent { background: var(--accent-soft); color: var(--accent-ink); border-color: var(--accent-line); }
 
 .eyebrow { font-size: 0.72rem; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase; color: var(--text-3); }
 
-/* utility */
-.hide-scroll { scrollbar-width: none; }
-.hide-scroll::-webkit-scrollbar { display: none; }
-
-/* ── HERO CARD ─────────────────────────────────────────────────── */
-.card-hero { position: relative; overflow: hidden; }
-.card-hero::after {
-  content: '';
-  position: absolute; inset: 0; pointer-events: none; border-radius: inherit;
-  background:
-    radial-gradient(ellipse 65% 90% at 5% 115%, var(--accent-soft) 0%, transparent 55%),
-    radial-gradient(ellipse 45% 55% at 95% -15%, oklch(0.72 0.12 250 / 0.07) 0%, transparent 60%);
-}
-
-/* ── QUICK ACTION BUTTON ───────────────────────────────────────── */
+/* quick action button */
 .qaction {
   flex: 1; display: flex; flex-direction: column; align-items: center; gap: 9px;
   background: transparent; border: none; cursor: pointer; padding: 14px 6px;
@@ -222,7 +266,7 @@ a:focus-visible, button:focus-visible, [tabindex]:focus-visible { outline: 2px s
 .qaction:hover .qaction__icon { transform: translateY(-3px); }
 .qaction__label { font-size: 0.8rem; font-weight: 600; color: var(--text-2); white-space: nowrap; }
 
-/* ── TRANSACTION ROW ───────────────────────────────────────────── */
+/* transaction row */
 .tx-row {
   display: flex; align-items: center; gap: 14px;
   padding: 10px 8px; border-radius: var(--r);
@@ -230,14 +274,14 @@ a:focus-visible, button:focus-visible, [tabindex]:focus-visible { outline: 2px s
 }
 .tx-row:hover { background: var(--surface-2); }
 
-/* ── STAT TILE ─────────────────────────────────────────────────── */
+/* stat tile */
 .stat-tile {
   flex: 1; display: flex; align-items: center; gap: 12px;
   padding: 14px 16px; border-radius: var(--r); background: var(--surface-2);
   border: 1px solid var(--line);
 }
 
-/* ── NAV ITEM ──────────────────────────────────────────────────── */
+/* nav item */
 .nav-item {
   display: flex; align-items: center; gap: 13px; padding: 10px 14px;
   border-radius: var(--r); cursor: pointer; border: none; text-align: left;
@@ -246,12 +290,13 @@ a:focus-visible, button:focus-visible, [tabindex]:focus-visible { outline: 2px s
   border-left: 3px solid transparent;
 }
 .nav-item.active {
-  background: var(--accent-soft); color: var(--accent);
+  background: var(--accent-soft); color: var(--accent-ink);
   border-left-color: var(--accent);
 }
 .nav-item:not(.active):hover { background: var(--surface-2); color: var(--text); }
 .nav-item:not(.active) { background: transparent; color: var(--text-2); }
 
+/* ── 6. MOTION — keyframes + utility classes ────────────────── */
 @keyframes fvRise      { from { transform: translateY(14px); opacity: 0; } to { transform: none; opacity: 1; } }
 @keyframes fvFade      { from { opacity: 0.35; } to { opacity: 1; } }
 @keyframes fvPop       { 0% { transform: scale(0.92); opacity: 0; } 60% { transform: scale(1.02); } 100% { transform: scale(1); opacity: 1; } }
@@ -265,6 +310,11 @@ a:focus-visible, button:focus-visible, [tabindex]:focus-visible { outline: 2px s
 @keyframes fvFloat     { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-10px); } }
 @keyframes fvGlow      { 0%,100% { box-shadow: 0 0 0 0 var(--accent-line); } 50% { box-shadow: 0 0 28px 6px var(--accent-line); } }
 @keyframes fvSpin      { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+@keyframes fvSlideDown { from { transform: translateY(-12px); opacity: 0; } to { transform: none; opacity: 1; } }
+@keyframes fvBlurIn    { from { opacity: 0; filter: blur(8px); } to { opacity: 1; filter: blur(0); } }
+@keyframes fvShake     { 10%,90% { transform: translateX(-1px); } 20%,80% { transform: translateX(2px); } 30%,50%,70% { transform: translateX(-4px); } 40%,60% { transform: translateX(4px); } }
+@keyframes fvBounceIn  { 0% { transform: scale(0.85); opacity: 0; } 55% { transform: scale(1.04); opacity: 1; } 75% { transform: scale(0.98); } 100% { transform: scale(1); } }
+@keyframes fvGradShift { 0%,100% { background-position: 0% 50%; } 50% { background-position: 100% 50%; } }
 
 .rise        { animation: fvRise .45s cubic-bezier(.22,.9,.3,1) both; }
 .rise-d1     { animation-delay: 60ms; }
@@ -280,12 +330,37 @@ a:focus-visible, button:focus-visible, [tabindex]:focus-visible { outline: 2px s
 .page-enter  { animation: fvPageEnter .38s cubic-bezier(.22,.9,.3,1) both; }
 .float       { animation: fvFloat 5s ease-in-out infinite; }
 .glow-pulse  { animation: fvGlow 2.4s ease-in-out infinite; }
+.slide-down  { animation: fvSlideDown .26s cubic-bezier(.22,.9,.3,1) both; }
+.blur-in     { animation: fvBlurIn .5s ease both; }
+.shake       { animation: fvShake .45s ease; }
+.bounce-in   { animation: fvBounceIn .42s cubic-bezier(.22,.9,.3,1) both; }
 
-/* Card hover lift — Revolut / N26 style */
+/* auto-staggered entrance for list children (55ms steps, first 8) */
+.stagger > * { animation: fvRise .45s cubic-bezier(.22,.9,.3,1) both; }
+.stagger > *:nth-child(2) { animation-delay: 55ms; }
+.stagger > *:nth-child(3) { animation-delay: 110ms; }
+.stagger > *:nth-child(4) { animation-delay: 165ms; }
+.stagger > *:nth-child(5) { animation-delay: 220ms; }
+.stagger > *:nth-child(6) { animation-delay: 275ms; }
+.stagger > *:nth-child(7) { animation-delay: 330ms; }
+.stagger > *:nth-child(n+8) { animation-delay: 385ms; }
+
+/* animated gradient surface (pair with a multi-stop background) */
+.gradient-animate { background-size: 200% 200%; animation: fvGradShift 8s ease-in-out infinite; }
+
+/* runtime theme switch cross-fade — theme.ts toggles .theme-anim on <html>
+   for ~400ms; transitions are scoped to color-ish properties only */
+html.theme-anim body,
+html.theme-anim body * {
+  transition: background-color .35s ease, color .35s ease,
+              border-color .35s ease, box-shadow .35s ease, fill .35s ease !important;
+}
+
+/* card hover lift — Revolut / N26 style */
 .card-lift { transition: transform .22s cubic-bezier(.22,.9,.3,1), box-shadow .22s ease; }
 .card-lift:hover { transform: translateY(-3px); box-shadow: var(--shadow); }
 
-/* Shimmer skeleton */
+/* shimmer skeleton */
 .shimmer {
   background: linear-gradient(90deg, var(--surface) 25%, var(--surface-hi) 50%, var(--surface) 75%);
   background-size: 200% 100%;
@@ -293,9 +368,10 @@ a:focus-visible, button:focus-visible, [tabindex]:focus-visible { outline: 2px s
   border-radius: inherit;
 }
 
-/* Number count-up flash */
+/* number count-up flash */
 .num-flash { animation: fvNumFlash .7s ease forwards; }
 
+/* ── 7. ACCESSIBILITY ───────────────────────────────────────── */
 @media (prefers-reduced-motion: reduce) {
   * { animation-duration: .001ms !important; transition-duration: .04ms !important; }
 }

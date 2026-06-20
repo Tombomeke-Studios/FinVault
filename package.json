@@ -27,11 +27,28 @@
   },
   "devDependencies": {
     "concurrently": "^8.2.2",
+    "cross-env": "^10.1.0",
     "typescript": "^5.3.3",
     "vitest": "^1.6.0"
   },
   "dependencies": {
     "@types/amqplib": "^0.10.8",
-    "amqplib": "^2.0.1"
+    "amqplib": "^2.0.1",
+    "buffer-more-ints": "^1.0.0",
+    "url-parse": "^1.5.10"
+  },
+  "overrides": {
+    "@expo/metro-config": {
+      "expo": "~54.0.35"
+    },
+    "@expo/prebuild-config": {
+      "expo": "~54.0.35"
+    },
+    "expo-asset": {
+      "expo": "~54.0.35"
+    },
+    "expo-constants": {
+      "expo": "~54.0.35"
+    }
   }
 }

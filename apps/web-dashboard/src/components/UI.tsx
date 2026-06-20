@@ -26,8 +26,9 @@ export function dayLabel(ts: number): string {
   return new Date(ts).toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'short' });
 }
 
-export const catColor = (hue: number) => `oklch(0.68 0.13 ${hue})`;
-export const catSoft = (hue: number) => `oklch(0.68 0.13 ${hue} / 0.16)`;
+// Lightness/alpha come from CSS tokens so the hues stay readable in light mode
+export const catColor = (hue: number) => `oklch(var(--cat-l, 0.68) 0.13 ${hue})`;
+export const catSoft = (hue: number) => `oklch(var(--cat-l, 0.68) 0.13 ${hue} / var(--cat-soft-a, 0.16))`;
 
 // ---- Avatar ----
 interface AvatarProps { initials: string; hue?: number; size?: number; }
@@ -37,7 +38,7 @@ export function Avatar({ initials, hue = 265, size = 40 }: AvatarProps) {
       width: size, height: size, borderRadius: 'var(--r-pill)', flexShrink: 0,
       display: 'flex', alignItems: 'center', justifyContent: 'center',
       fontWeight: 700, fontSize: size * 0.36, color: catColor(hue),
-      background: catSoft(hue), border: `1px solid oklch(0.68 0.13 ${hue} / 0.3)`,
+      background: catSoft(hue), border: `1px solid oklch(var(--cat-l, 0.68) 0.13 ${hue} / 0.3)`,
       fontFamily: 'var(--font-display)', letterSpacing: '-0.02em',
     }}>{initials}</div>
   );
@@ -230,7 +231,7 @@ export function Sheet({ open, onClose, children, title, mobile }: SheetProps) {
 interface ToastData { title: string; body?: string; type: 'success' | 'warn' | 'info'; id?: number; }
 export function Toast({ toast, embedded }: { toast: ToastData | null; embedded?: boolean }) {
   if (!toast) return null;
-  const map: Record<string, string> = { success: 'var(--pos)', warn: 'var(--warn)', info: 'var(--accent)' };
+  const map: Record<string, string> = { success: 'var(--pos)', warn: 'var(--warn)', info: 'var(--accent-ink)' };
   return (
     <div style={{
       position: embedded ? 'absolute' : 'fixed', bottom: embedded ? 78 : 24, left: '50%', transform: 'translateX(-50%)', zIndex: 90,
@@ -262,12 +263,15 @@ export function Delta({ value, suffix = '%' }: { value: number; suffix?: string 
 }
 
 // ---- PageHead ----
-export function PageHead({ title, subtitle, action }: { title: string; subtitle?: string; action?: React.ReactNode }) {
+export function PageHead({ title, subtitle, action, back }: { title: string; subtitle?: string; action?: React.ReactNode; back?: () => void }) {
   return (
-    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', gap: 16, flexWrap: 'wrap' }}>
-      <div>
-        <h1 className="display" style={{ fontSize: 'clamp(1.5rem, 3vw, 2rem)', fontWeight: 700 }}>{title}</h1>
-        {subtitle && <p style={{ color: 'var(--text-2)', marginTop: 4 }}>{subtitle}</p>}
+    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', gap: 16, flexWrap: 'wrap', marginBottom: 16 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+        {back && <button onClick={back} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4, color: 'var(--text)' }}><Icon name="arrow-left" size={20} /></button>}
+        <div>
+          <h1 className="display" style={{ fontSize: 'clamp(1.5rem, 3vw, 2rem)', fontWeight: 700 }}>{title}</h1>
+          {subtitle && <p style={{ color: 'var(--text-2)', marginTop: 4 }}>{subtitle}</p>}
+        </div>
       </div>
       {action}
     </div>
