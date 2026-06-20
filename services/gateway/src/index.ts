@@ -4,7 +4,7 @@ import helmet from 'helmet';
 import { createServer } from 'http';
 import { WebSocketServer, WebSocket } from 'ws';
 import { EventEnvelope, verifyToken, publishRabbitEvent } from 'shared';
-import Redis from 'ioredis';
+import { Redis } from 'ioredis';
 
 const PORT = process.env.PORT || 8000;
 const ACCOUNT_SERVICE_URL = process.env.ACCOUNT_SERVICE_URL || 'http://localhost:8001';
