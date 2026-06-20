@@ -391,7 +391,7 @@ export function ScreenSavings({ data, fire, goals, setGoals, wallets, setWallets
           <Text style={styles.label}>Target amount (€)</Text>
           <TextInput style={styles.field} value={editTarget} onChangeText={v => setEditTarget(v.replace(/[^0-9.]/g, ''))} placeholder="0.00" placeholderTextColor={THEME.colors.text3} keyboardType="decimal-pad" />
           <Text style={styles.label}>Due date</Text>
-          <TextInput style={styles.field} value={editDue} onChangeText={setEditDue} placeholder="e.g. Dec 2025, No date" placeholderTextColor={THEME.colors.text3} />
+          <TextInput style={styles.field} value={editDue} onChangeText={setEditDue} placeholder="YYYY-MM-DD" placeholderTextColor={THEME.colors.text3} keyboardType="numbers-and-punctuation" maxLength={10} />
           <Text style={styles.label}>Icon</Text>
           <View style={styles.quickChips}>
             {['plane', 'shield', 'laptop', 'car', 'heart', 'gift', 'globe', 'flame'].map(ic => (

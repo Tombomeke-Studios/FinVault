@@ -263,12 +263,15 @@ export function Delta({ value, suffix = '%' }: { value: number; suffix?: string 
 }
 
 // ---- PageHead ----
-export function PageHead({ title, subtitle, action }: { title: string; subtitle?: string; action?: React.ReactNode }) {
+export function PageHead({ title, subtitle, action, back }: { title: string; subtitle?: string; action?: React.ReactNode; back?: () => void }) {
   return (
-    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', gap: 16, flexWrap: 'wrap' }}>
-      <div>
-        <h1 className="display" style={{ fontSize: 'clamp(1.5rem, 3vw, 2rem)', fontWeight: 700 }}>{title}</h1>
-        {subtitle && <p style={{ color: 'var(--text-2)', marginTop: 4 }}>{subtitle}</p>}
+    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', gap: 16, flexWrap: 'wrap', marginBottom: 16 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+        {back && <button onClick={back} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4, color: 'var(--text)' }}><Icon name="arrow-left" size={20} /></button>}
+        <div>
+          <h1 className="display" style={{ fontSize: 'clamp(1.5rem, 3vw, 2rem)', fontWeight: 700 }}>{title}</h1>
+          {subtitle && <p style={{ color: 'var(--text-2)', marginTop: 4 }}>{subtitle}</p>}
+        </div>
       </div>
       {action}
     </div>

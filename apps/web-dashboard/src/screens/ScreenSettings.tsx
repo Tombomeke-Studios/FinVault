@@ -43,9 +43,10 @@ interface SettingsProps {
   openUpgrade: () => void;
   onLogout: () => void;
   data: AppData;
+  navigate?: (route: string) => void;
 }
 
-export function ScreenSettings({ compact, theme, setTheme, fire, openUpgrade, onLogout, data }: SettingsProps) {
+export function ScreenSettings({ compact, theme, setTheme, fire, openUpgrade, onLogout, data, navigate }: SettingsProps) {
   const [sec, setSec] = useState({ twoFA: true, push: true, email: false, marketing: false });
   const tg = (k: keyof typeof sec) => setSec(s => ({ ...s, [k]: !s[k] }));
 
@@ -139,6 +140,24 @@ export function ScreenSettings({ compact, theme, setTheme, fire, openUpgrade, on
             </div>
           );
         })()}
+      </SCard>
+
+      <SCard title="SERVICES">
+        {[
+          { route: 'security', icon: 'lock', label: 'Security Center', desc: 'Password, sessions' },
+          { route: 'scheduled-payments', icon: 'calendar', label: 'Scheduled Payments', desc: 'Standing orders' },
+          { route: 'budgets', icon: 'bar-chart-2', label: 'Budgets', desc: 'Monthly limits' },
+          { route: 'mandates', icon: 'repeat', label: 'Direct Debits', desc: 'SEPA mandates' },
+          { route: 'invoices', icon: 'file-text', label: 'Invoices & Receipts', desc: 'Payment history' },
+          { route: 'disputes', icon: 'alert-triangle', label: 'Disputes', desc: 'Report transactions' },
+          { route: 'fx-exchange', icon: 'globe', label: 'Currency Exchange', desc: 'FX rates' },
+          { route: 'notifications', icon: 'bell', label: 'Notifications', desc: 'Alerts & updates' },
+        ].map((item, i, arr) => (
+          <SettingRow key={item.route} icon={item.icon} label={item.label} desc={item.desc} last={i === arr.length - 1}
+            onClick={() => navigate?.(item.route)}
+            right={<Icon name="chevron-right" size={16} style={{ color: 'var(--text-3)' }} />}
+          />
+        ))}
       </SCard>
 
       <button onClick={onLogout} className="btn btn-ghost btn-block" style={{ color: 'var(--neg)', borderColor: 'var(--line)' }}><Icon name="logout" size={18} /> Sign out</button>

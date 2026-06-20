@@ -4,6 +4,7 @@ import helmet from 'helmet';
 import { createServer } from 'http';
 import { WebSocketServer, WebSocket } from 'ws';
 import { EventEnvelope, verifyToken, publishRabbitEvent } from 'shared';
+import Redis from 'ioredis';
 
 const PORT = process.env.PORT || 8000;
 const ACCOUNT_SERVICE_URL = process.env.ACCOUNT_SERVICE_URL || 'http://localhost:8001';
@@ -14,8 +15,6 @@ const app = express();
 
 app.use(helmet());
 
-// CORS: open by default for local demo; set CORS_ORIGINS to a comma-separated
-// allowlist (e.g. "https://app.finvault.com,https://admin.finvault.com") in prod.
 const corsOrigins = (process.env.CORS_ORIGINS || '')
   .split(',')
   .map(s => s.trim())
@@ -24,28 +23,48 @@ app.use(cors(corsOrigins.length > 0 ? { origin: corsOrigins } : {}));
 
 app.use(express.json({ limit: '1mb' }));
 
-// Global Gateway Rate Limiter (Max 500 requests per minute per IP for local/Docker testing compatibility)
+// Rate limiter: Redis-backed when REDIS_URL is set, in-memory fallback otherwise.
+let redis: Redis | null = null;
+if (process.env.REDIS_URL) {
+  try {
+    redis = new Redis(process.env.REDIS_URL, { maxRetriesPerRequest: 1, lazyConnect: true });
+    redis.connect().then(() => console.log('[Gateway] Redis rate-limiter connected')).catch(() => { redis = null; console.log('[Gateway] Redis unavailable, falling back to in-memory rate limiter'); });
+  } catch { redis = null; }
+}
+
 const apiAttempts = new Map<string, { count: number; resetAt: number }>();
 setInterval(() => {
   const now = Date.now();
   for (const [k, v] of apiAttempts) if (now > v.resetAt) apiAttempts.delete(k);
 }, 5 * 60 * 1000).unref();
-app.use((req, res, next) => {
-  const ip = req.ip || '127.0.0.1';
-  const now = Date.now();
-  const limit = 500;
-  const windowMs = 60 * 1000;
 
+app.use(async (req, res, next) => {
+  const ip = req.ip || '127.0.0.1';
+  const limit = 500;
+  const windowSec = 60;
+
+  if (redis) {
+    try {
+      const key = `rl:${ip}`;
+      const count = await redis.incr(key);
+      if (count === 1) await redis.expire(key, windowSec);
+      if (count > limit) return res.status(429).json({ error: 'Too many requests. Please try again in a minute.' });
+      return next();
+    } catch {
+      // Redis error — fall through to in-memory
+    }
+  }
+
+  const now = Date.now();
+  const windowMs = windowSec * 1000;
   const record = apiAttempts.get(ip);
   if (!record || now > record.resetAt) {
     apiAttempts.set(ip, { count: 1, resetAt: now + windowMs });
     return next();
   }
-
   if (record.count >= limit) {
     return res.status(429).json({ error: 'Too many requests. Please try again in a minute.' });
   }
-
   record.count += 1;
   next();
 });
@@ -83,6 +102,11 @@ app.use('/api/transactions', proxyTo(WALLET_SERVICE_URL));
 app.use('/api/cards', proxyTo(WALLET_SERVICE_URL));
 app.use('/api/goals', proxyTo(WALLET_SERVICE_URL));
 app.use('/api/beneficiaries', proxyTo(WALLET_SERVICE_URL));
+app.use('/api/scheduled-payments', proxyTo(WALLET_SERVICE_URL));
+app.use('/api/budgets', proxyTo(WALLET_SERVICE_URL));
+app.use('/api/notifications', proxyTo(WALLET_SERVICE_URL));
+app.use('/api/disputes', proxyTo(WALLET_SERVICE_URL));
+app.use('/api/fx', proxyTo(WALLET_SERVICE_URL));
 app.use('/api/invoices', proxyTo(INVOICE_SERVICE_URL, '/invoices'));
 
 // Simple Webhook Registration for Microservices

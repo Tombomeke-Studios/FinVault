@@ -10,14 +10,27 @@ Workflow rules live in [CLAUDE.md](CLAUDE.md#workflow-rules); short version:
   written + this file ticked. Only then start the next item.
 - **Branch group complete → push → PR → CI green** (`validate.yml`). Red PR ≠ done.
 
-## Branch: `feature/biometric-prompt` — active (#62)
+## Branch: `feature/complete-backlog` — active
 
-- [x] Add `hasDismissedBioPrompt`/`setDismissedBioPrompt` to biometrics.ts (#62)
-- [x] MobileSheet prompt after first login in App.tsx (#62)
-- [x] Docs: security.md + CLAUDE.md + TODO.md (#62)
+- [x] Scheduled & recurring payments / standing orders (#26)
+- [x] Transactions: date-range + amount filters (#27)
+- [x] Budgets: monthly category limits with progress + alerts (#28)
+- [x] Direct debits: surface SEPA mandates with cancel control (#29)
+- [x] Security center: change password, active sessions (#30)
+- [x] Notification center with persistence + read state (#31)
+- [x] FX: currency exchange flow for the travel wallet (#32)
+- [x] Round-up savings into a goal (#33)
+- [x] Dispute flow: report a transaction (#34)
+- [x] Mobile: wire "Request money" tab to the payment-request backend (#6)
+- [x] Invoice service frontend surface — receipts + payment requests (#16)
+- [x] Savings goal "due date" — date picker on both apps (#15)
+- [x] Virtualize mobile transaction list with FlatList (#17)
+- [x] Rate limiting — Redis-backed with in-memory fallback (#18)
 
-## Backlog note
+## Blocked — user-dependent items
+
 - [ ] Backend: deploy services to a hosted environment and set `EXPO_PUBLIC_API_URL` for mobile builds (#52)
+- [ ] Configure eas.json submit.production once the Play Store account exists (#51)
 
 ## Manual device-test checklist (Expo Go) — before promoting `dev` → `staging`
 
@@ -25,32 +38,6 @@ Workflow rules live in [CLAUDE.md](CLAUDE.md#workflow-rules); short version:
   verify prefill + transfer; deny camera permission once and re-grant
 - [ ] Biometrics (#7): enable the Settings toggle, kill + reopen the app → biometric
   prompt gates auto-login; cancel → auth screen → Face ID button retry works
-
-## Backlog — ungrouped (assign to a branch group when picked up)
-
-**Roadmap gaps (see [docs/feature-roadmap.md](docs/feature-roadmap.md) for prio/effort)**
-- [ ] Scheduled & recurring payments / standing orders (#26)
-- [ ] Transactions: date-range + amount filters (search exists on both apps) (#27)
-- [ ] Budgets: monthly category limits with progress + alerts (#28)
-- [ ] Direct debits: surface SEPA mandates with cancel control (#29)
-- [ ] Security center: change password, active sessions, real TOTP 2FA (#30)
-- [ ] Notification center with persistence + read state (#31)
-- [ ] FX: currency exchange flow for the travel wallet (#32)
-- [ ] Round-up savings into a goal (#33)
-- [ ] Dispute flow: report a transaction (#34)
-
-**Candidate group: `feature/mobile-feature-parity`**
-- [x] Mobile: per-wallet filter on the transactions screen (web has `?walletId=` filter banner) (#5)
-- [ ] Mobile: wire "Request money" tab to the payment-request backend (currently toast-only) (#6)
-- [x] Web: receive-QR parity on the Request tab (no camera needed, reuse EPC builder) (#55) — done via PR #56
-
-**Smaller / unscheduled**
-- [x] Backend: tests for `/auth/refresh` rotation + `/auth/logout` (#13) — replay test skipped (same-second JWT hash collision)
-- [x] Card "limits & controls" toggles (contactless/foreign/ATM) — backend fields + both apps (#14)
-- [ ] Savings goal "due date" is free text — date picker (#15)
-- [ ] Invoice service has no frontend surface yet (#16)
-- [ ] Virtualize mobile transaction list if data volumes grow (#17)
-- [ ] Rate limiting is per-instance in-memory — Redis when running replicas (#18)
 
 **Dev-environment note (not a task):** RabbitMQ is Docker-only for local dev — run
 `docker run -d --name rabbitmq -p 5672:5672 rabbitmq:3` then add

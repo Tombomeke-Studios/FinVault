@@ -39,18 +39,22 @@ event-driven microservices backend.
   via `data-*` attributes on `<html>` (mode/radius/density/card + accent/font CSS vars).
 
 ### Gateway (`services/gateway`)
-- Proxies `/api/auth|users → account`, `/api/wallets|transactions|cards|goals → wallet`,
+- Proxies `/api/auth|users → account`, `/api/wallets|transactions|cards|goals|
+  scheduled-payments|budgets|notifications|disputes|fx|beneficiaries → wallet`,
   `/api/invoices → invoice`.
 - **WebSocket hub**: clients connect with `?token=<JWT>`; events are pushed per-user.
 - **Event Hub** (`POST /api/events/publish`, guarded by `X-Service-Secret`): fans out
   envelopes to subscribed services via webhooks, to WebSocket clients, and onto
   RabbitMQ (`events.<type>` routing keys, with dead-letter queue).
-- Per-IP rate limiting (500 req/min) with periodic map cleanup.
+- Per-IP rate limiting (500 req/min): Redis-backed via ioredis when `REDIS_URL` is
+  set, automatic fallback to in-memory map otherwise.
 
 ### Account service
 - Registration/login (Zod-validated, bcrypt cost 12), JWT access tokens (1 h) +
   rotating refresh tokens (7 d, sha256-hashed at rest).
 - `/auth/refresh` (rotation; replay revokes all sessions), `/auth/logout` (revocation).
+- `/users/change-password` (revokes all sessions, issues new token pair),
+  `/users/sessions` (list active), `DELETE /users/sessions/:id` (revoke one).
 - Per-IP rate limits (5 logins / 15 min, 3 registrations / h) + per-email lockout
   (10 failures → account frozen) + `AuditLog` table for all auth events.
 - Internal `/users/profile-by-email` requires `X-Service-Secret`.
@@ -67,9 +71,19 @@ event-driven microservices backend.
   silent (#11). Note: seeded demo IBANs are structurally valid but not mod-97
   checksummed, so target lookups validate *format* only.
 - Cards (freeze, limits) and savings goals (fund/edit/delete) CRUD.
-- Beneficiaries (#25): `GET/POST /beneficiaries`, `DELETE /beneficiaries/:id` —
-  saved payees (name + email *or* IBAN, unique per user); successful transfers
-  auto-upsert the payee with a fresh `lastUsedAt`. Proxied as `/api/beneficiaries`.
+- Beneficiaries: saved payees with auto-upsert on transfer.
+- Scheduled payments: CRUD with frequency (once/daily/weekly/monthly), status
+  management (active/paused/completed).
+- Budgets: per-category monthly limits with spend tracking (`@@unique` on
+  userId+category+month), upsert semantics.
+- Notifications: user-scoped, mark-read / mark-all-read.
+- Disputes: file against a transaction, auto-creates notification.
+- FX exchange: mock rate table (EUR/USD/GBP/CHF/JPY/SEK/NOK/DKK), atomic
+  balance swap between two user wallets.
+- Round-up savings: rounds card spend up to nearest euro, moves the diff into a
+  savings goal.
+- Transaction filters: `GET /transactions` accepts `from`, `to`, `minAmount`,
+  `maxAmount`, `walletId` query params.
 - Self-healing seed reconciliation on startup for demo accounts.
 
 ### Shared (`shared/`)

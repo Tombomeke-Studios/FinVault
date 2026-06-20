@@ -359,7 +359,7 @@ export function ScreenSavings({ compact, fire, goals, setGoals, wallets, setWall
           <label className="label">Target amount (€)</label>
           <input className="field num" value={editTarget} onChange={e => setEditTarget(e.target.value.replace(/[^0-9.]/g, ''))} placeholder="0.00" />
           <label className="label">Due date</label>
-          <input className="field" value={editDue} onChange={e => setEditDue(e.target.value)} placeholder="e.g. Dec 2025, No date" />
+          <input className="field" type="date" value={editDue} onChange={e => setEditDue(e.target.value)} />
           <label className="label">Icon</label>
           <div style={{ display: 'flex', gap: 6 }}>
             {['plane', 'shield', 'laptop', 'car', 'heart', 'gift', 'globe', 'flame'].map(ic => (
