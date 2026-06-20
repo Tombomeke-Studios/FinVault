@@ -1767,6 +1767,26 @@ app.put('/cards/:id/limit', requireAuth, async (req, res) => {
   }
 });
 
+app.put('/cards/:id/controls', requireAuth, async (req, res) => {
+  const userId = (req as any).user.userId;
+  const { id } = req.params;
+  const { contactlessEnabled, foreignEnabled, cashWithdrawalEnabled } = req.body;
+  try {
+    const card = await prisma.card.findFirst({ where: { id, wallet: { userId } } });
+    if (!card) return res.status(404).json({ error: 'Card not found' });
+
+    const data: Record<string, boolean> = {};
+    if (typeof contactlessEnabled === 'boolean') data.contactlessEnabled = contactlessEnabled;
+    if (typeof foreignEnabled === 'boolean') data.foreignEnabled = foreignEnabled;
+    if (typeof cashWithdrawalEnabled === 'boolean') data.cashWithdrawalEnabled = cashWithdrawalEnabled;
+
+    const updated = await prisma.card.update({ where: { id }, data });
+    res.status(200).json(updated);
+  } catch (error: any) {
+    res.status(500).json({ error: 'Failed to update card controls', message: error.message });
+  }
+});
+
 // ---- Beneficiaries (#25): saved payees for the transfer flow ----
 app.get('/beneficiaries', requireAuth, async (req, res) => {
   const userId = (req as any).user.userId;
