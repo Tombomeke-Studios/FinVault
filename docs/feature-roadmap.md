@@ -41,7 +41,7 @@ secondary · **P3** = differentiator/nice-to-have. Effort: S/M/L.
 | 12 | **Dispute / report a transaction** — no flow to flag fraud or errors | Trust feature; can start as a support ticket | P3 | S | #34 |
 | 13 | **In-app support** — no help center/FAQ/contact | Expected, low urgency in a demo | P3 | S | — (backlog note) |
 | 14 | **KYC-ish onboarding** — register hardcodes DOB/address | Realism of the demo; validation exists server-side already | P3 | S | — (backlog note) |
-| 15 | **QR transfers (Payconiq-style)** — ✅ shipped 2026-06-12 (mobile): EPC069-12 scan-to-pay prefills the transfer form, receive-QR on the Request tab; web receive-QR parity stays open | Requested 2026-06-12; signature BE payments UX, rides on the IBAN transfer path | P1 | M | #43 |
+| 15 | **QR transfers (Payconiq-style)** — ✅ shipped: mobile scan-to-pay + receive-QR (2026-06-12), web receive-QR (2026-06-20 via #55) | Signature BE payments UX, rides on the IBAN transfer path | P1 | M | #43 / #55 |
 | 16 | **Biometric-gated login** — ✅ shipped 2026-06-12: real Face ID/fingerprint button, opt-in biometric gate on session restore, functional Settings toggle; SecureStore `requireAuthentication` stays open (needs dev build) | Requested 2026-06-12; table-stakes mobile banking security UX | P1 | S | #7 |
 
 Deliberately out of scope for a demo: real payment rails, joint accounts, lending
@@ -49,8 +49,8 @@ products, investment/trading, cheque deposit, branch/ATM finder.
 
 ## 3. Suggested build order
 
-1. **#24 statements/CSV export** (S, removes a fake button — quick honest win)
-2. **#25 beneficiaries** (unlocks #26-class trusted flows and speeds up transfers)
+1. ~~**#24 statements/CSV export**~~ ✅ shipped
+2. ~~**#25 beneficiaries**~~ ✅ shipped
 3. **#27 search & filters** (S, high daily value)
 4. **#16/#6 invoice + payment-request surfaces** (backend already done)
 5. **#26 scheduled payments** (largest single feature; model + runner + UI ×2)
