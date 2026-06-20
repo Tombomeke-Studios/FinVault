@@ -1,4 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { execSync } from 'child_process';
+import path from 'path';
 import { app, prisma, seedAccounts } from './app.js';
 import type { Server } from 'http';
 
@@ -9,6 +11,8 @@ const TEST_EMAIL = 'authtest@finvault.com';
 const TEST_PASS = 'TestPass123!';
 
 beforeAll(async () => {
+  const schemaPath = path.resolve(import.meta.dirname, '../prisma/schema.prisma');
+  execSync(`npx prisma db push --schema="${schemaPath}" --skip-generate`, { stdio: 'ignore' });
   await seedAccounts();
   await new Promise<void>((resolve) => {
     server = app.listen(0, () => {
@@ -17,7 +21,6 @@ beforeAll(async () => {
       resolve();
     });
   });
-  // Register a test user with a Zod-valid password
   await fetch(`${baseUrl}/auth/register`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
