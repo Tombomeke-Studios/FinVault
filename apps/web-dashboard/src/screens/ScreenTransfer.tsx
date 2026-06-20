@@ -1,7 +1,9 @@
 import React, { useState } from 'react';
+import { QRCodeSVG } from 'qrcode.react';
 import { Icon } from '../components/Icon';
 import { money, Avatar, Segmented, PageHead } from '../components/UI';
 import { classifyRecipient, normalizeIban } from '../lib/validate';
+import { buildEpcQr } from '../lib/epc';
 import type { AppData, Beneficiary } from '../App';
 
 interface TransferProps {
@@ -126,6 +128,27 @@ export function ScreenTransfer({ compact, navigate, fire, data, beneficiaries, o
             <button type="submit" className="btn btn-primary btn-block" disabled={loading}><Icon name="qr" size={17} /> Send request</button>
           </form>
         </div>
+
+        {/* Receive via QR (#55): EPC code others can scan to pay you */}
+        {data.wallets[0] && (
+          <div className="card" style={{ padding: 'var(--pad-lg)', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 'var(--gap)' }}>
+            <div className="eyebrow">Or let them scan your QR</div>
+            <div style={{ background: '#ffffff', padding: 16, borderRadius: 'var(--r-lg)', display: 'inline-flex' }}>
+              <QRCodeSVG
+                size={200}
+                value={buildEpcQr({
+                  name: `${data.user.firstName} ${data.user.lastName}`,
+                  iban: data.wallets[0].iban,
+                  amount: parseFloat(reqAmt) > 0 ? parseFloat(reqAmt) : undefined,
+                  description: reqDesc || undefined,
+                })}
+              />
+            </div>
+            <div style={{ color: 'var(--text-3)', fontSize: '0.82rem', textAlign: 'center' }}>
+              SEPA QR for {data.wallets[0].iban}{parseFloat(reqAmt) > 0 ? ` · ${money(parseFloat(reqAmt))}` : ''}
+            </div>
+          </div>
+        )}
       </div>
     );
   }

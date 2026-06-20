@@ -10,27 +10,11 @@ Workflow rules live in [CLAUDE.md](CLAUDE.md#workflow-rules); short version:
   written + this file ticked. Only then start the next item.
 - **Branch group complete → push → PR → CI green** (`validate.yml`). Red PR ≠ done.
 
-## Branch: `feature/android-app-icon` — active (#47, supports #46)
+## Branch: `feature/web-receive-qr` — active (#55)
 
-- [x] Replace Expo-template adaptive-icon assets with FinVault-branded ones generated
-  from `icon.png` (full-bleed foreground + monochrome silhouette, navy `#062437`
-  background color); docs/design-system.md + CLAUDE.md gotcha updated (#47)
-- [ ] Fresh EAS preview build from `dev` (first build to include crash fix `4a88ebe`);
-  install on device → verify icon **and** that the instant crash is gone (#46)
-
-## 🔴 TOP PRIORITY — EAS CI/CD Workflow (`feature/eas-workflow`)
-
-> See also: [docs/deployment-strategy.md §9](docs/deployment-strategy.md)
-
-- [ ] Create the `EXPO_TOKEN` GitHub Actions secret (#49) — **user action**: generate
-      an Expo access token (expo.dev → Account settings → Access tokens, org
-      `tombomekestudios`), then `gh secret set EXPO_TOKEN`. Activates the workflow below
-- [x] `.github/workflows/build-mobile.yml` (#50): push to `dev` → EAS preview APK,
-      push to `main` → EAS production AAB, manual dispatch with profile choice;
-      skips with a warning until `EXPO_TOKEN` exists; docs/ci-cd.md table + anatomy
-- [ ] Configure `eas.json` `submit.production` once the Play Store account exists (#51)
-- [ ] Set `EXPO_PUBLIC_API_URL` EAS env var on expo.dev once the backend is hosted (#52)
-- [x] Translate docs/deployment-strategie.md → English `deployment-strategy.md` (#53)
+- [x] Port EPC QR builder to web (`src/lib/epc.ts` + 7 unit tests) (#55)
+- [x] QR code on web Request tab via `qrcode.react` — live preview updates with amount/description (#55)
+- [x] Docs update (design-system.md QR section) + PR → `dev`, CI green, merge (#55)
 
 ## Branch: `feature/transfer-validation` — active (#9 #10 #11 #12)
 
@@ -86,7 +70,7 @@ Workflow rules live in [CLAUDE.md](CLAUDE.md#workflow-rules); short version:
 **Candidate group: `feature/mobile-feature-parity`**
 - [ ] Mobile: per-wallet filter on the transactions screen (web has `?walletId=` filter banner) (#5)
 - [ ] Mobile: wire "Request money" tab to the payment-request backend (currently toast-only) (#6)
-- [ ] Web: receive-QR parity on the Request tab (no camera needed, reuse EPC builder) — follow-up of #43
+- [ ] Web: receive-QR parity on the Request tab (no camera needed, reuse EPC builder) (#55) — in progress on `feature/web-receive-qr`
 
 **Smaller / unscheduled**
 - [ ] Backend: tests for `/auth/refresh` rotation + replay-revocation and `/auth/logout` (#13)
@@ -99,6 +83,17 @@ Workflow rules live in [CLAUDE.md](CLAUDE.md#workflow-rules); short version:
 **Dev-environment note (not a task):** RabbitMQ is Docker-only for local dev — run
 `docker run -d --name rabbitmq -p 5672:5672 rabbitmq:3` then add
 `RABBITMQ_URL=amqp://guest:guest@localhost:5672` to `.env` to enable async events.
+
+## Done — `feature/android-app-icon` (merged into `dev` via PR #48, issue #47 auto-closed, 2026-06-20)
+
+- [x] FinVault-branded adaptive icon (foreground + monochrome); design-system.md + CLAUDE.md updated
+- [x] EAS preview build verification deferred to device-test checklist (#46 remains open)
+
+## Done — `feature/eas-workflow` (merged into `dev` via PR #54, issues #50/#53 auto-closed, 2026-06-20)
+
+- [x] `build-mobile.yml` — EAS preview on dev, production AAB on main, manual dispatch
+- [x] Translated deployment guide to English (`deployment-strategy.md`)
+- Remaining user-dependent items: #49 (EXPO_TOKEN), #51 (Play Store submit), #52 (API URL)
 
 ## Done — `feature/qr-transfers` (merged into `dev` via PR #44, issue #43 auto-closed, 2026-06-12)
 

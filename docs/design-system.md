@@ -127,6 +127,20 @@ The runtime theme switch cross-fades colors (`html.theme-anim`); the
 - **UI.tsx** — `money()` (nl-NL; `{ whole: true }` for round amounts — never string-strip),
   `Ring`, `Donut`, `Sparkline` (measures its container), `Bars`, `CategoryIcon`, `Delta`.
 
+## SEPA QR codes (EPC069-12)
+
+Both apps can generate SEPA Credit Transfer QR codes in the EPC069-12 format
+(the standard used by Payconiq-class payment apps).
+
+- **Mobile** (`src/lib/epc.ts` + `react-native-qrcode-svg`): the Request tab shows a
+  live QR that encodes the user's IBAN, name, and optionally the amount/description.
+  The Send tab has a scan-to-pay sheet (`QrScanSheet.tsx`) that reads EPC QRs via
+  the camera and prefills the transfer form.
+- **Web** (`src/lib/epc.ts` + `qrcode.react`): the Request tab renders the same live
+  QR. No camera scanning (desktop has no use case) — generate on web, scan on mobile.
+
+The EPC builder and parser are unit-tested on both apps (7 tests each).
+
 ## Accessibility checklist
 
 - Touch targets ≥44 pt (hitSlop where the visual is smaller).
