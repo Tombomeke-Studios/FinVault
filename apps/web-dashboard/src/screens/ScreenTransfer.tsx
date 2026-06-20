@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { QRCodeSVG } from 'qrcode.react';
+import { QRCodeSVG as _QRCodeSVG } from 'qrcode.react';
+const QRCodeSVG = _QRCodeSVG as React.ComponentType<{ size: number; value: string }>;
 import { Icon } from '../components/Icon';
 import { money, Avatar, Segmented, PageHead } from '../components/UI';
 import { classifyRecipient, normalizeIban } from '../lib/validate';

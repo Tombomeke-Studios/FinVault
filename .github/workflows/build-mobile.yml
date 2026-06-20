@@ -2,13 +2,14 @@ name: Build Mobile (EAS)
 
 on:
   push:
-    branches: [ dev, main ]
-    # Only mobile-relevant changes should burn an EAS build:
+    # Production AAB only on main — dev preview builds are manual-only
+    # to conserve EAS credits.
+    branches: [ main ]
     paths:
       - 'apps/mobile/**'
       - 'package-lock.json'
       - '.github/workflows/build-mobile.yml'
-  # Manual runs with an explicit profile choice:
+  # Manual dispatch: preview (dev APK for testing) or production (AAB).
   workflow_dispatch:
     inputs:
       profile:
