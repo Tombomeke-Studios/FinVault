@@ -34,5 +34,11 @@
   "dependencies": {
     "@types/amqplib": "^0.10.8",
     "amqplib": "^2.0.1"
+  },
+  "overrides": {
+    "@expo/metro-config": {"expo": "~54.0.35"},
+    "@expo/prebuild-config": {"expo": "~54.0.35"},
+    "expo-asset": {"expo": "~54.0.35"},
+    "expo-constants": {"expo": "~54.0.35"}
   }
 }
