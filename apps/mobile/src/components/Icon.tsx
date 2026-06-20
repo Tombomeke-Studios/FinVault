@@ -64,6 +64,8 @@ const MAPPING: Record<string, keyof typeof Feather.glyphMap> = {
   alertTriangle: 'alert-triangle',
   info: 'info',
   calendar: 'calendar',
+  file: 'file-text',
+  inbox: 'inbox',
   percent: 'percent',
   moon: 'moon',
   smartphone: 'smartphone',

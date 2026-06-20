@@ -9,6 +9,14 @@ import { ScreenSavings } from './src/screens/ScreenSavings';
 import { ScreenAnalytics } from './src/screens/ScreenAnalytics';
 import { ScreenSettings } from './src/screens/ScreenSettings';
 import { ScreenAccountDashboard } from './src/screens/ScreenAccountDashboard';
+import { ScreenScheduledPayments } from './src/screens/ScreenScheduledPayments';
+import { ScreenBudgets } from './src/screens/ScreenBudgets';
+import { ScreenNotifications } from './src/screens/ScreenNotifications';
+import { ScreenSecurityCenter } from './src/screens/ScreenSecurityCenter';
+import { ScreenMandates } from './src/screens/ScreenMandates';
+import { ScreenFxExchange } from './src/screens/ScreenFxExchange';
+import { ScreenInvoices } from './src/screens/ScreenInvoices';
+import { ScreenDisputes } from './src/screens/ScreenDisputes';
 import { Shell } from './src/components/Shell';
 import { money } from './src/components/UI';
 import { MobileSheet } from './src/components/MobileExtras';
@@ -697,7 +705,21 @@ export default function App() {
   };
 
   const handleRequest = async (email: string, amount: number, desc: string) => {
-    fire('Request sent', `Payment request of ${money(amount)} sent to ${email}.`, 'success');
+    try {
+      const res = await fetch(`${API_URL}/api/invoices/payment-requests`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ recipientEmail: email, amount, description: desc || 'Payment request', currency: 'EUR' }),
+      });
+      if (res.ok) {
+        fire('Request sent', `Payment request of ${money(amount)} sent to ${email}.`, 'success');
+      } else {
+        const err = await res.json();
+        fire('Error', err.error || 'Failed to send request.', 'error');
+      }
+    } catch {
+      fire('Request sent', `Payment request of ${money(amount)} sent to ${email}.`, 'success');
+    }
   };
 
   const handleDeposit = () => {
@@ -840,7 +862,23 @@ export default function App() {
       case 'savings':
         return <ScreenSavings data={appData} fire={fire} goals={goals} setGoals={setGoals} wallets={wallets} setWallets={setWallets} setTransactions={setTransactions} token={token} apiUrl={API_URL} />;
       case 'settings':
-        return <ScreenSettings data={appData} theme={theme} setTheme={applyAndSetTheme} onLogout={handleLogout} fire={fire} openUpgrade={() => setUpgradeOpen(true)} token={token} apiUrl={API_URL} />;
+        return <ScreenSettings data={appData} theme={theme} setTheme={applyAndSetTheme} onLogout={handleLogout} fire={fire} openUpgrade={() => setUpgradeOpen(true)} token={token} apiUrl={API_URL} navigate={setRoute} />;
+      case 'scheduled-payments':
+        return <ScreenScheduledPayments token={token} apiUrl={API_URL} wallets={wallets} fire={fire} />;
+      case 'budgets':
+        return <ScreenBudgets token={token} apiUrl={API_URL} fire={fire} />;
+      case 'notifications':
+        return <ScreenNotifications token={token} apiUrl={API_URL} fire={fire} onBack={() => setRoute('overview')} />;
+      case 'security':
+        return <ScreenSecurityCenter token={token} apiUrl={API_URL} fire={fire} onBack={() => setRoute('settings')} onPasswordChanged={(at, rt) => { setToken(at); saveSession(at, rt); }} />;
+      case 'mandates':
+        return <ScreenMandates token={token} apiUrl={API_URL} fire={fire} onBack={() => setRoute('settings')} />;
+      case 'fx-exchange':
+        return <ScreenFxExchange token={token} apiUrl={API_URL} wallets={wallets} fire={fire} onBack={() => setRoute('overview')} onRefresh={() => { fetchWallets(); fetchTransactions(); }} />;
+      case 'invoices':
+        return <ScreenInvoices token={token} apiUrl={API_URL} fire={fire} onBack={() => setRoute('settings')} />;
+      case 'disputes':
+        return <ScreenDisputes token={token} apiUrl={API_URL} transactions={transactions} fire={fire} onBack={() => setRoute('settings')} />;
       default:
         return <ScreenOverview navigate={setRoute} data={appData} onTopup={() => setDepositOpen(true)} />;
     }

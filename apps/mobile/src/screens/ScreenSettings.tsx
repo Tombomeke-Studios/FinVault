@@ -16,6 +16,7 @@ interface SettingsProps {
   openUpgrade?: () => void;
   token?: string | null;
   apiUrl?: string;
+  navigate?: (route: string) => void;
 }
 
 interface AuditEntry {
@@ -55,7 +56,7 @@ const PRESETS: Record<string, ThemeConfig> = {
   Mint:     { mode: 'light', accent: 'emerald', font: 'grotesk',   radius: 'soft',  density: 'regular', card: 'elevated' },
 };
 
-export function ScreenSettings({ data, theme, setTheme, onLogout, fire, openUpgrade, token, apiUrl }: SettingsProps) {
+export function ScreenSettings({ data, theme, setTheme, onLogout, fire, openUpgrade, token, apiUrl, navigate }: SettingsProps) {
   const [biometric, setBiometric] = useState(false);
 
   // The toggle reflects and persists the real biometric-gate preference (#7).
@@ -242,6 +243,29 @@ export function ScreenSettings({ data, theme, setTheme, onLogout, fire, openUpgr
         </View>
       </View>
 
+      {/* Services & Features */}
+      <View style={styles.section}>
+        <Text style={styles.sectionLabel}>SERVICES</Text>
+        {[
+          { route: 'security', icon: 'lock', label: 'Security Center' },
+          { route: 'scheduled-payments', icon: 'calendar', label: 'Scheduled Payments' },
+          { route: 'budgets', icon: 'chart', label: 'Budgets' },
+          { route: 'mandates', icon: 'repeat', label: 'Direct Debits' },
+          { route: 'invoices', icon: 'file', label: 'Invoices & Receipts' },
+          { route: 'disputes', icon: 'alertTriangle', label: 'Disputes' },
+          { route: 'fx-exchange', icon: 'globe', label: 'Currency Exchange' },
+          { route: 'notifications', icon: 'bell', label: 'Notifications' },
+        ].map(item => (
+          <TouchableOpacity key={item.route} style={styles.optionRow} onPress={() => navigate?.(item.route)} accessibilityRole="button">
+            <View style={styles.optionInfo}>
+              <Icon name={item.icon} size={16} color={THEME.colors.text2} />
+              <Text style={styles.optionText}>{item.label}</Text>
+            </View>
+            <Icon name="chevRight" size={16} color={THEME.colors.text3} />
+          </TouchableOpacity>
+        ))}
+      </View>
+
       {/* Security activity sheet */}
       <MobileSheet open={securityOpen} onClose={() => setSecurityOpen(false)} title="Security activity">
         <View style={{ gap: 4, paddingBottom: 8 }}>
@@ -294,6 +318,22 @@ const styles = themedSheet(() => StyleSheet.create({
     padding: 16,
     gap: 16,
     paddingBottom: 88,
+  },
+  section: {
+    backgroundColor: THEME.colors.surface,
+    borderRadius: THEME.radius.regular,
+    marginHorizontal: 16,
+    marginBottom: 16,
+    overflow: 'hidden' as const,
+  },
+  sectionLabel: {
+    color: THEME.colors.text3,
+    fontSize: 12,
+    fontWeight: '600',
+    letterSpacing: 0.5,
+    paddingHorizontal: 16,
+    paddingTop: 14,
+    paddingBottom: 6,
   },
   header: {
     paddingBottom: 4,
