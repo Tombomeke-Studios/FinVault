@@ -10,6 +10,28 @@ Workflow rules live in [CLAUDE.md](CLAUDE.md#workflow-rules); short version:
   written + this file ticked. Only then start the next item.
 - **Branch group complete → push → PR → CI green** (`validate.yml`). Red PR ≠ done.
 
+## Next steps — post v2.0.0
+
+**Infrastructure & deployment**
+- [ ] Enable GitHub branch protection rules on `main` and `staging` (see docs/ci-cd.md §5)
+- [ ] Create a Google service-account JSON and place at `apps/mobile/google-services.json` for EAS Submit
+- [ ] Set the `EXPO_TOKEN` repository secret on GitHub for automated EAS builds
+- [ ] Deploy backend services to a hosted environment (VM, Railway, Fly.io, etc.)
+- [ ] Point `EXPO_PUBLIC_API_URL` to the live backend URL once deployed
+- [ ] Run `eas submit --platform android` for the first Play Store upload (internal track)
+
+**Quality & testing**
+- [ ] Manual device-test: QR scan-to-pay (#43) — scan EPC QR, verify prefill + transfer
+- [ ] Manual device-test: Biometrics (#7) — enable toggle, kill + reopen, verify gate
+- [ ] Add integration/E2E tests for the new endpoints (scheduled-payments, budgets, notifications, disputes, FX)
+- [ ] Set up staging DB for smoke testing before `staging → main` promotions
+
+**Feature polish (future milestone)**
+- [ ] TOTP 2FA in security center (currently: password + sessions only)
+- [ ] Scheduled payment executor — cron job that actually runs due payments
+- [ ] Push notifications (FCM) for mobile notification delivery
+- [ ] iOS build profile + App Store submission
+
 **Dev-environment note (not a task):** RabbitMQ is Docker-only for local dev — run
 `docker run -d --name rabbitmq -p 5672:5672 rabbitmq:3` then add
 `RABBITMQ_URL=amqp://guest:guest@localhost:5672` to `.env` to enable async events.

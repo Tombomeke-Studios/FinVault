@@ -34,6 +34,10 @@ feature/<topic>  →  dev  →  staging  →  main
 - A feature branch **never** targets `main` or `staging` directly.
 - `staging` only receives merges from `dev` — never individual feature branches.
 - `main` only receives merges from `staging` — never from `dev` or feature branches.
+- **`main` and `staging` are permanent branches — never delete them.** The repo
+  setting *Automatically delete head branches* applies to feature branches only;
+  if a promotion PR accidentally deletes staging, recreate it immediately from main
+  (`git push origin origin/main:refs/heads/staging`).
 - A red CI on `dev` is everyone's problem — fix it before opening new PRs.
 - The GitHub **default branch is `dev`** (since 2026-06-12): new PRs target it by
   default, fresh clones check it out, and issue auto-close fires on merges into it.
@@ -115,12 +119,22 @@ A "unit" = one function, feature, fix, or refactor — the smallest shippable sl
    `git branch -d feature/<topic>` — merged branches never linger.
 
 **Promoting `dev` → `staging` → `main`:**
-1. Open a PR `dev → staging` only when a full milestone is complete and `dev` CI is
-   green. Use the PR body to list: what changed, migrations needed, env var changes.
-2. On `staging`: verify `.env` values for production, run `npm run build && npm test`,
-   do a manual smoke test against a staging DB if available.
-3. Open a PR `staging → main` only after step 2 is fully signed off.
+1. Open a PR `dev → staging` only when a full milestone is complete.
+   **Wait for `validate.yml` CI to pass on the PR** before merging — never merge a
+   red promotion PR. Use the PR body to list: what changed, migrations needed, env
+   var changes.
+2. After the PR merges into `staging`, **wait for `validate.yml` CI on the staging
+   push** to go green. Then verify `.env` values for production, run
+   `npm run build && npm test` locally, do a manual smoke test against a staging DB
+   if available.
+3. Open a PR `staging → main` only after step 2 is fully signed off. **Again wait
+   for CI to pass on this PR** — the same `validate.yml` pipeline runs on every PR
+   and on pushes to `dev`, `staging`, and `main`.
 4. After merging to `main`: tag the release (`git tag vX.Y.Z`) and push the tag.
+   CI will also trigger the Docker build workflows (`build-*.yml`) and the EAS
+   mobile build (`build-mobile.yml`) automatically on main pushes.
+5. After merging to `main`: recreate the staging branch if auto-delete removed it
+   (`git push origin origin/main:refs/heads/staging`). Staging must always exist.
 
 ## 3. Commit rules
 

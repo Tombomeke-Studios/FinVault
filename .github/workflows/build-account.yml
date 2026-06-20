@@ -2,7 +2,7 @@ name: Build and Push Account Service
 
 on:
   push:
-    branches: [ main, master ]
+    branches: [ main, staging ]
     paths:
       - 'services/account-service/**'
       - 'shared/**'
