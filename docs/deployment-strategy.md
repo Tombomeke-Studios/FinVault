@@ -114,17 +114,19 @@ Both config files exist in `apps/mobile/` today. Reference shape:
   "submit": {
     "production": {
       "android": {
-        "serviceAccountKeyPath": "./google-service-account.json",
-        "track": "internal"
+        "serviceAccountKeyPath": "./google-services.json",
+        "track": "internal",
+        "releaseStatus": "draft"
       }
     }
   }
 }
 ```
 
-> `serviceAccountKeyPath` is the future state (#51): it requires a Google service-account
-> JSON that must **never** be committed. The current `eas.json` omits it until the Play
-> Store account exists.
+> `serviceAccountKeyPath` points to a Google service-account JSON that must **never**
+> be committed. Place the file at `apps/mobile/google-services.json` (gitignored) before
+> running `eas submit`. The `releaseStatus: "draft"` creates a draft release on the
+> internal track so you can review before publishing.
 
 ### 2.4 EAS Update: OTA updates (without a new store release)
 

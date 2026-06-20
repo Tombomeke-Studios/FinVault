@@ -27,10 +27,8 @@ Workflow rules live in [CLAUDE.md](CLAUDE.md#workflow-rules); short version:
 - [x] Virtualize mobile transaction list with FlatList (#17)
 - [x] Rate limiting — Redis-backed with in-memory fallback (#18)
 
-## Blocked — user-dependent items
-
-- [ ] Backend: deploy services to a hosted environment and set `EXPO_PUBLIC_API_URL` for mobile builds (#52)
-- [ ] Configure eas.json submit.production once the Play Store account exists (#51)
+- [x] Set `EXPO_PUBLIC_API_URL` in eas.json production build env (#52)
+- [x] Configure eas.json submit.production with serviceAccountKeyPath + track + releaseStatus (#51)
 
 ## Manual device-test checklist (Expo Go) — before promoting `dev` → `staging`
 
