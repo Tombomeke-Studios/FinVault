@@ -4,6 +4,7 @@
   "main": "index.ts",
   "dependencies": {
     "@expo/vector-icons": "^15.1.1",
+    "babel-preset-expo": "~54.0.10",
     "expo": "~54.0.35",
     "expo-camera": "~17.0.10",
     "expo-clipboard": "~8.0.8",
