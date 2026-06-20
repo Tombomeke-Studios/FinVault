@@ -593,7 +593,7 @@ app.post('/wallets/simulate-time', requireAuth, async (req, res) => {
     // 2. Loop through all accounts, calculate interest for savings and roodstand/credit lines
     for (const wallet of wallets) {
       if (wallet.type === 'savings' && wallet.interestRate > 0) {
-        // Rente = Saldo * Rentepercentage * (maanden / 12)
+        // Interest = Balance * Rate * (months / 12)
         const interestAmount = parseFloat((wallet.balance * wallet.interestRate * (simulatedMonths / 12)).toFixed(2));
         
         if (interestAmount > 0) {
@@ -735,7 +735,7 @@ app.post('/wallets/simulate-time', requireAuth, async (req, res) => {
     }
 
     res.status(200).json({
-      message: `Tijdsimulatie van ${simulatedMonths} maanden succesvol uitgevoerd.`,
+      message: `Time simulation of ${simulatedMonths} months completed successfully.`,
       updatedAccounts: updatedWallets
     });
 

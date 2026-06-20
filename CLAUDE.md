@@ -196,7 +196,8 @@ the same emails offline → client-side mock demo mode. Mobile API base: `EXPO_P
 | `App.tsx` | All app state: auth/token, wallets/transactions/cards/goals, route string (`'overview'`, `'account:<walletId>'`, …), all API handlers (`handleLogin/Transfer/Deposit/OwnTransfer/UpgradePlan`), mock-data builder, deposit + plan-upgrade sheets, Android BackHandler, session restore + splash. `ErrorBoundary` class wraps the root to catch render-time crashes in production builds |
 | `index.ts` | Entry point: `registerRootComponent` + global `ErrorUtils` handler for async crashes in standalone builds |
 | `app.json` | Expo config: `android.package` (`com.tombomekestudio.finvault`), `versionCode`, `owner` (tombomekestudios), EAS `projectId`, plugins (`expo-local-authentication` + `expo-secure-store` + `expo-camera`) — all three plugins are required; missing one = instant crash |
-| `eas.json` | EAS Build profiles: `development` (dev-client APK), `preview` (sideloadable APK), `production` (signed AAB for Play Store) |
+| `babel.config.js` | **Required for standalone builds** — `babel-preset-expo`; Expo Go provides this implicitly but EAS-built APKs crash without it |
+| `eas.json` | EAS Build profiles: `development` (dev-client APK), `preview` (sideloadable APK), `production` (signed AAB for Play Store); all profiles set `EXPO_USE_METRO_WORKSPACE_ROOT=1` for monorepo support |
 | `metro.config.js` | **Critical for monorepo** — sets `watchFolders` to monorepo root and `nodeModulesPaths` to both workspace + root `node_modules`; without this, hoisted native packages are not compiled in and the standalone APK crashes instantly |
 | `src/session.ts` | SecureStore token persistence: `saveSession/loadSession/clearSession/tryRefreshSession/revokeSession` |
 | `src/biometrics.ts` | Real biometric gate (expo-local-authentication): `isBiometricAvailable/authenticateBiometric` + keystore-persisted opt-in pref |
@@ -258,6 +259,9 @@ the same emails offline → client-side mock demo mode. Mobile API base: `EXPO_P
   monorepo structure. Without `watchFolders` + `nodeModulesPaths` pointing to the repo
   root, hoisted native packages (expo-local-authentication, react-native-svg, …) are
   not compiled into the standalone APK → instant crash on launch. Never delete it.
+- **EAS standalone builds require three configs** that Expo Go provides implicitly:
+  `babel.config.js` (with `babel-preset-expo`), `metro.config.js` (monorepo roots),
+  and `EXPO_USE_METRO_WORKSPACE_ROOT=1` in `eas.json` env. Missing any one → crash.
 - **EAS plugins:** every native Expo package used by the mobile app MUST appear in the
   `plugins` array in `app.json` (currently: expo-local-authentication, expo-secure-store,
   expo-camera). Adding a native package without its plugin → crash on standalone build.
