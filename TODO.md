@@ -10,13 +10,14 @@ Workflow rules live in [CLAUDE.md](CLAUDE.md#workflow-rules); short version:
   written + this file ticked. Only then start the next item.
 - **Branch group complete → push → PR → CI green** (`validate.yml`). Red PR ≠ done.
 
-## Branch: `feature/eas-crash-fix` — active (#57, supports #46)
+## Branch: `feature/biometric-prompt` — active (#62)
 
-- [x] Add `babel.config.js` with `babel-preset-expo` (standalone builds need explicit config) (#57)
-- [x] Install `expo-dev-client` (required by `developmentClient: true` profile) (#57)
-- [x] Set `EXPO_USE_METRO_WORKSPACE_ROOT=1` in all EAS build profiles (#57)
-- [x] Translate README.md from Dutch to English (language policy §1)
-- [ ] Verify EAS preview build no longer crashes on launch (#46)
+- [x] Add `hasDismissedBioPrompt`/`setDismissedBioPrompt` to biometrics.ts (#62)
+- [x] MobileSheet prompt after first login in App.tsx (#62)
+- [x] Docs: security.md + CLAUDE.md + TODO.md (#62)
+
+## Backlog note
+- [ ] Backend: deploy services to a hosted environment and set `EXPO_PUBLIC_API_URL` for mobile builds (#52)
 
 ## Manual device-test checklist (Expo Go) — before promoting `dev` → `staging`
 
