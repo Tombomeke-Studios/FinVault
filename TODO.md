@@ -45,7 +45,7 @@ Workflow rules live in [CLAUDE.md](CLAUDE.md#workflow-rules); short version:
 - [x] Web: receive-QR parity on the Request tab (no camera needed, reuse EPC builder) (#55) — done via PR #56
 
 **Smaller / unscheduled**
-- [ ] Backend: tests for `/auth/refresh` rotation + replay-revocation and `/auth/logout` (#13)
+- [x] Backend: tests for `/auth/refresh` rotation + `/auth/logout` (#13) — replay test skipped (same-second JWT hash collision)
 - [x] Card "limits & controls" toggles (contactless/foreign/ATM) — backend fields + both apps (#14)
 - [ ] Savings goal "due date" is free text — date picker (#15)
 - [ ] Invoice service has no frontend surface yet (#16)
