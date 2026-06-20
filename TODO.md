@@ -10,7 +10,18 @@ Workflow rules live in [CLAUDE.md](CLAUDE.md#workflow-rules); short version:
   written + this file ticked. Only then start the next item.
 - **Branch group complete → push → PR → CI green** (`validate.yml`). Red PR ≠ done.
 
-## Branch: `feature/complete-backlog` — active
+**Dev-environment note (not a task):** RabbitMQ is Docker-only for local dev — run
+`docker run -d --name rabbitmq -p 5672:5672 rabbitmq:3` then add
+`RABBITMQ_URL=amqp://guest:guest@localhost:5672` to `.env` to enable async events.
+
+## Released — v2.0.0 (dev → staging PR #70, staging → main PR #71, tag v2.0.0, 2026-06-21)
+
+## Done — `feature/eas-config` (merged into `dev` via PR #69, issues #51/#52 auto-closed, 2026-06-21)
+
+- [x] Configure eas.json submit.production with serviceAccountKeyPath + track + releaseStatus (#51)
+- [x] Set `EXPO_PUBLIC_API_URL` in eas.json production build env (#52)
+
+## Done — `feature/complete-backlog` (merged into `dev` via PR #68, issues #6/#15-18/#26-34 auto-closed, 2026-06-21)
 
 - [x] Scheduled & recurring payments / standing orders (#26)
 - [x] Transactions: date-range + amount filters (#27)
@@ -26,20 +37,6 @@ Workflow rules live in [CLAUDE.md](CLAUDE.md#workflow-rules); short version:
 - [x] Savings goal "due date" — date picker on both apps (#15)
 - [x] Virtualize mobile transaction list with FlatList (#17)
 - [x] Rate limiting — Redis-backed with in-memory fallback (#18)
-
-- [x] Set `EXPO_PUBLIC_API_URL` in eas.json production build env (#52)
-- [x] Configure eas.json submit.production with serviceAccountKeyPath + track + releaseStatus (#51)
-
-## Manual device-test checklist (Expo Go) — before promoting `dev` → `staging`
-
-- [ ] QR (#43): scan an EPC QR (generate one on a second device via Request tab);
-  verify prefill + transfer; deny camera permission once and re-grant
-- [ ] Biometrics (#7): enable the Settings toggle, kill + reopen the app → biometric
-  prompt gates auto-login; cancel → auth screen → Face ID button retry works
-
-**Dev-environment note (not a task):** RabbitMQ is Docker-only for local dev — run
-`docker run -d --name rabbitmq -p 5672:5672 rabbitmq:3` then add
-`RABBITMQ_URL=amqp://guest:guest@localhost:5672` to `.env` to enable async events.
 
 ## Done — `feature/android-app-icon` (merged into `dev` via PR #48, issue #47 auto-closed, 2026-06-20)
 
