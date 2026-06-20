@@ -83,6 +83,11 @@ app.use('/api/transactions', proxyTo(WALLET_SERVICE_URL));
 app.use('/api/cards', proxyTo(WALLET_SERVICE_URL));
 app.use('/api/goals', proxyTo(WALLET_SERVICE_URL));
 app.use('/api/beneficiaries', proxyTo(WALLET_SERVICE_URL));
+app.use('/api/scheduled-payments', proxyTo(WALLET_SERVICE_URL));
+app.use('/api/budgets', proxyTo(WALLET_SERVICE_URL));
+app.use('/api/notifications', proxyTo(WALLET_SERVICE_URL));
+app.use('/api/disputes', proxyTo(WALLET_SERVICE_URL));
+app.use('/api/fx', proxyTo(WALLET_SERVICE_URL));
 app.use('/api/invoices', proxyTo(INVOICE_SERVICE_URL, '/invoices'));
 
 // Simple Webhook Registration for Microservices

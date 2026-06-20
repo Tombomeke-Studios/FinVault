@@ -118,3 +118,53 @@ model SavingsGoal {
   createdAt DateTime @default(now())
 }
 
+model ScheduledPayment {
+  id              String   @id @default(uuid())
+  userId          String
+  sourceWalletId  String
+  targetEmail     String?
+  targetIban      String?
+  targetName      String   @default("")
+  amount          Float
+  currency        String   @default("EUR")
+  description     String   @default("")
+  frequency       String   // once, daily, weekly, monthly
+  nextRunAt       DateTime
+  lastRunAt       DateTime?
+  status          String   @default("active") // active, paused, completed, failed
+  createdAt       DateTime @default(now())
+}
+
+model Budget {
+  id             String   @id @default(uuid())
+  userId         String
+  category       String
+  monthlyLimit   Float
+  currentSpend   Float    @default(0.0)
+  alertThreshold Float    @default(0.8)
+  month          String   // YYYY-MM format
+  createdAt      DateTime @default(now())
+
+  @@unique([userId, category, month])
+}
+
+model Notification {
+  id        String   @id @default(uuid())
+  userId    String
+  title     String
+  body      String
+  read      Boolean  @default(false)
+  createdAt DateTime @default(now())
+}
+
+model Dispute {
+  id            String   @id @default(uuid())
+  userId        String
+  transactionId String
+  reason        String
+  status        String   @default("open") // open, investigating, resolved, rejected
+  resolution    String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+

@@ -421,6 +421,71 @@ app.get('/users/audit-logs', authenticateToken, async (req, res) => {
   }
 });
 
+app.post('/users/change-password', authenticateToken, async (req, res) => {
+  const tokenUser = (req as any).user;
+  const { currentPassword, newPassword } = req.body;
+
+  if (!currentPassword || !newPassword) {
+    return res.status(400).json({ error: 'currentPassword and newPassword are required' });
+  }
+  if (newPassword.length < 8) {
+    return res.status(400).json({ error: 'New password must be at least 8 characters' });
+  }
+
+  try {
+    const user = await prisma.user.findUnique({ where: { id: tokenUser.userId } });
+    if (!user) return res.status(404).json({ error: 'User not found' });
+
+    const isMatch = await bcrypt.compare(currentPassword, user.passwordHash);
+    if (!isMatch) return res.status(401).json({ error: 'Current password is incorrect' });
+
+    const passwordHash = await bcrypt.hash(newPassword, BCRYPT_ROUNDS);
+    await prisma.user.update({ where: { id: user.id }, data: { passwordHash } });
+
+    await prisma.refreshToken.updateMany({
+      where: { userId: user.id, revoked: false },
+      data: { revoked: true }
+    });
+
+    await logAudit(user.id, 'Password changed — all sessions revoked', req);
+
+    const pair = await issueTokenPair(user);
+    res.status(200).json({ message: 'Password changed successfully', ...pair });
+  } catch (error: any) {
+    res.status(500).json({ error: 'Failed to change password', message: error.message });
+  }
+});
+
+app.get('/users/sessions', authenticateToken, async (req, res) => {
+  const tokenUser = (req as any).user;
+  try {
+    const tokens = await prisma.refreshToken.findMany({
+      where: { userId: tokenUser.userId, revoked: false, expiresAt: { gt: new Date() } },
+      select: { id: true, expiresAt: true },
+      orderBy: { expiresAt: 'desc' }
+    });
+    res.status(200).json(tokens.map(t => ({ id: t.id, expiresAt: t.expiresAt })));
+  } catch (error: any) {
+    res.status(500).json({ error: 'Failed to retrieve sessions', message: error.message });
+  }
+});
+
+app.delete('/users/sessions/:id', authenticateToken, async (req, res) => {
+  const tokenUser = (req as any).user;
+  const { id } = req.params;
+  try {
+    const token = await prisma.refreshToken.findUnique({ where: { id } });
+    if (!token || token.userId !== tokenUser.userId) {
+      return res.status(404).json({ error: 'Session not found' });
+    }
+    await prisma.refreshToken.update({ where: { id }, data: { revoked: true } });
+    await logAudit(tokenUser.userId, 'Session revoked manually', req);
+    res.status(200).json({ status: 'revoked' });
+  } catch (error: any) {
+    res.status(500).json({ error: 'Failed to revoke session', message: error.message });
+  }
+});
+
 export async function seedAccounts() {
   try {
     const adminEmail = 'admin@finvault.com';
