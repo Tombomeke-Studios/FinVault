@@ -42,3 +42,13 @@ export async function getBiometricPref(): Promise<boolean> {
 export async function setBiometricPref(enabled: boolean): Promise<void> {
   try { await SecureStore.setItemAsync(PREF_KEY, enabled ? '1' : '0'); } catch { /* best effort */ }
 }
+
+const DISMISSED_KEY = 'finvault.bioDismissed';
+
+export async function hasDismissedBioPrompt(): Promise<boolean> {
+  try { return (await SecureStore.getItemAsync(DISMISSED_KEY)) === '1'; } catch { return false; }
+}
+
+export async function setDismissedBioPrompt(dismissed: boolean): Promise<void> {
+  try { await SecureStore.setItemAsync(DISMISSED_KEY, dismissed ? '1' : '0'); } catch { /* best effort */ }
+}

@@ -15,7 +15,7 @@ import { MobileSheet } from './src/components/MobileExtras';
 import { ToastHost, useToasts } from './src/components/Toast';
 import { Icon } from './src/components/Icon';
 import { saveSession, loadSession, clearSession, tryRefreshSession, revokeSession } from './src/session';
-import { isBiometricAvailable, authenticateBiometric, getBiometricPref } from './src/biometrics';
+import { isBiometricAvailable, authenticateBiometric, getBiometricPref, setBiometricPref, hasDismissedBioPrompt, setDismissedBioPrompt } from './src/biometrics';
 import { THEME, themedSheet, setAppTheme, persistThemeConfig, loadPersistedThemeConfig } from './src/theme';
 
 // ── Global error boundary — catches render-time crashes in production ──────────
@@ -331,6 +331,7 @@ export default function App() {
   const [authError, setAuthError] = useState('');
   const [authSuccess, setAuthSuccess] = useState('');
   const [upgradeOpen, setUpgradeOpen] = useState(false);
+  const [bioPromptOpen, setBioPromptOpen] = useState(false);
 
   const initializeGoals = useCallback(() => {
     setGoals([
@@ -543,6 +544,8 @@ export default function App() {
         await saveSession(data.accessToken, data.refreshToken);
         setToken(data.accessToken);
         setAuthSuccess('Welcome back!');
+        const [bioAvail, bioDismissed] = await Promise.all([isBiometricAvailable(), hasDismissedBioPrompt()]);
+        if (bioAvail && !bioDismissed) setBioPromptOpen(true);
       } else {
         const errorData = await res.json();
         setAuthError(errorData.error || errorData.message || 'Invalid credentials.');
@@ -878,6 +881,32 @@ export default function App() {
         currentPlan={rawUser?.plan || 'Metal'}
         onUpgrade={(p) => { setUpgradeOpen(false); handleUpgradePlan(p); }}
       />
+
+      {/* Biometric opt-in prompt (#62) — shown once after first login */}
+      <MobileSheet open={bioPromptOpen} onClose={async () => { await setDismissedBioPrompt(true); setBioPromptOpen(false); }} title="Enable Face ID?">
+        <View style={{ gap: 16, paddingVertical: 8 }}>
+          <Text style={{ color: THEME.colors.text2, fontSize: 14, textAlign: 'center', lineHeight: 20 }}>
+            Sign in faster next time with biometrics. You can change this later in Settings.
+          </Text>
+          <TouchableOpacity
+            style={{ backgroundColor: THEME.colors.accent, paddingVertical: 14, borderRadius: THEME.radius.regular, alignItems: 'center' }}
+            onPress={async () => {
+              await setBiometricPref(true);
+              await setDismissedBioPrompt(true);
+              setBioPromptOpen(false);
+              fire('Biometrics enabled', 'Face ID will be used on next sign-in.', 'success');
+            }}
+          >
+            <Text style={{ color: THEME.colors.onAccent, fontWeight: '700', fontSize: 15 }}>Enable</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={{ paddingVertical: 12, alignItems: 'center' }}
+            onPress={async () => { await setDismissedBioPrompt(true); setBioPromptOpen(false); }}
+          >
+            <Text style={{ color: THEME.colors.text3, fontSize: 14 }}>Not now</Text>
+          </TouchableOpacity>
+        </View>
+      </MobileSheet>
 
       {/* Dynamic topup modal sheet */}
       <MobileSheet open={depositOpen} onClose={() => setDepositOpen(false)} title="Top up account">

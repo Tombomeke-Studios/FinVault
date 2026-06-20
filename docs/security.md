@@ -58,6 +58,7 @@ any service.
   real card data (PCI scope).
 - No 2FA (TOTP tracked in #30). Mobile biometrics are real since #7
   (`expo-local-authentication`: Face ID button + opt-in gate on session restore,
-  preference in the keystore); remaining hardening: SecureStore
-  `requireAuthentication` to hardware-encrypt the refresh token behind biometrics —
-  needs a dev build, not available in Expo Go.
+  preference in the keystore). After first login, a prompt asks the user to
+  enable biometrics (#62) — dismissed state is persisted so it only asks once.
+  Remaining hardening: SecureStore `requireAuthentication` to hardware-encrypt
+  the refresh token behind biometrics — needs a dev build, not available in Expo Go.
