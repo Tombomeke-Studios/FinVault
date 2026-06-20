@@ -14,6 +14,9 @@ interface TransactionsProps {
 export function ScreenTransactions({ data, onExport }: TransactionsProps) {
   const [q, setQ] = useState('');
   const [cat, setCat] = useState('all');
+  const [filterWalletId, setFilterWalletId] = useState<string | null>(null);
+
+  const walletName = (w: any) => w.name || (w.type === 'savings' ? 'Savings Vault' : w.type === 'travel' ? 'Travel Multi-Currency' : 'Everyday Checking');
 
   const getDisplayAmt = (t: any) => {
     const isIncoming = t.receiverWalletId && data.wallets.some(w => w.id === t.receiverWalletId);
@@ -25,9 +28,10 @@ export function ScreenTransactions({ data, onExport }: TransactionsProps) {
       const displayCat = t.type === 'deposit' ? 'deposit' : 'transfer';
       const matchesCat = cat === 'all' || displayCat === cat;
       const matchesSearch = q === '' || t.description.toLowerCase().includes(q.toLowerCase());
-      return matchesCat && matchesSearch;
+      const matchesWallet = !filterWalletId || t.senderWalletId === filterWalletId || t.receiverWalletId === filterWalletId;
+      return matchesCat && matchesSearch && matchesWallet;
     });
-  }, [q, cat, data.transactions]);
+  }, [q, cat, filterWalletId, data.transactions]);
 
   const monthIn = useMemo(() => filtered.filter(t => getDisplayAmt(t) > 0).reduce((s, t) => s + getDisplayAmt(t), 0), [filtered]);
   const monthOut = useMemo(() => filtered.filter(t => getDisplayAmt(t) < 0).reduce((s, t) => s + getDisplayAmt(t), 0), [filtered]);
@@ -115,6 +119,43 @@ export function ScreenTransactions({ data, onExport }: TransactionsProps) {
           </TouchableOpacity>
         ))}
       </View>
+
+      {/* Wallet filter chips (#5) */}
+      {data.wallets.length > 1 && (
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 16, gap: 8, marginBottom: 12 }}>
+          <TouchableOpacity
+            onPress={() => setFilterWalletId(null)}
+            style={[styles.catBtn, !filterWalletId ? styles.catBtnActive : null]}
+            accessibilityRole="tab"
+            accessibilityState={{ selected: !filterWalletId }}
+          >
+            <Text style={[styles.catText, !filterWalletId ? styles.catTextActive : null]}>All wallets</Text>
+          </TouchableOpacity>
+          {data.wallets.map(w => (
+            <TouchableOpacity
+              key={w.id}
+              onPress={() => setFilterWalletId(w.id)}
+              style={[styles.catBtn, filterWalletId === w.id ? styles.catBtnActive : null]}
+              accessibilityRole="tab"
+              accessibilityState={{ selected: filterWalletId === w.id }}
+            >
+              <Text style={[styles.catText, filterWalletId === w.id ? styles.catTextActive : null]}>{walletName(w)}</Text>
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
+      )}
+
+      {/* Active wallet filter banner */}
+      {filterWalletId && (
+        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginHorizontal: 16, marginBottom: 12, paddingVertical: 8, paddingHorizontal: 14, borderRadius: THEME.radius.regular, backgroundColor: THEME.colors.accentSoft, borderWidth: 1, borderColor: THEME.colors.accentLine }}>
+          <Text style={{ color: THEME.colors.accent, fontSize: 13, fontWeight: '600' }}>
+            Showing: {walletName(data.wallets.find(w => w.id === filterWalletId) || data.wallets[0])}
+          </Text>
+          <TouchableOpacity onPress={() => setFilterWalletId(null)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+            <Icon name="x" size={16} color={THEME.colors.accent} />
+          </TouchableOpacity>
+        </View>
+      )}
 
       {/* Transactions list */}
       <View style={styles.list}>
