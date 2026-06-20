@@ -1,5 +1,5 @@
-import React, { useState, useMemo } from 'react';
-import { View, Text, StyleSheet, TextInput, ScrollView, TouchableOpacity, Share } from 'react-native';
+import React, { useState, useMemo, useCallback } from 'react';
+import { View, Text, StyleSheet, TextInput, ScrollView, FlatList, TouchableOpacity, Share } from 'react-native';
 import { Icon } from '../components/Icon';
 import { money, CategoryIcon, relTime } from '../components/UI';
 import { buildTransactionsCsv, exportFileName } from '../lib/csv';
@@ -10,6 +10,8 @@ interface TransactionsProps {
   data: AppData;
   onExport: () => void;
 }
+
+const keyExtractor = (item: any) => item.id;
 
 export function ScreenTransactions({ data, onExport }: TransactionsProps) {
   const [q, setQ] = useState('');
@@ -52,13 +54,25 @@ export function ScreenTransactions({ data, onExport }: TransactionsProps) {
     } catch { /* share sheet unavailable — stay silent */ }
   };
 
-  return (
-    <ScrollView
-      style={styles.container}
-      contentContainerStyle={styles.outerContent}
-      showsVerticalScrollIndicator={false}
-      keyboardShouldPersistTaps="handled"
-    >
+  const renderItem = useCallback(({ item: t }: { item: typeof filtered[number] }) => {
+    const displayCat = t.type === 'deposit' ? 'deposit' : 'transfer';
+    const amt = getDisplayAmt(t);
+    return (
+      <View style={[styles.card, styles.txCard]}>
+        <CategoryIcon cat={displayCat} size={40} />
+        <View style={styles.txMeta}>
+          <Text style={styles.txDesc} numberOfLines={1}>{t.description}</Text>
+          <Text style={styles.txTime}>{relTime(new Date(t.createdAt).getTime())}</Text>
+        </View>
+        <Text style={[styles.txAmt, { color: amt > 0 ? THEME.colors.pos : THEME.colors.text }]}>
+          {money(amt, t.currency || 'EUR', { signed: true })}
+        </Text>
+      </View>
+    );
+  }, [data.wallets]);
+
+  const listHeader = useMemo(() => (
+    <>
       {/* Header */}
       <View style={styles.header}>
         <View>
@@ -97,7 +111,7 @@ export function ScreenTransactions({ data, onExport }: TransactionsProps) {
             style={styles.searchInput}
             value={q}
             onChangeText={setQ}
-            placeholder="Search transactions…"
+            placeholder="Search transactions..."
             placeholderTextColor={THEME.colors.text3}
           />
         </View>
@@ -156,33 +170,30 @@ export function ScreenTransactions({ data, onExport }: TransactionsProps) {
           </TouchableOpacity>
         </View>
       )}
+    </>
+  ), [q, cat, filterWalletId, monthIn, monthOut, filtered.length, data.wallets, exportCsv]);
 
-      {/* Transactions list */}
-      <View style={styles.list}>
-        {filtered.map(t => {
-          const displayCat = t.type === 'deposit' ? 'deposit' : 'transfer';
-          const amt = getDisplayAmt(t);
-          return (
-            <View key={t.id} style={[styles.card, styles.txCard]}>
-              <CategoryIcon cat={displayCat} size={40} />
-              <View style={styles.txMeta}>
-                <Text style={styles.txDesc} numberOfLines={1}>{t.description}</Text>
-                <Text style={styles.txTime}>{relTime(new Date(t.createdAt).getTime())}</Text>
-              </View>
-              <Text style={[styles.txAmt, { color: amt > 0 ? THEME.colors.pos : THEME.colors.text }]}>
-                {money(amt, t.currency || 'EUR', { signed: true })}
-              </Text>
-            </View>
-          );
-        })}
-        {filtered.length === 0 && (
-          <View style={styles.emptyState}>
-            <Icon name="search" size={32} color={THEME.colors.text3} />
-            <Text style={styles.emptyText}>No matching transactions found.</Text>
-          </View>
-        )}
-      </View>
-    </ScrollView>
+  const listEmpty = useMemo(() => (
+    <View style={styles.emptyState}>
+      <Icon name="search" size={32} color={THEME.colors.text3} />
+      <Text style={styles.emptyText}>No matching transactions found.</Text>
+    </View>
+  ), []);
+
+  return (
+    <FlatList
+      style={styles.container}
+      contentContainerStyle={styles.flatListContent}
+      data={filtered}
+      renderItem={renderItem}
+      keyExtractor={keyExtractor}
+      ListHeaderComponent={listHeader}
+      ListEmptyComponent={listEmpty}
+      showsVerticalScrollIndicator={false}
+      keyboardShouldPersistTaps="handled"
+      initialNumToRender={20}
+      maxToRenderPerBatch={10}
+    />
   );
 }
 
@@ -191,7 +202,7 @@ const styles = themedSheet(() => StyleSheet.create({
     flex: 1,
     backgroundColor: THEME.colors.bg,
   },
-  outerContent: {
+  flatListContent: {
     paddingBottom: 88,
   },
   header: {
@@ -305,15 +316,13 @@ const styles = themedSheet(() => StyleSheet.create({
     color: THEME.colors.accent,
     fontWeight: '700',
   },
-  list: {
-    paddingHorizontal: 16,
-    gap: 8,
-  },
   txCard: {
     flexDirection: 'row',
     alignItems: 'center',
     padding: 12,
     gap: 12,
+    marginHorizontal: 16,
+    marginBottom: 8,
   },
   txMeta: {
     flex: 1,

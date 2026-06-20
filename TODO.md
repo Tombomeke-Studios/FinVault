@@ -49,7 +49,7 @@ Workflow rules live in [CLAUDE.md](CLAUDE.md#workflow-rules); short version:
 - [x] Card "limits & controls" toggles (contactless/foreign/ATM) — backend fields + both apps (#14)
 - [ ] Savings goal "due date" is free text — date picker (#15)
 - [ ] Invoice service has no frontend surface yet (#16)
-- [ ] Virtualize mobile transaction list if data volumes grow (#17)
+- [x] Virtualize mobile transaction list if data volumes grow (#17)
 - [ ] Rate limiting is per-instance in-memory — Redis when running replicas (#18)
 
 **Dev-environment note (not a task):** RabbitMQ is Docker-only for local dev — run
