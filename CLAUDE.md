@@ -217,7 +217,7 @@ the same emails offline → client-side mock demo mode. Mobile API base: `EXPO_P
 | `src/biometrics.ts` | Real biometric gate (expo-local-authentication): `isBiometricAvailable/authenticateBiometric` + keystore-persisted opt-in pref + `hasDismissedBioPrompt/setDismissedBioPrompt` (first-login prompt dismissal) |
 | `src/theme.ts` | Theme engine: mutable `THEME` tokens (hex), dark/light palettes × 6 accents, `setAppTheme`/`subscribeTheme`, `themedSheet` StyleSheet proxy, secure-store persistence. Tests: `theme.test.ts` |
 | `src/components/Icon.tsx` | Name → Feather glyph map + `MCI_MAPPING` (MaterialCommunityIcons fallback: `flame`, `faceId`). Unmapped → help-circle |
-| `src/components/Motion.tsx` | `PressableScale`, `FadeSlideIn`, `AnimatedProgressBar`, `CountUp`, `Shimmer`, `ScaleIn`, `SlideInFromRight`, `useReducedMotion` — use these, no ad-hoc Animated code |
+| `src/components/Motion.tsx` | `PressableScale`, `FadeSlideIn`, `AnimatedProgressBar`, `CountUp`, `Shimmer`, `ScaleIn`, `SlideInFromRight`, `AnimatedCard` (glass + entrance + press), `BalanceDisplay` (CountUp + typography), `useParallax` (scroll-driven hero), `useReducedMotion` — use these, no ad-hoc Animated code |
 | `src/components/FVLogo.tsx` | SVG logo matching the web FVLogo — gradient brand mark + wordmark, theme-aware |
 | `src/components/Toast.tsx` | `useToasts()` + `<ToastHost/>`; `fire(title, body, type)` success/info/warn/error |
 | `src/components/MobileExtras.tsx` | `MobileSheet` (bottom sheet: spring, drag-dismiss, keyboard-aware), `MobileCardDetail` (reveal + clipboard copy), `LimitsSheet` |

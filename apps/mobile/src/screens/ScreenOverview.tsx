@@ -1,9 +1,9 @@
 import React, { useState, useCallback } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, RefreshControl } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, RefreshControl, Animated } from 'react-native';
 import { Icon } from '../components/Icon';
 import { money, Sparkline, relTime, CategoryIcon, Ring, catColor, Delta } from '../components/UI';
 import { BankCard } from '../components/BankCard';
-import { PressableScale, FadeSlideIn, AnimatedProgressBar, CountUp, ScaleIn } from '../components/Motion';
+import { PressableScale, FadeSlideIn, AnimatedProgressBar, ScaleIn, AnimatedCard, BalanceDisplay, useParallax } from '../components/Motion';
 import { THEME, themedSheet } from '../theme';
 import type { AppData } from '../../App';
 
@@ -34,6 +34,8 @@ export function ScreenOverview({ navigate, data, onTopup, onRefresh }: OverviewP
     setRefreshing(false);
   }, [onRefresh]);
 
+  const { onScroll, heroStyle } = useParallax(0.35);
+
   const { wallets, transactions, cards, goals, spendByCat, balanceTrend, monthly } = data;
 
   const totalEUR = wallets.filter((w: any) => w.currency === 'EUR').reduce((s: number, w: any) => s + w.balance, 0);
@@ -52,7 +54,8 @@ export function ScreenOverview({ navigate, data, onTopup, onRefresh }: OverviewP
   const greeting = hour < 12 ? 'Good morning' : hour < 18 ? 'Good afternoon' : 'Good evening';
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}
+    <Animated.ScrollView style={styles.container} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}
+      onScroll={onScroll} scrollEventThrottle={16}
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor={THEME.colors.accent} colors={[THEME.colors.accent]} />}
     >
 
@@ -70,7 +73,8 @@ export function ScreenOverview({ navigate, data, onTopup, onRefresh }: OverviewP
         </ScaleIn>
       </FadeSlideIn>
 
-      {/* ── Hero balance card ── */}
+      {/* ── Hero balance card — parallax ── */}
+      <Animated.View style={heroStyle}>
       <FadeSlideIn delay={40} style={styles.heroCard}>
         {/* Glow overlay at top-right */}
         <View style={styles.heroGlow} />
@@ -78,7 +82,7 @@ export function ScreenOverview({ navigate, data, onTopup, onRefresh }: OverviewP
         <View style={styles.heroTop}>
           <View>
             <Text style={styles.heroLabel}>Total balance</Text>
-            <CountUp value={totalEUR} duration={1000} formatter={(v) => money(v)} style={styles.heroBalance} />
+            <BalanceDisplay value={totalEUR} formatter={(v) => money(v)} size={40} />
             <View style={{ marginTop: 8 }}>
               <Delta value={deltaBalance} />
             </View>
@@ -114,6 +118,7 @@ export function ScreenOverview({ navigate, data, onTopup, onRefresh }: OverviewP
           <Sparkline data={balanceTrend} h={72} />
         </View>
       </FadeSlideIn>
+      </Animated.View>
 
       {/* ── Quick actions ── */}
       <FadeSlideIn delay={80} style={styles.quickRow}>
@@ -298,7 +303,7 @@ export function ScreenOverview({ navigate, data, onTopup, onRefresh }: OverviewP
           </View>
         </FadeSlideIn>
       )}
-    </ScrollView>
+    </Animated.ScrollView>
   );
 }
 
