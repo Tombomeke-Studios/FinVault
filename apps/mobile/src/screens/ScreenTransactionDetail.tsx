@@ -2,7 +2,7 @@ import React from 'react';
 import { View, Text, ScrollView, TouchableOpacity, StyleSheet } from 'react-native';
 import { Icon } from '../components/Icon';
 import { money, CategoryIcon, relTime } from '../components/UI';
-import { FadeSlideIn } from '../components/Motion';
+import { FadeSlideIn, ScaleIn, CountUp } from '../components/Motion';
 import { THEME, themedSheet } from '../theme';
 
 interface Transaction {
@@ -47,14 +47,19 @@ export function ScreenTransactionDetail({ transaction: tx, isIncoming, onBack, o
           <View style={styles.heroIconWrap}>
             <CategoryIcon cat={displayCat} size={56} />
           </View>
-          <Text style={[styles.heroAmount, { color: amt > 0 ? THEME.colors.pos : THEME.colors.text }]}>
-            {money(amt, tx.currency, { signed: true })}
-          </Text>
+          <CountUp
+            value={Math.abs(amt)}
+            duration={800}
+            formatter={(v) => money(amt > 0 ? v : -v, tx.currency, { signed: true })}
+            style={[styles.heroAmount, { color: amt > 0 ? THEME.colors.pos : THEME.colors.text }]}
+          />
           <Text style={styles.heroDesc}>{tx.description}</Text>
-          <View style={[styles.statusBadge, { backgroundColor: statusColor + '1A' }]}>
-            <View style={[styles.statusDot, { backgroundColor: statusColor }]} />
-            <Text style={[styles.statusText, { color: statusColor }]}>{tx.status.toUpperCase()}</Text>
-          </View>
+          <ScaleIn delay={300}>
+            <View style={[styles.statusBadge, { backgroundColor: statusColor + '1A' }]}>
+              <View style={[styles.statusDot, { backgroundColor: statusColor }]} />
+              <Text style={[styles.statusText, { color: statusColor }]}>{tx.status.toUpperCase()}</Text>
+            </View>
+          </ScaleIn>
         </View>
       </FadeSlideIn>
 

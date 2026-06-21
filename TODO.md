@@ -31,6 +31,25 @@ Workflow rules live in [CLAUDE.md](CLAUDE.md#workflow-rules); short version:
 - [ ] Scheduled payment executor — cron job that actually runs due payments
 - [ ] Push notifications (FCM) for mobile notification delivery
 - [ ] iOS build profile + App Store submission
+- [ ] Haptic feedback on mobile (expo-haptics) for transfers, button presses
+- [ ] Parallax scroll effect on Overview hero card
+- [ ] Swipe-to-delete on transaction list items (swipeable row)
+- [ ] Skeleton loading screens (shimmer placeholders during data fetch)
+- [ ] Search functionality in web top bar (currently non-functional input)
+
+## Done — `feature/animations-and-polish` (PR pending)
+
+- [x] CountUp animation on balance (Revolut-style number counter)
+- [x] ScaleIn pop animation on plan badge and status badges
+- [x] Shimmer skeleton component in Motion library
+- [x] SlideInFromRight screen transition component
+- [x] CountUp on transaction detail hero amount
+- [x] Pull-to-refresh on mobile Overview
+- [x] Transaction detail screen (mobile + web)
+- [x] Notification bell with unread badge
+- [x] Services grid on Overview, Services section in web sidebar
+- [x] All web screens polished (Disputes, FX, Mandates, Notifications, Invoices, SecurityCenter)
+- [x] Web SecurityCenter: 2FA placeholder, current session badge, labeled form fields, inline validation
 
 **Dev-environment note (not a task):** RabbitMQ is Docker-only for local dev — run
 `docker run -d --name rabbitmq -p 5672:5672 rabbitmq:3` then add

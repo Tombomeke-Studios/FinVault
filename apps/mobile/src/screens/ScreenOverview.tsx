@@ -3,7 +3,7 @@ import { View, Text, StyleSheet, ScrollView, TouchableOpacity, RefreshControl } 
 import { Icon } from '../components/Icon';
 import { money, Sparkline, relTime, CategoryIcon, Ring, catColor, Delta } from '../components/UI';
 import { BankCard } from '../components/BankCard';
-import { PressableScale, FadeSlideIn, AnimatedProgressBar } from '../components/Motion';
+import { PressableScale, FadeSlideIn, AnimatedProgressBar, CountUp, ScaleIn } from '../components/Motion';
 import { THEME, themedSheet } from '../theme';
 import type { AppData } from '../../App';
 
@@ -62,10 +62,12 @@ export function ScreenOverview({ navigate, data, onTopup, onRefresh }: OverviewP
           <Text style={styles.greetingLabel}>{greeting}</Text>
           <Text style={styles.greetingName}>{data.user.firstName}</Text>
         </View>
-        <View style={styles.planBadge}>
-          <Icon name="sparkle" size={11} color={THEME.colors.accent} />
-          <Text style={styles.planText}>{data.user.plan.replace('FinVault ', '')}</Text>
-        </View>
+        <ScaleIn delay={200}>
+          <View style={styles.planBadge}>
+            <Icon name="sparkle" size={11} color={THEME.colors.accent} />
+            <Text style={styles.planText}>{data.user.plan.replace('FinVault ', '')}</Text>
+          </View>
+        </ScaleIn>
       </FadeSlideIn>
 
       {/* ── Hero balance card ── */}
@@ -76,7 +78,7 @@ export function ScreenOverview({ navigate, data, onTopup, onRefresh }: OverviewP
         <View style={styles.heroTop}>
           <View>
             <Text style={styles.heroLabel}>Total balance</Text>
-            <Text style={styles.heroBalance}>{money(totalEUR)}</Text>
+            <CountUp value={totalEUR} duration={1000} formatter={(v) => money(v)} style={styles.heroBalance} />
             <View style={{ marginTop: 8 }}>
               <Delta value={deltaBalance} />
             </View>
