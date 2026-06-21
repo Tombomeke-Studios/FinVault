@@ -9,9 +9,10 @@ import type { AppData } from '../../App';
 interface TransactionsProps {
   data: AppData;
   onExport: () => void;
+  navigate?: (route: string) => void;
 }
 
-export function ScreenTransactions({ data, onExport }: TransactionsProps) {
+export function ScreenTransactions({ data, onExport, navigate }: TransactionsProps) {
   const [q, setQ] = useState('');
   const [cat, setCat] = useState('all');
   const [filterWalletId, setFilterWalletId] = useState<string | null>(null);
@@ -56,18 +57,27 @@ export function ScreenTransactions({ data, onExport }: TransactionsProps) {
     const displayCat = t.type === 'deposit' ? 'deposit' : 'transfer';
     const amt = getDisplayAmt(t);
     return (
-      <View style={[styles.card, styles.txCard]}>
+      <TouchableOpacity
+        style={[styles.card, styles.txCard]}
+        activeOpacity={0.7}
+        onPress={() => navigate?.(`tx:${t.id}`)}
+        accessibilityRole="button"
+        accessibilityLabel={`${t.description}, ${money(amt, t.currency || 'EUR', { signed: true })}`}
+      >
         <CategoryIcon cat={displayCat} size={40} />
         <View style={styles.txMeta}>
           <Text style={styles.txDesc} numberOfLines={1}>{t.description}</Text>
           <Text style={styles.txTime}>{relTime(new Date(t.createdAt).getTime())}</Text>
         </View>
-        <Text style={[styles.txAmt, { color: amt > 0 ? THEME.colors.pos : THEME.colors.text }]}>
-          {money(amt, t.currency || 'EUR', { signed: true })}
-        </Text>
-      </View>
+        <View style={{ alignItems: 'flex-end' }}>
+          <Text style={[styles.txAmt, { color: amt > 0 ? THEME.colors.pos : THEME.colors.text }]}>
+            {money(amt, t.currency || 'EUR', { signed: true })}
+          </Text>
+          <Icon name="chevRight" size={14} color={THEME.colors.text3} style={{ marginTop: 2 }} />
+        </View>
+      </TouchableOpacity>
     );
-  }, [data.wallets]);
+  }, [data.wallets, navigate]);
 
   const listHeader = useMemo(() => (
     <>

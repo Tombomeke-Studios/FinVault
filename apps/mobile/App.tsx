@@ -17,6 +17,7 @@ import { ScreenMandates } from './src/screens/ScreenMandates';
 import { ScreenFxExchange } from './src/screens/ScreenFxExchange';
 import { ScreenInvoices } from './src/screens/ScreenInvoices';
 import { ScreenDisputes } from './src/screens/ScreenDisputes';
+import { ScreenTransactionDetail } from './src/screens/ScreenTransactionDetail';
 import { Shell } from './src/components/Shell';
 import { money } from './src/components/UI';
 import { MobileSheet } from './src/components/MobileExtras';
@@ -851,6 +852,22 @@ export default function App() {
   const appData   = buildMockData(firstName, lastName, email, wallets, transactions, cards, goals, rawUser?.plan || 'Metal');
 
   const renderScreen = () => {
+    // Transaction detail routing: 'tx:transactionId'
+    if (route.startsWith('tx:')) {
+      const txId = route.replace('tx:', '');
+      const tx = transactions.find(t => t.id === txId);
+      if (tx) {
+        const isIncoming = !!tx.receiverWalletId && wallets.some(w => w.id === tx.receiverWalletId);
+        return (
+          <ScreenTransactionDetail
+            transaction={tx}
+            isIncoming={isIncoming}
+            onBack={() => setRoute('transactions')}
+            onDispute={() => setRoute('disputes')}
+          />
+        );
+      }
+    }
     // Account dashboard routing: 'account:walletId'
     if (route.startsWith('account:')) {
       const walletId = route.replace('account:', '');
@@ -867,7 +884,7 @@ export default function App() {
       case 'overview':
         return <ScreenOverview navigate={setRoute} data={appData} onTopup={() => setDepositOpen(true)} />;
       case 'transactions':
-        return <ScreenTransactions data={appData} onExport={() => fire('Export complete', 'Your transactions CSV was shared.', 'success')} />;
+        return <ScreenTransactions data={appData} onExport={() => fire('Export complete', 'Your transactions CSV was shared.', 'success')} navigate={setRoute} />;
       case 'transfer':
         return <ScreenTransfer data={appData} beneficiaries={beneficiaries} onTransfer={handleTransfer} onRequest={handleRequest} />;
       case 'cards':
