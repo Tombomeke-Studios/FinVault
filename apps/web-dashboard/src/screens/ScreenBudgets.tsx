@@ -60,7 +60,7 @@ export function ScreenBudgets({ compact, token, navigate, fire }: Props) {
                     <div style={{ fontWeight: 600, fontSize: '0.95rem' }}>{b.category}</div>
                     <div style={{ fontSize: '0.78rem', color: 'var(--text-3)', marginTop: 2 }}>{Math.round(pct * 100)}% used</div>
                   </div>
-                  <button className="btn btn--ghost" style={{ padding: 6, color: 'var(--text-3)' }} onClick={() => remove(b.id)}><Icon name="trash-2" size={15} /></button>
+                  <button className="btn btn-ghost" style={{ padding: 6, color: 'var(--text-3)' }} onClick={() => remove(b.id)}><Icon name="trash-2" size={15} /></button>
                 </div>
                 <div style={{ height: 8, borderRadius: 4, background: 'var(--surface-2)', overflow: 'hidden' }}>
                   <div style={{ height: '100%', width: `${pct * 100}%`, borderRadius: 4, background: over ? '#fb7185' : 'var(--accent)', transition: 'width 0.5s cubic-bezier(.22,.9,.3,1)' }} />
@@ -78,7 +78,7 @@ export function ScreenBudgets({ compact, token, navigate, fire }: Props) {
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
             {CATEGORIES.map(c => (
-              <button key={c} className={`chip ${category === c ? 'chip--active' : ''}`} onClick={() => setCategory(c)}>{c}</button>
+              <button key={c} className={`chip ${category === c ? 'chip-accent' : ''}`} onClick={() => setCategory(c)}>{c}</button>
             ))}
           </div>
           <input className="field" placeholder="Monthly limit" value={limit} onChange={e => setLimit(e.target.value)} type="number" min="0" step="0.01" />

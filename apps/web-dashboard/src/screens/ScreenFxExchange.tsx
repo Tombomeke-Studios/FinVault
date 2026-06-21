@@ -54,7 +54,7 @@ export function ScreenFxExchange({ compact, token, navigate, wallets, fire, onRe
           <div className="eyebrow" style={{ marginBottom: 10 }}>You send</div>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 14 }}>
             {CURRENCIES.filter(c => wallets.some(w => w.currency === c)).map(c => (
-              <button key={c} className={`chip ${fromCurrency === c ? 'chip--active' : ''}`} onClick={() => setFromCurrency(c)} style={{ padding: '6px 14px' }}>{c}</button>
+              <button key={c} className={`chip ${fromCurrency === c ? 'chip-accent' : ''}`} onClick={() => setFromCurrency(c)} style={{ padding: '6px 14px' }}>{c}</button>
             ))}
           </div>
           {fromWallet && (
@@ -81,7 +81,7 @@ export function ScreenFxExchange({ compact, token, navigate, wallets, fire, onRe
           <div className="eyebrow" style={{ marginBottom: 10 }}>You receive</div>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 14 }}>
             {CURRENCIES.filter(c => c !== fromCurrency).map(c => (
-              <button key={c} className={`chip ${toCurrency === c ? 'chip--active' : ''}`} onClick={() => setToCurrency(c)} style={{ padding: '6px 14px' }}>{c}</button>
+              <button key={c} className={`chip ${toCurrency === c ? 'chip-accent' : ''}`} onClick={() => setToCurrency(c)} style={{ padding: '6px 14px' }}>{c}</button>
             ))}
           </div>
         </div>

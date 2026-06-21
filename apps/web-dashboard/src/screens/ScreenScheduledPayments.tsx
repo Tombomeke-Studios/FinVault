@@ -90,7 +90,7 @@ export function ScreenScheduledPayments({ compact, token, navigate, wallets, fir
               </div>
               <div style={{ textAlign: 'right', flexShrink: 0 }}>
                 <div className="num" style={{ fontWeight: 700, fontSize: '1.1rem' }}>{money(p.amount)}</div>
-                {p.status === 'active' && <button className="btn btn--ghost" style={{ fontSize: '0.75rem', color: '#fb7185', marginTop: 6, padding: '4px 8px' }} onClick={() => cancel(p.id)}>Cancel</button>}
+                {p.status === 'active' && <button className="btn btn-ghost" style={{ fontSize: '0.75rem', color: '#fb7185', marginTop: 6, padding: '4px 8px' }} onClick={() => cancel(p.id)}>Cancel</button>}
               </div>
             </div>
           ))}
@@ -104,7 +104,7 @@ export function ScreenScheduledPayments({ compact, token, navigate, wallets, fir
           <input className="field" placeholder="Description" value={desc} onChange={e => setDesc(e.target.value)} />
           <div style={{ display: 'flex', gap: 8 }}>
             {['once', 'daily', 'weekly', 'monthly'].map(f => (
-              <button key={f} className={`chip ${frequency === f ? 'chip--active' : ''}`} onClick={() => setFrequency(f)}>{freqLabel(f)}</button>
+              <button key={f} className={`chip ${frequency === f ? 'chip-accent' : ''}`} onClick={() => setFrequency(f)}>{freqLabel(f)}</button>
             ))}
           </div>
           <button className="btn" onClick={create} disabled={loading}>{loading ? 'Creating...' : 'Schedule Payment'}</button>

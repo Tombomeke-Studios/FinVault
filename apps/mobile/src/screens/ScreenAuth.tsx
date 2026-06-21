@@ -12,9 +12,10 @@ interface AuthProps {
   onFaceIdLogin?: () => void;
   pending2FA?: boolean;
   on2FAVerify?: (code: string) => Promise<void>;
+  onCancel2FA?: () => void;
 }
 
-export function ScreenAuth({ onLogin, onRegister, authError, authSuccess, onFaceIdLogin, pending2FA, on2FAVerify }: AuthProps) {
+export function ScreenAuth({ onLogin, onRegister, authError, authSuccess, onFaceIdLogin, pending2FA, on2FAVerify, onCancel2FA }: AuthProps) {
   const [mode, setMode] = useState<'login' | 'register'>('login');
   const [email, setEmail] = useState('admin@finvault.com');
   const [pw, setPw] = useState('');
@@ -193,6 +194,15 @@ export function ScreenAuth({ onLogin, onRegister, authError, authSuccess, onFace
                   ) : (
                     <Text style={styles.submitText}>Verify</Text>
                   )}
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.faceIdBtn}
+                  onPress={() => { onCancel2FA?.(); setTwoFACode(''); }}
+                  accessibilityRole="button"
+                  accessibilityLabel="Cancel 2FA and go back to login"
+                >
+                  <Icon name="arrowLeft" size={18} color={THEME.colors.text2} />
+                  <Text style={styles.faceIdText}>Back to login</Text>
                 </TouchableOpacity>
               </>
             ) : (
