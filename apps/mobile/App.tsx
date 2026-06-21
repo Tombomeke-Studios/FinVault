@@ -882,7 +882,7 @@ export default function App() {
     }
     switch (route) {
       case 'overview':
-        return <ScreenOverview navigate={setRoute} data={appData} onTopup={() => setDepositOpen(true)} />;
+        return <ScreenOverview navigate={setRoute} data={appData} onTopup={() => setDepositOpen(true)} onRefresh={async () => { await Promise.all([fetchWallets(), fetchTransactions(), fetchCards(), fetchGoals(), fetchNotificationCount()]); }} />;
       case 'transactions':
         return <ScreenTransactions data={appData} onExport={() => fire('Export complete', 'Your transactions CSV was shared.', 'success')} navigate={setRoute} />;
       case 'transfer':
@@ -912,7 +912,7 @@ export default function App() {
       case 'disputes':
         return <ScreenDisputes token={token} apiUrl={API_URL} transactions={transactions} fire={fire} onBack={() => setRoute('settings')} />;
       default:
-        return <ScreenOverview navigate={setRoute} data={appData} onTopup={() => setDepositOpen(true)} />;
+        return <ScreenOverview navigate={setRoute} data={appData} onTopup={() => setDepositOpen(true)} onRefresh={async () => { await Promise.all([fetchWallets(), fetchTransactions(), fetchCards(), fetchGoals(), fetchNotificationCount()]); }} />;
     }
   };
 
