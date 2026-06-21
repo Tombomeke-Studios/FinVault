@@ -114,14 +114,14 @@ export function ScreenMandates({ token, apiUrl, fire, onBack }: Props) {
 }
 
 const styles = themedSheet(() => StyleSheet.create({
-  container: { flex: 1, backgroundColor: THEME.colors.bg, paddingHorizontal: 16, paddingTop: 12 },
-  header: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 16 },
-  title: { fontSize: 22, fontWeight: '700', color: THEME.colors.text, flex: 1 },
-  emptyCard: { backgroundColor: THEME.colors.surface, borderRadius: THEME.radius.regular, padding: 32, alignItems: 'center', gap: 12 },
+  container: { flex: 1, backgroundColor: THEME.colors.bg },
+  header: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 16, paddingHorizontal: 16, paddingTop: 12 },
+  title: { fontSize: 24, fontWeight: '700', color: THEME.colors.text, flex: 1, letterSpacing: -0.5 },
+  emptyCard: { backgroundColor: THEME.colors.surface, borderRadius: THEME.radius.lg, borderWidth: 1, borderColor: THEME.colors.line, padding: 40, alignItems: 'center', gap: 14, marginHorizontal: 16, elevation: 2, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.1, shadowRadius: 3 },
   emptyText: { color: THEME.colors.text3, fontSize: 14 },
-  card: { flexDirection: 'row', backgroundColor: THEME.colors.surface, borderRadius: THEME.radius.regular, padding: 16, marginBottom: 10, alignItems: 'center' },
-  cardTitle: { color: THEME.colors.text, fontWeight: '600', fontSize: 15 },
-  cardSub: { color: THEME.colors.text2, fontSize: 12, marginTop: 2 },
-  cardStatus: { fontSize: 11, fontWeight: '700', marginTop: 4 },
-  cardAmount: { color: THEME.colors.text, fontWeight: '700', fontSize: 16 },
+  card: { flexDirection: 'row', backgroundColor: THEME.colors.surface, borderRadius: THEME.radius.lg, borderWidth: 1, borderColor: THEME.colors.line, padding: 16, marginBottom: 10, marginHorizontal: 16, alignItems: 'center', elevation: 2, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.1, shadowRadius: 3 },
+  cardTitle: { color: THEME.colors.text, fontWeight: '700', fontSize: 15, letterSpacing: -0.2 },
+  cardSub: { color: THEME.colors.text2, fontSize: 12, marginTop: 3, letterSpacing: 0.1 },
+  cardStatus: { fontSize: 10, fontWeight: '800', marginTop: 6, letterSpacing: 1 },
+  cardAmount: { color: THEME.colors.text, fontWeight: '700', fontSize: 17, letterSpacing: -0.5 },
 }));

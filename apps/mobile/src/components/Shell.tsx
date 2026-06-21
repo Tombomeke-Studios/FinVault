@@ -1,7 +1,8 @@
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Image } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { Icon } from './Icon';
 import { Avatar } from './UI';
+import { FVLogo } from './FVLogo';
 import { THEME, themedSheet } from '../theme';
 
 interface ShellProps {
@@ -24,12 +25,7 @@ export function Shell({ route, setRoute, user, children }: ShellProps) {
     <View style={styles.container}>
       {/* Top sticky bar */}
       <View style={styles.topBar}>
-        <Image
-          source={require('../../assets/icon.png')}
-          style={styles.logoImage}
-          resizeMode="contain"
-          accessibilityLabel="FinVault"
-        />
+        <FVLogo size={26} />
         <View style={styles.topRight}>
           <TouchableOpacity
             style={styles.topBtn}
@@ -110,10 +106,6 @@ const styles = themedSheet(() => StyleSheet.create({
     paddingHorizontal: 16,
     borderBottomWidth: 1,
     borderBottomColor: THEME.colors.line,
-  },
-  logoImage: {
-    height: 32,
-    width: 120,
   },
   topRight: {
     flexDirection: 'row',

@@ -98,13 +98,13 @@ export function ScreenNotifications({ token, apiUrl, fire, onBack }: Props) {
 }
 
 const styles = themedSheet(() => StyleSheet.create({
-  container: { flex: 1, backgroundColor: THEME.colors.bg, paddingHorizontal: 16, paddingTop: 12 },
-  header: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 16 },
-  title: { fontSize: 22, fontWeight: '700', color: THEME.colors.text, flex: 1 },
-  emptyCard: { backgroundColor: THEME.colors.surface, borderRadius: THEME.radius.regular, padding: 32, alignItems: 'center', gap: 12 },
+  container: { flex: 1, backgroundColor: THEME.colors.bg },
+  header: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 16, paddingHorizontal: 16, paddingTop: 12 },
+  title: { fontSize: 24, fontWeight: '700', color: THEME.colors.text, flex: 1, letterSpacing: -0.5 },
+  emptyCard: { backgroundColor: THEME.colors.surface, borderRadius: THEME.radius.lg, borderWidth: 1, borderColor: THEME.colors.line, padding: 40, alignItems: 'center', gap: 14, marginHorizontal: 16, elevation: 2, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.1, shadowRadius: 3 },
   emptyText: { color: THEME.colors.text3, fontSize: 14 },
-  card: { backgroundColor: THEME.colors.surface, borderRadius: THEME.radius.regular, padding: 16, marginBottom: 8 },
-  cardTitle: { color: THEME.colors.text, fontWeight: '600', fontSize: 15 },
-  cardBody: { color: THEME.colors.text2, fontSize: 13, marginTop: 4 },
-  cardTime: { color: THEME.colors.text3, fontSize: 11, marginTop: 6 },
+  card: { backgroundColor: THEME.colors.surface, borderRadius: THEME.radius.lg, borderWidth: 1, borderColor: THEME.colors.line, padding: 16, marginBottom: 8, marginHorizontal: 16, elevation: 2, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.1, shadowRadius: 3 },
+  cardTitle: { color: THEME.colors.text, fontWeight: '700', fontSize: 15, letterSpacing: -0.2 },
+  cardBody: { color: THEME.colors.text2, fontSize: 13, marginTop: 4, lineHeight: 18 },
+  cardTime: { color: THEME.colors.text3, fontSize: 11, marginTop: 6, letterSpacing: 0.2 },
 }));
