@@ -1,6 +1,9 @@
-import * as Notifications from 'expo-notifications';
 import Constants from 'expo-constants';
 import { Platform } from 'react-native';
+
+type NotificationsModule = typeof import('expo-notifications');
+
+let notificationsModulePromise: Promise<NotificationsModule | null> | null = null;
 
 function isExpoGoClient(): boolean {
   const appOwnership = (Constants as { appOwnership?: string }).appOwnership;
@@ -9,20 +12,43 @@ function isExpoGoClient(): boolean {
   return appOwnership === 'expo' || executionEnvironment === 'storeClient';
 }
 
-Notifications.setNotificationHandler({
-  handleNotification: async () => ({
-    shouldShowAlert: true,
-    shouldPlaySound: true,
-    shouldSetBadge: true,
-    shouldShowBanner: true,
-    shouldShowList: true,
-  }),
-});
+async function getNotificationsModule(): Promise<NotificationsModule | null> {
+  if (isExpoGoClient()) {
+    return null;
+  }
+
+  if (!notificationsModulePromise) {
+    notificationsModulePromise = import('expo-notifications')
+      .then(module => {
+        module.setNotificationHandler({
+          handleNotification: async () => ({
+            shouldShowAlert: true,
+            shouldPlaySound: true,
+            shouldSetBadge: true,
+            shouldShowBanner: true,
+            shouldShowList: true,
+          }),
+        });
+
+        return module;
+      })
+      .catch(err => {
+        console.warn('[Push] Failed to load expo-notifications:', err);
+        return null;
+      });
+  }
+
+  return notificationsModulePromise;
+}
 
 export async function registerForPushNotifications(): Promise<string | null> {
   try {
-    if (isExpoGoClient()) {
-      console.warn('[Push] Remote push notifications are not available in Expo Go. Use an EAS development build or a standalone build instead.');
+    const Notifications = await getNotificationsModule();
+    if (!Notifications) {
+      if (isExpoGoClient()) {
+        console.warn('[Push] Remote push notifications are not available in Expo Go. Use an EAS development build or a standalone build instead.');
+      }
+
       return null;
     }
 
