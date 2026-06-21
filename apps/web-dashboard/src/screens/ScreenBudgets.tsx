@@ -51,17 +51,23 @@ export function ScreenBudgets({ compact, token, navigate, fire }: Props) {
             const pct = b.monthlyLimit > 0 ? Math.min(b.currentSpend / b.monthlyLimit, 1) : 0;
             const over = b.currentSpend > b.monthlyLimit;
             return (
-              <div key={b.id} className="card" style={{ padding: 16 }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
-                  <span style={{ fontWeight: 600 }}>{b.category}</span>
-                  <button className="btn btn--ghost" style={{ padding: 4 }} onClick={() => remove(b.id)}><Icon name="trash-2" size={14} /></button>
+              <div key={b.id} className="card" style={{ padding: '16px 20px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12 }}>
+                  <div style={{ width: 38, height: 38, borderRadius: 'var(--r)', background: over ? '#fb71851A' : 'color-mix(in oklab, var(--accent) 12%, transparent)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                    <Icon name="bar-chart-2" size={18} style={{ color: over ? '#fb7185' : 'var(--accent)' }} />
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontWeight: 600, fontSize: '0.95rem' }}>{b.category}</div>
+                    <div style={{ fontSize: '0.78rem', color: 'var(--text-3)', marginTop: 2 }}>{Math.round(pct * 100)}% used</div>
+                  </div>
+                  <button className="btn btn--ghost" style={{ padding: 6, color: 'var(--text-3)' }} onClick={() => remove(b.id)}><Icon name="trash-2" size={15} /></button>
                 </div>
-                <div style={{ height: 6, borderRadius: 3, background: 'var(--surface-2)', overflow: 'hidden' }}>
-                  <div style={{ height: '100%', width: `${pct * 100}%`, borderRadius: 3, background: over ? '#fb7185' : 'var(--accent)', transition: 'width 0.4s' }} />
+                <div style={{ height: 8, borderRadius: 4, background: 'var(--surface-2)', overflow: 'hidden' }}>
+                  <div style={{ height: '100%', width: `${pct * 100}%`, borderRadius: 4, background: over ? '#fb7185' : 'var(--accent)', transition: 'width 0.5s cubic-bezier(.22,.9,.3,1)' }} />
                 </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 6, fontSize: '0.8rem' }}>
-                  <span style={{ color: over ? '#fb7185' : 'var(--text-3)' }}>{money(b.currentSpend)} spent</span>
-                  <span style={{ color: 'var(--text-3)' }}>{money(b.monthlyLimit)} limit</span>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 8, fontSize: '0.82rem' }}>
+                  <span className="num" style={{ fontWeight: 600, color: over ? '#fb7185' : 'var(--text-2)' }}>{money(b.currentSpend)} spent</span>
+                  <span className="num" style={{ color: 'var(--text-3)' }}>{money(b.monthlyLimit)} limit</span>
                 </div>
               </div>
             );
