@@ -10,9 +10,11 @@ interface AuthProps {
   authError: string;
   authSuccess: string;
   onFaceIdLogin?: () => void;
+  pending2FA?: boolean;
+  on2FAVerify?: (code: string) => Promise<void>;
 }
 
-export function ScreenAuth({ onLogin, onRegister, authError, authSuccess, onFaceIdLogin }: AuthProps) {
+export function ScreenAuth({ onLogin, onRegister, authError, authSuccess, onFaceIdLogin, pending2FA, on2FAVerify }: AuthProps) {
   const [mode, setMode] = useState<'login' | 'register'>('login');
   const [email, setEmail] = useState('admin@finvault.com');
   const [pw, setPw] = useState('');
@@ -20,6 +22,7 @@ export function ScreenAuth({ onLogin, onRegister, authError, authSuccess, onFace
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
   const [loading, setLoading] = useState(false);
+  const [twoFACode, setTwoFACode] = useState('');
 
   const submit = async () => {
     setLoading(true);
@@ -161,36 +164,71 @@ export function ScreenAuth({ onLogin, onRegister, authError, authSuccess, onFace
               </View>
             )}
 
-            <TouchableOpacity
-              style={[styles.submitBtn, loading && { opacity: 0.7 }]}
-              onPress={submit}
-              disabled={loading}
-              accessibilityRole="button"
-              accessibilityState={{ disabled: loading, busy: loading }}
-            >
-              {loading ? (
-                <ActivityIndicator size="small" color={THEME.colors.onAccent} />
-              ) : (
-                <>
-                  <Text style={styles.submitText}>
-                    {mode === 'login' ? 'Sign in' : 'Create account'}
-                  </Text>
-                  <Icon name="chevRight" size={16} color={THEME.colors.onAccent} />
-                </>
-              )}
-            </TouchableOpacity>
+            {pending2FA ? (
+              <>
+                <View style={styles.twoFABox}>
+                  <Icon name="shield" size={24} color={THEME.colors.accent} />
+                  <Text style={styles.twoFATitle}>Two-Factor Authentication</Text>
+                  <Text style={styles.twoFADesc}>Enter the 6-digit code from your authenticator app</Text>
+                  <TextInput
+                    style={[styles.input, styles.twoFAInput]}
+                    value={twoFACode}
+                    onChangeText={setTwoFACode}
+                    placeholder="000000"
+                    placeholderTextColor={THEME.colors.text3}
+                    keyboardType="number-pad"
+                    maxLength={6}
+                    textAlign="center"
+                    autoFocus
+                  />
+                </View>
+                <TouchableOpacity
+                  style={[styles.submitBtn, (loading || twoFACode.length !== 6) && { opacity: 0.7 }]}
+                  onPress={async () => { setLoading(true); await on2FAVerify?.(twoFACode); setLoading(false); }}
+                  disabled={loading || twoFACode.length !== 6}
+                  accessibilityRole="button"
+                >
+                  {loading ? (
+                    <ActivityIndicator size="small" color={THEME.colors.onAccent} />
+                  ) : (
+                    <Text style={styles.submitText}>Verify</Text>
+                  )}
+                </TouchableOpacity>
+              </>
+            ) : (
+              <>
+                <TouchableOpacity
+                  style={[styles.submitBtn, loading && { opacity: 0.7 }]}
+                  onPress={submit}
+                  disabled={loading}
+                  accessibilityRole="button"
+                  accessibilityState={{ disabled: loading, busy: loading }}
+                >
+                  {loading ? (
+                    <ActivityIndicator size="small" color={THEME.colors.onAccent} />
+                  ) : (
+                    <>
+                      <Text style={styles.submitText}>
+                        {mode === 'login' ? 'Sign in' : 'Create account'}
+                      </Text>
+                      <Icon name="chevRight" size={16} color={THEME.colors.onAccent} />
+                    </>
+                  )}
+                </TouchableOpacity>
 
-            {mode === 'login' && (
-              <TouchableOpacity
-                style={[styles.faceIdBtn, loading && { opacity: 0.5 }]}
-                onPress={handleFaceIdLogin}
-                disabled={loading}
-                accessibilityRole="button"
-                accessibilityLabel="Sign in with Face ID"
-              >
-                <Icon name="faceId" size={20} color={THEME.colors.accent} />
-                <Text style={styles.faceIdText}>Sign in with Face ID</Text>
-              </TouchableOpacity>
+                {mode === 'login' && (
+                  <TouchableOpacity
+                    style={[styles.faceIdBtn, loading && { opacity: 0.5 }]}
+                    onPress={handleFaceIdLogin}
+                    disabled={loading}
+                    accessibilityRole="button"
+                    accessibilityLabel="Sign in with Face ID"
+                  >
+                    <Icon name="faceId" size={20} color={THEME.colors.accent} />
+                    <Text style={styles.faceIdText}>Sign in with Face ID</Text>
+                  </TouchableOpacity>
+                )}
+              </>
             )}
           </View>
 
@@ -377,5 +415,35 @@ const styles = themedSheet(() => StyleSheet.create({
     color: THEME.colors.text2,
     fontSize: 14.5,
     fontWeight: '600',
+  },
+  twoFABox: {
+    alignItems: 'center',
+    gap: 10,
+    paddingVertical: 16,
+    backgroundColor: THEME.colors.surface,
+    borderRadius: THEME.radius.lg,
+    borderWidth: 1,
+    borderColor: THEME.colors.line,
+    padding: 24,
+    marginBottom: 8,
+  },
+  twoFATitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: THEME.colors.text,
+    letterSpacing: -0.3,
+  },
+  twoFADesc: {
+    fontSize: 13,
+    color: THEME.colors.text2,
+    textAlign: 'center',
+    lineHeight: 18,
+  },
+  twoFAInput: {
+    fontSize: 28,
+    fontWeight: '800',
+    letterSpacing: 8,
+    paddingVertical: 16,
+    width: '100%',
   },
 }));

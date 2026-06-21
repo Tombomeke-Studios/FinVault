@@ -6,9 +6,11 @@ import { PrismaClient } from '../generated/prisma/index.js';
 import { publishEvent, requireAuth, extractTokenFromRequest, computeTransactionHash, consumeRabbitQueue, SERVICE_SECRET } from 'shared';
 import { validateSEPAXML } from './sepa-validator.js';
 import { normalizeIban, isValidIbanFormat } from './iban.js';
+import { Expo, type ExpoPushMessage } from 'expo-server-sdk';
 
 const prisma = new PrismaClient();
 const app = express();
+const expo = new Expo();
 const PORT = process.env.PORT || 8002;
 const GATEWAY_URL = process.env.GATEWAY_URL || 'http://localhost:8000';
 const ACCOUNT_SERVICE_URL = process.env.ACCOUNT_SERVICE_URL || 'http://localhost:8001';
@@ -16,6 +18,28 @@ const INVOICE_SERVICE_URL = process.env.INVOICE_SERVICE_URL || 'http://localhost
 
 // Custom DRY wrapper for Event Hub publishing inside Docker/Local env
 const publishWalletEvent = (event: any) => publishEvent('wallet-transaction-service', event, process.env.GATEWAY_URL);
+
+async function sendPushNotification(userId: string, title: string, body: string) {
+  try {
+    const res = await fetch(`${ACCOUNT_SERVICE_URL}/users/profile-by-email?email=`, {
+      headers: { 'X-Service-Secret': SERVICE_SECRET }
+    });
+    // Fetch push token from account service via internal endpoint
+    const profileRes = await fetch(`${ACCOUNT_SERVICE_URL}/users/push-token/${userId}`, {
+      headers: { 'X-Service-Secret': SERVICE_SECRET }
+    }).catch(() => null);
+
+    if (!profileRes || !profileRes.ok) return;
+    const { pushToken } = await profileRes.json();
+    if (!pushToken || !Expo.isExpoPushToken(pushToken)) return;
+
+    const messages: ExpoPushMessage[] = [{ to: pushToken, sound: 'default', title, body }];
+    await expo.sendPushNotificationsAsync(messages);
+    console.log(`[Push] Sent to ${userId}: ${title}`);
+  } catch (err: any) {
+    console.error(`[Push] Failed for ${userId}:`, err.message);
+  }
+}
 
 // =============================================
 // Security Middleware
@@ -1185,6 +1209,9 @@ app.post('/transactions/transfer', requireAuth, async (req, res) => {
         currency: receiverWallet.currency
       }
     });
+
+    // Push notification to receiver
+    sendPushNotification(receiverWallet.userId, 'Payment received', `You received ${amount} ${senderWallet.currency} — ${description}`);
 
     // Generate receipt asynchronously (non-blocking)
     generateReceipt({

@@ -26,6 +26,7 @@ import { Icon } from './src/components/Icon';
 import { saveSession, loadSession, clearSession, tryRefreshSession, revokeSession } from './src/session';
 import { isBiometricAvailable, authenticateBiometric, getBiometricPref, setBiometricPref, hasDismissedBioPrompt, setDismissedBioPrompt } from './src/biometrics';
 import { THEME, themedSheet, setAppTheme, persistThemeConfig, loadPersistedThemeConfig } from './src/theme';
+import { registerForPushNotifications, sendTokenToServer } from './src/push';
 
 // ── Global error boundary — catches render-time crashes in production ──────────
 interface EBState { error: Error | null; }
@@ -340,6 +341,7 @@ export default function App() {
   const [unreadNotifications, setUnreadNotifications] = useState(0);
   const [authError, setAuthError] = useState('');
   const [authSuccess, setAuthSuccess] = useState('');
+  const [pending2FA, setPending2FA] = useState<{ tempToken: string } | null>(null);
   const [upgradeOpen, setUpgradeOpen] = useState(false);
   const [bioPromptOpen, setBioPromptOpen] = useState(false);
 
@@ -533,6 +535,7 @@ export default function App() {
         fetchGoals();
         fetchBeneficiaries();
         fetchNotificationCount();
+        registerForPushNotifications().then(pt => { if (pt && token) sendTokenToServer(API_URL, token, pt); });
       } else {
         // Access token expired/invalid — try one silent refresh before signing out.
         const refreshed = await tryRefreshSession(API_URL);
@@ -565,6 +568,11 @@ export default function App() {
       });
       if (res.ok) {
         const data = await res.json();
+        if (data.requires2FA) {
+          setPending2FA({ tempToken: data.tempToken });
+          setAuthSuccess('Enter your 2FA code');
+          return;
+        }
         await saveSession(data.accessToken, data.refreshToken);
         setToken(data.accessToken);
         setAuthSuccess('Welcome back!');
@@ -618,6 +626,30 @@ export default function App() {
       setAuthSuccess('Welcome back!');
     } else {
       setAuthError('No saved session on this device — sign in with your password first.');
+    }
+  };
+
+  const handle2FAVerify = async (code: string) => {
+    if (!pending2FA) return;
+    setAuthError('');
+    try {
+      const res = await fetch(`${API_URL}/api/auth/verify-2fa`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tempToken: pending2FA.tempToken, code })
+      });
+      if (res.ok) {
+        const data = await res.json();
+        await saveSession(data.accessToken, data.refreshToken);
+        setToken(data.accessToken);
+        setPending2FA(null);
+        setAuthSuccess('Welcome back!');
+      } else {
+        const err = await res.json();
+        setAuthError(err.error || 'Invalid 2FA code');
+      }
+    } catch {
+      setAuthError('Verification failed — try again');
     }
   };
 
@@ -937,6 +969,8 @@ export default function App() {
           authError={authError}
           authSuccess={authSuccess}
           onFaceIdLogin={handleFaceIdLogin}
+          pending2FA={!!pending2FA}
+          on2FAVerify={handle2FAVerify}
         />
       ) : (
         <Shell route={route} setRoute={setRoute} user={appData.user} unreadNotifications={unreadNotifications}>
