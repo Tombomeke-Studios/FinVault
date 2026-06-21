@@ -28,7 +28,7 @@ export function ScreenNotifications({ compact, token, navigate, fire }: Props) {
   return (
     <div style={{ padding: compact ? 16 : 24, maxWidth: 760, margin: '0 auto' }}>
       <PageHead title="Notifications" back={compact ? () => navigate('overview') : undefined}
-        action={unread > 0 ? <button className="btn btn--ghost" style={{ fontSize: '0.84rem', color: 'var(--accent)' }} onClick={markAllRead}>Mark all read ({unread})</button> : undefined}
+        action={unread > 0 ? <button className="btn btn-ghost" style={{ fontSize: '0.84rem', color: 'var(--accent)' }} onClick={markAllRead}>Mark all read ({unread})</button> : undefined}
       />
 
       {notifications.length === 0 ? (

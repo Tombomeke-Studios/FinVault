@@ -549,7 +549,7 @@ export default function App() {
     } catch {
       setupMockSession();
     }
-  }, [token, fetchWallets, fetchTransactions, fetchCards, fetchGoals]);
+  }, [token, fetchWallets, fetchTransactions, fetchCards, fetchGoals, fetchBeneficiaries, fetchNotificationCount]);
 
   useEffect(() => {
     if (token) {
@@ -971,6 +971,7 @@ export default function App() {
           onFaceIdLogin={handleFaceIdLogin}
           pending2FA={!!pending2FA}
           on2FAVerify={handle2FAVerify}
+          onCancel2FA={() => { setPending2FA(null); setAuthError(''); setAuthSuccess(''); }}
         />
       ) : (
         <Shell route={route} setRoute={setRoute} user={appData.user} unreadNotifications={unreadNotifications}>

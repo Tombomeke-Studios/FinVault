@@ -50,7 +50,7 @@ export function ScreenMandates({ compact, token, navigate, fire }: Props) {
               <div style={{ textAlign: 'right', flexShrink: 0 }}>
                 <div className="num" style={{ fontWeight: 700, fontSize: '1.1rem' }}>{money(m.amount)}</div>
                 <div style={{ color: 'var(--text-3)', fontSize: '0.78rem', marginTop: 2 }}>Total: <span className="num">{money(m.totalCharged)}</span></div>
-                {m.status === 'active' && <button className="btn btn--ghost" style={{ color: '#fb7185', fontSize: '0.75rem', marginTop: 6, padding: '4px 8px' }} onClick={() => cancel(m.id)}>Cancel</button>}
+                {m.status === 'active' && <button className="btn btn-ghost" style={{ color: '#fb7185', fontSize: '0.75rem', marginTop: 6, padding: '4px 8px' }} onClick={() => cancel(m.id)}>Cancel</button>}
               </div>
             </div>
           ))}

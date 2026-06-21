@@ -3,7 +3,7 @@ import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import { PrismaClient } from '../generated/prisma/index.js';
-import { publishEvent, requireAuth, extractTokenFromRequest, computeTransactionHash, consumeRabbitQueue, SERVICE_SECRET } from 'shared';
+import { publishEvent, requireAuth, requireServiceSecret, extractTokenFromRequest, computeTransactionHash, consumeRabbitQueue, SERVICE_SECRET } from 'shared';
 import { validateSEPAXML } from './sepa-validator.js';
 import { normalizeIban, isValidIbanFormat } from './iban.js';
 import { Expo, type ExpoPushMessage } from 'expo-server-sdk';
@@ -21,20 +21,15 @@ const publishWalletEvent = (event: any) => publishEvent('wallet-transaction-serv
 
 async function sendPushNotification(userId: string, title: string, body: string) {
   try {
-    const res = await fetch(`${ACCOUNT_SERVICE_URL}/users/profile-by-email?email=`, {
-      headers: { 'X-Service-Secret': SERVICE_SECRET }
-    });
-    // Fetch push token from account service via internal endpoint
-    const profileRes = await fetch(`${ACCOUNT_SERVICE_URL}/users/push-token/${userId}`, {
+    const res = await fetch(`${ACCOUNT_SERVICE_URL}/users/push-token/${userId}`, {
       headers: { 'X-Service-Secret': SERVICE_SECRET }
     }).catch(() => null);
+    if (!res || !res.ok) return;
 
-    if (!profileRes || !profileRes.ok) return;
-    const { pushToken } = await profileRes.json();
+    const { pushToken } = await res.json();
     if (!pushToken || !Expo.isExpoPushToken(pushToken)) return;
 
-    const messages: ExpoPushMessage[] = [{ to: pushToken, sound: 'default', title, body }];
-    await expo.sendPushNotificationsAsync(messages);
+    await expo.sendPushNotificationsAsync([{ to: pushToken, sound: 'default', title, body }]);
     console.log(`[Push] Sent to ${userId}: ${title}`);
   } catch (err: any) {
     console.error(`[Push] Failed for ${userId}:`, err.message);
@@ -382,7 +377,7 @@ async function createDefaultWalletsAndCardsForUser(userId: string, email: string
 // =============================================
 // Webhook listener for Gateway events (e.g. account.created)
 // =============================================
-app.post('/webhooks/events', async (req, res) => {
+app.post('/webhooks/events', requireServiceSecret, async (req, res) => {
   const { event } = req.body;
   console.log(`[Wallet Service Webhook] Received event: ${event.type}`);
 
