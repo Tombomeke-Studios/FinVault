@@ -1,64 +1,179 @@
 # FinVault Security
 
-Security posture of the demo and the reasoning behind it. Last updated: 2026-06-10.
+> Last updated: 2026-06-21 · v2.0.0
 
-## Authentication & sessions
+Security posture of the platform and the reasoning behind each layer.
+
+---
+
+## Authentication Flow
+
+```mermaid
+sequenceDiagram
+    participant U as User
+    participant C as Client App
+    participant G as Gateway
+    participant A as Account Service
+    participant DB as Database
+
+    U->>C: Enter email + password
+    C->>G: POST /api/auth/login
+    G->>A: proxy
+    A->>DB: Find user by email
+    A->>A: bcrypt.compare (cost 12)
+    alt Invalid credentials
+        A->>DB: Log audit event
+        A-->>C: 401 "Invalid email or password"
+    else Valid
+        A->>A: Issue JWT access (1h) + refresh (7d)
+        A->>DB: Store sha256(refreshToken)
+        A->>DB: Log "login successful"
+        A-->>C: 200 + { accessToken, refreshToken }
+    end
+
+    Note over C: Access token in memory<br/>Refresh token in SecureStore (mobile)<br/>or localStorage (web)
+```
+
+---
+
+## Token Lifecycle
+
+```mermaid
+stateDiagram-v2
+    [*] --> Active: Login / Refresh
+    Active --> Expired: 1h (access) / 7d (refresh)
+    Active --> Revoked: Logout / Password change
+    Active --> Revoked: Replay detected
+    Expired --> [*]
+    Revoked --> [*]
+
+    note right of Revoked
+        Replay detection: if a rotated
+        refresh token is reused, ALL
+        user sessions are revoked
+        (theft signal)
+    end note
+```
 
 | Mechanism | Detail |
 |---|---|
-| Password hashing | bcrypt, cost factor **12** |
-| Password policy | ≥8 chars, upper + lower + digit (Zod `RegisterSchema`) |
-| Access token | JWT, **1 hour**, signed with `JWT_SECRET` |
-| Refresh token | JWT, **7 days**, stored **sha256-hashed** in `RefreshToken` table |
-| Rotation | `/auth/refresh` revokes the used token and issues a new pair. **Replaying a rotated token revokes all of that user's sessions** (theft signal). |
-| Revocation | `/auth/logout` marks the refresh token revoked (idempotent, audited) |
-| Lockout | 10 failed logins for one email → account `frozen` + `account.frozen` event |
-| Rate limits | login 5/15 min/IP, registration 3/h/IP, gateway-wide 500/min/IP |
-| Error hygiene | Login failures return a single generic message — no account-existence or attempt-count leak (details go to the audit log only) |
-| Mobile storage | Token pair in iOS Keychain / Android Keystore (`expo-secure-store`); auto-refresh on expiry; server-side revocation on sign-out |
-| Web storage | Access token **in memory only**; rotating refresh token in `localStorage` (`fv_refresh`). Boot exchanges it for a fresh pair; a 401 mid-session triggers one silent refresh; sign-out revokes server-side (`src/lib/session.ts`, mirrors mobile) |
+| **Password hashing** | bcrypt, cost factor **12** |
+| **Password policy** | ≥ 8 chars, upper + lower + digit (Zod `RegisterSchema`) |
+| **Access token** | JWT, **1 hour**, signed with `JWT_SECRET` |
+| **Refresh token** | JWT, **7 days**, stored **sha256-hashed** in `RefreshToken` table |
+| **Rotation** | `/auth/refresh` revokes the used token and issues a new pair |
+| **Replay detection** | Replaying a rotated token revokes **all** of that user's sessions |
+| **Revocation** | `/auth/logout` marks the refresh token as revoked (idempotent, audited) |
+| **Password change** | `/users/change-password` revokes all sessions, issues fresh pair |
+| **Session management** | `/users/sessions` lists active tokens; `DELETE /:id` revokes one |
 
-## Service-to-service trust
+---
 
-- Internal endpoints (`/users/profile-by-email`, `/transactions/internal-transfer`,
-  gateway Event Hub) require the `X-Service-Secret` header (`SERVICE_SECRET` env).
-- `shared/auth.ts` logs loud warnings whenever `JWT_SECRET` / `SERVICE_SECRET` fall
-  back to the in-repo development values.
+## Account Protection
 
-## Transport & headers
+```mermaid
+graph TD
+    LOGIN["Login Attempt"] --> RL{"Rate Limit<br/>5 / 15min / IP"}
+    RL -->|Exceeded| BLOCK["429 Too Many Requests"]
+    RL -->|OK| VALIDATE{"Credentials<br/>Valid?"}
+    VALIDATE -->|No| COUNT{"Failed count<br/>for email"}
+    COUNT -->|"< 10"| FAIL["401 + audit log"]
+    COUNT -->|"≥ 10"| FREEZE["Account FROZEN<br/>+ event published"]
+    VALIDATE -->|Yes| SUCCESS["200 + token pair"]
 
-- Every service runs `helmet()`.
-- Gateway CORS: open in local demo; set `CORS_ORIGINS` (comma-separated) to enforce an
-  allowlist. JSON bodies capped at 1 MB.
-- WebSocket connections authenticate with a verified JWT before being registered.
+    style FREEZE fill:#fb7185,color:#fff
+    style SUCCESS fill:#34d399,color:#000
+    style BLOCK fill:#fbbf24,color:#000
+```
 
-## Data integrity & audit
+| Protection | Config |
+|---|---|
+| Login rate limit | 5 attempts / 15 min / IP |
+| Registration rate limit | 3 accounts / hour / IP |
+| Gateway rate limit | 500 requests / min / IP (Redis or in-memory) |
+| Account lockout | 10 failed logins → account frozen + `account.frozen` event |
+| Error hygiene | Generic "Invalid email or password" — no account-existence or attempt-count leak |
 
-- Each transaction stores an HMAC integrity hash (`FINVAULT_MESSAGE_KEY`) computed
-  over sender/receiver/amount/reference/currency — tamper-evidence for the ledger.
-- All auth events (success, failure, freeze, refresh, logout) land in `AuditLog`
-  with IP and user agent; users can view them in the app (Settings → Security activity).
-- Transfers run inside Prisma `$transaction` blocks; SEPA IBANs are mod-97 validated.
+---
 
-## Demo mode
+## Client Storage
 
-When the backend is unreachable, the apps fall back to a purely client-side demo
-session (`mock-token`) with fabricated data. This is intentional for portfolio/demo
-use; nothing in demo mode talks to a server, and the mock token is never accepted by
-any service.
+| Platform | Access Token | Refresh Token | Theme Prefs |
+|---|---|---|---|
+| **Mobile** | In memory (`useState`) | iOS Keychain / Android Keystore (`expo-secure-store`) | SecureStore |
+| **Web** | In memory (`useState`) | `localStorage` (`fv_refresh`) | `localStorage` (`fv_theme`) |
 
-## Known gaps / future work
+### Mobile Biometrics
 
-- Web refresh token lives in `localStorage`: rotation + replay-revocation limit the
-  blast radius, but an httpOnly cookie session (needs cookie handling in the gateway)
-  would also take it out of XSS reach entirely.
-- Rate limiting is in-memory per instance — use Redis when running replicas.
-- Account freeze-on-lockout has no self-service unfreeze flow (support-only by design).
-- Card PAN/CVV are demo values stored in plain text — fine for fake data, never for
-  real card data (PCI scope).
-- No 2FA (TOTP tracked in #30). Mobile biometrics are real since #7
-  (`expo-local-authentication`: Face ID button + opt-in gate on session restore,
-  preference in the keystore). After first login, a prompt asks the user to
-  enable biometrics (#62) — dismissed state is persisted so it only asks once.
-  Remaining hardening: SecureStore `requireAuthentication` to hardware-encrypt
-  the refresh token behind biometrics — needs a dev build, not available in Expo Go.
+```mermaid
+graph LR
+    LAUNCH["App Launch"] --> STORED{"Stored<br/>session?"}
+    STORED -->|No| AUTH["Auth Screen"]
+    STORED -->|Yes| BIO{"Biometrics<br/>enabled?"}
+    BIO -->|No| RESTORE["Silent refresh"]
+    BIO -->|Yes| PROMPT["Face ID /<br/>Fingerprint"]
+    PROMPT -->|Success| RESTORE
+    PROMPT -->|Fail| AUTH
+    RESTORE --> HOME["Home Screen"]
+
+    style PROMPT fill:#34d399,color:#000
+```
+
+- `expo-local-authentication` for Face ID / fingerprint
+- Opt-in preference stored in keystore
+- First-login prompt (#62) — dismissed state persisted so it only asks once
+- Settings toggle for enable/disable
+
+---
+
+## Service-to-Service Trust
+
+| Mechanism | Where Used |
+|---|---|
+| `X-Service-Secret` header | `/users/profile-by-email`, `/transactions/internal-transfer`, Event Hub |
+| Loud dev-fallback warnings | `shared/auth.ts` logs warnings when `JWT_SECRET` / `SERVICE_SECRET` use built-in values |
+
+---
+
+## Data Integrity
+
+```mermaid
+graph LR
+    TX["Transaction Created"] --> HASH["HMAC-SHA256<br/>sender + receiver +<br/>amount + ref + currency"]
+    HASH --> STORE["integrityHash<br/>stored on record"]
+    STORE --> VERIFY["Tamper detection<br/>on read"]
+
+    style HASH fill:#a78bfa,color:#fff
+```
+
+- Each transaction stores an HMAC integrity hash (`FINVAULT_MESSAGE_KEY`)
+- All auth events logged in `AuditLog` with IP and user agent
+- Transfers run inside Prisma `$transaction` blocks
+- SEPA IBANs are format-validated (structurally valid, not mod-97 checksummed for demo IBANs)
+
+---
+
+## Transport & Headers
+
+- Every service runs `helmet()` (security headers)
+- Gateway CORS: open in local demo; set `CORS_ORIGINS` to enforce an allowlist
+- JSON bodies capped at 1 MB
+- WebSocket connections authenticate JWT before registration
+
+---
+
+## Demo Mode
+
+When the backend is unreachable, both apps fall back to a purely client-side demo session (`mock-token`) with fabricated data. Nothing in demo mode talks to a server, and the mock token is never accepted by any service.
+
+---
+
+## Known Gaps
+
+| Gap | Risk | Mitigation |
+|---|---|---|
+| Web refresh token in `localStorage` | XSS can read it | Rotation + replay-revocation limit blast radius; httpOnly cookie would fully eliminate |
+| No TOTP 2FA | Account takeover with stolen password | Planned (#30); biometrics cover mobile |
+| Card PAN/CVV in plaintext | N/A for demo data | Never store real card data this way (PCI scope) |
+| Account freeze has no self-unfreeze | UX friction | By design — support-only unfreeze |
+| SecureStore not hardware-encrypted | Token accessible without biometric prompt | Needs dev build for `requireAuthentication` option |

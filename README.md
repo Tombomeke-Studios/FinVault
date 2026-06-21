@@ -1,163 +1,155 @@
 # FinVault
 
-Microservices-driven banking and wallet platform.
+**A full-stack fintech banking platform** — Expo mobile app, React web dashboard, and event-driven Node.js microservices.
 
-[![Architecture](assets/badges/architecture.svg)](https://github.com/tombomeke-studio/FinVault)
-[![Language](assets/badges/language.svg)](https://github.com/tombomeke-studio/FinVault)
-[![Database](assets/badges/database.svg)](https://github.com/tombomeke-studio/FinVault)
-[![CI/CD](assets/badges/pipeline.svg)](https://github.com/tombomeke-studio/FinVault)
-[![Deploy](assets/badges/deploy.svg)](https://github.com/tombomeke-studio/FinVault)
-
----
-
-## Overview
-
-FinVault is a high-end, event-driven banking platform designed for maximum scalability and robustness. It uses a decoupled microservices architecture where services communicate asynchronously via events (RabbitMQ) and push live updates to clients via WebSockets.
-
-The project ships two frontends — an **Expo mobile app** (React Native, SDK 54) and a **Vite web dashboard** (React 18) — backed by four Express microservices with Prisma/SQLite and a shared TypeScript library.
+[![Architecture](assets/badges/architecture.svg)](docs/architecture.md)
+[![Language](assets/badges/language.svg)](docs/architecture.md)
+[![Database](assets/badges/database.svg)](docs/architecture.md)
+[![CI/CD](assets/badges/pipeline.svg)](docs/ci-cd.md)
+[![Deploy](assets/badges/deploy.svg)](docs/deployment-strategy.md)
 
 ---
 
-## Project Structure
+## Architecture
 
-The repository is set up as an npm workspaces monorepo with clear service boundaries:
+```mermaid
+graph TB
+    subgraph Frontend
+        MOB["📱 Expo Mobile"]
+        WEB["🖥️ Vite Web"]
+    end
 
-```
-FinVault/
-├── apps/
-│   ├── mobile/                  # Expo (React Native) mobile app
-│   └── web-dashboard/           # React + Vite frontend
-├── services/
-│   ├── gateway/                 # API Gateway + WebSocket Event Hub
-│   ├── account-service/         # Identity & Authentication (Prisma + SQLite, JWT)
-│   ├── wallet-transaction-service/ # Ledger, Balances & P2P transaction processing
-│   └── invoice-service/         # Invoices, payment requests & mandates
-├── shared/                      # Shared TypeScript types, auth, events, validation
-├── docs/                        # Architecture, security, design system, CI/CD, roadmap
-├── docker-compose.yml           # Multi-container orchestration (RabbitMQ + services)
-└── package.json                 # Monorepo root config
+    GW["🔀 API Gateway<br/><small>:8000 · REST + WebSocket</small>"]
+
+    subgraph Backend
+        ACC["👤 Account<br/><small>:8001</small>"]
+        WAL["💰 Wallet<br/><small>:8002</small>"]
+        INV["📄 Invoice<br/><small>:8003</small>"]
+    end
+
+    RMQ["🐇 RabbitMQ"]
+
+    MOB & WEB --> GW
+    GW --> ACC & WAL & INV
+    ACC & WAL -.-> RMQ
+    RMQ -.-> WAL & INV
 ```
 
 ---
 
-## Technical Architecture
+## Features
 
-### 1. API Gateway & WebSocket Hub
-The Gateway serves as the single entry point for both the web dashboard and mobile app. It also runs a WebSocket server that links active user sessions and pushes real-time balance and transaction alerts.
-
-### 2. Account Service
-Handles authentication, registration (including profile creation and master UUID assignment), and audit logging of security events. Passwords are hashed with bcrypt (cost 12); sessions are managed via rotating JWT token pairs with refresh-token revocation.
-
-### 3. Wallet & Transaction Service
-The financial core of the system. Transactions are processed using a double-entry ledger principle (simultaneous debit and credit) wrapped in atomic database transactions. Includes automatic duplicate detection within a 30-second window, SEPA transfer validation, beneficiary management, and savings goals.
-
-### 4. Invoice Service
-Generates PDF invoices, manages payment requests and SEPA direct debit mandates.
-
----
-
-## Database Configuration
-
-For a frictionless local start, FinVault uses **SQLite** databases (`account.db` and `wallet.db`) managed via Prisma ORM.
-
-### Migrating to PostgreSQL / MySQL (Production)
-When hosting the application via Docker on a VM or Kubernetes, you can spin up a separate database container (e.g. PostgreSQL). Thanks to Prisma, this requires no code changes:
-
-1. Open the schema file of the desired service, e.g. `services/account-service/prisma/schema.prisma`.
-2. Update the `datasource db` configuration:
-   ```prisma
-   datasource db {
-     provider = "postgresql"
-     url      = env("DATABASE_URL")
-   }
-   ```
-3. Add the `DATABASE_URL` environment variable to your Docker environment config.
-4. Run the migration: `npx prisma db push`.
+| Category | What's included |
+|---|---|
+| **Banking** | Multi-wallet (checking/savings/travel), P2P transfers (email + IBAN), SEPA transfers, deposits |
+| **Cards** | Physical + virtual cards, freeze/unfreeze, spending limits, contactless/foreign/ATM controls |
+| **Payments** | Scheduled & recurring payments, QR scan-to-pay (EPC069-12), payment requests, direct debits |
+| **Savings** | Goals with funding + progress, round-up savings, date-based targets |
+| **Insights** | Spend by category, monthly cash flow, balance trends, monthly budgets with alerts |
+| **FX** | Currency exchange across 10 currencies with live rate display |
+| **Security** | Biometric login, JWT rotation with replay detection, password management, session control, audit logs |
+| **Notifications** | Persistent notification center with unread badges and read state |
+| **Disputes** | Report transactions, track dispute status |
+| **Export** | CSV download (web) and native share sheet (mobile) |
+| **Theming** | Dark/light modes, 6 accent palettes, 7 presets, full theme engines on both apps |
 
 ---
 
-## Test Accounts & Links
+## Tech Stack
 
-### Pre-seeded test accounts
-Two accounts are generated automatically when the `account-service` starts:
+| Layer | Technology |
+|---|---|
+| Mobile | Expo SDK 54 · React Native 0.81 · TypeScript |
+| Web | Vite · React 18 · React Router · TypeScript |
+| Backend | Express · Prisma · SQLite · TypeScript (ESM) |
+| Auth | JWT · bcrypt · sha256 refresh tokens |
+| Messaging | RabbitMQ (AMQP) · WebSocket |
+| Rate Limiting | Redis (ioredis) with in-memory fallback |
+| Testing | Vitest · 71+ tests across 13 files |
+| CI/CD | GitHub Actions · EAS Build |
+
+---
+
+## Quick Start
+
+### Prerequisites
+
+- Node.js v18+
+- (Optional) Docker for RabbitMQ
+
+### Install & Run
+
+```bash
+# Install all workspaces
+npm install
+
+# Push database schemas
+npx prisma db push --schema=services/account-service/prisma/schema.prisma
+npx prisma db push --schema=services/wallet-transaction-service/prisma/schema.prisma
+npx prisma db push --schema=services/invoice-service/prisma/schema.prisma
+
+# Start everything (gateway + 3 services + web dashboard)
+npm run dev
+
+# Or include the mobile app
+npm run dev:all
+```
+
+### Test Accounts
 
 | Account | Email | Password |
 |---|---|---|
 | Business / Admin | `admin@finvault.com` | `admin123` |
 | Personal / Consumer | `test@finvault.com` | `test123` |
 
-> [!TIP]
-> Log in with either account in the Web Dashboard or the Mobile App to get immediate access to a fully functional account with an auto-generated IBAN, starting balance, real-time syncing bank cards and savings goals. When the backend is not reachable, both apps fall back to a client-side demo mode.
+> Both apps fall back to a client-side demo mode when the backend is unreachable.
 
-### Local service URLs
+### Run Tests
 
-| Service / Dashboard | URL | Notes |
-|---|---|---|
-| **Web Dashboard** | http://localhost:3000 | React + Vite frontend |
-| **API Gateway** | http://localhost:8000 | REST & WebSocket entry point |
-| **Account Service** | http://localhost:8001 | Auth & user profiles |
-| **Wallet Service** | http://localhost:8002 | Ledger, transfers, cards, goals |
-| **Invoice Service** | http://localhost:8003 | Invoices, payment requests, mandates |
-| **RabbitMQ Management** | http://localhost:15672 | `guest` / `guest` (Docker only) |
+```bash
+npx vitest run       # 71+ tests across 13 files
+npm run build        # Typecheck + build all workspaces
+```
 
 ---
 
-## Getting Started
+## Service URLs
 
-### 1. Prerequisites
-- Node.js v18+
-- (Optional) Docker for RabbitMQ and containerized deployment
+| Service | URL | Purpose |
+|---|---|---|
+| Web Dashboard | http://localhost:3000 | React SPA |
+| API Gateway | http://localhost:8000 | REST + WebSocket entry point |
+| Account Service | http://localhost:8001 | Auth, users, sessions |
+| Wallet Service | http://localhost:8002 | Ledger, transfers, cards, goals |
+| Invoice Service | http://localhost:8003 | Receipts, payment requests, mandates |
+| RabbitMQ | http://localhost:15672 | Management UI (Docker only) |
 
-### 2. Install & set up databases
+---
 
-```bash
-npm install
+## Mobile App
 
-npx prisma db push --schema=services/account-service/prisma/schema.prisma
-npx prisma db push --schema=services/wallet-transaction-service/prisma/schema.prisma
-```
-
-### 3. Start everything (dev mode)
-
-```bash
-npm run dev        # Gateway + 3 services + web dashboard
-npm run dev:all    # Same + Expo mobile (opens Expo Go)
-```
-
-The web dashboard is available at http://localhost:3000, the API gateway at http://localhost:8000.
-
-### 4. Run tests
+### Expo Go (development)
 
 ```bash
-npx vitest run     # All unit tests (58 tests across 11 files)
-npm run build      # Typecheck + build all workspaces
+npm run dev:mobile    # Opens Expo Go
 ```
 
-### 5. Mobile app (Expo Go)
-
-1. Install **Expo Go** on your iOS or Android device.
-2. Run `npm run dev:mobile` from the monorepo root.
-3. Scan the QR code in the terminal with your camera (iOS) or the Expo Go app (Android).
-4. Set `EXPO_PUBLIC_API_URL` in `.env` if the backend runs on a different host.
-
-### 6. EAS Build (standalone APK / AAB)
+### EAS Build (standalone)
 
 ```bash
 cd apps/mobile
-npx eas build --profile preview --platform android   # Sideloadable APK
-npx eas build --profile production --platform android # Signed AAB for Play Store
+npx eas build --profile preview --platform android     # Sideloadable APK
+npx eas build --profile production --platform android   # Signed AAB
 ```
 
 See [docs/deployment-strategy.md](docs/deployment-strategy.md) for the full deployment guide.
 
 ---
 
-## Docker Deployment
-
-Every service and the web dashboard are fully prepared for Docker. Start the entire stack via Docker Compose (includes a built-in RabbitMQ broker):
+## Docker
 
 ```bash
-docker-compose up --build -d
+docker-compose up --build -d    # RabbitMQ + all services
 ```
 
 ---
@@ -166,11 +158,42 @@ docker-compose up --build -d
 
 | Document | Contents |
 |---|---|
-| [CLAUDE.md](CLAUDE.md) | Agent rules, codebase map, conventions & gotchas |
+| [docs/architecture.md](docs/architecture.md) | System design, data models, API endpoints, event flow |
+| [docs/security.md](docs/security.md) | Auth flows, token lifecycle, rate limiting, threat model |
+| [docs/design-system.md](docs/design-system.md) | Tokens, components, motion library, theming, a11y |
+| [docs/ci-cd.md](docs/ci-cd.md) | GitHub Actions pipelines, branch protection |
+| [docs/feature-roadmap.md](docs/feature-roadmap.md) | Feature matrix, comparison vs. Revolut/N26 |
+| [docs/deployment-strategy.md](docs/deployment-strategy.md) | EAS Build, Docker, Play Store |
+| [CLAUDE.md](CLAUDE.md) | Agent rules, codebase map, conventions |
 | [TODO.md](TODO.md) | Task tracking & progress |
-| [docs/architecture.md](docs/architecture.md) | Service topology, endpoints, events |
-| [docs/security.md](docs/security.md) | Auth, sessions, secrets, rate limits |
-| [docs/design-system.md](docs/design-system.md) | Tokens, components, motion, QR codes, a11y |
-| [docs/ci-cd.md](docs/ci-cd.md) | GitHub Actions workflows |
-| [docs/feature-roadmap.md](docs/feature-roadmap.md) | Feature matrix vs. real banking apps |
-| [docs/deployment-strategy.md](docs/deployment-strategy.md) | EAS Build, VM hosting, Play Store |
+
+---
+
+## Project Structure
+
+```
+FinVault/
+├── apps/
+│   ├── mobile/                     # Expo (React Native) mobile app
+│   │   ├── src/components/         # UI primitives, Motion, Shell, FVLogo
+│   │   ├── src/screens/            # 17 screens (Overview → Disputes)
+│   │   └── src/lib/                # EPC QR, CSV, validation
+│   └── web-dashboard/              # Vite + React 18 SPA
+│       ├── src/components/         # Shell, UI, Icons, BankCard
+│       ├── src/screens/            # 18 screens (Landing → SecurityCenter)
+│       └── src/lib/                # Session, EPC, CSV, validation
+├── services/
+│   ├── gateway/                    # API proxy + WebSocket + Event Hub
+│   ├── account-service/            # Auth, users, sessions, audit
+│   ├── wallet-transaction-service/ # Wallets, transactions, cards, goals, FX
+│   └── invoice-service/            # Receipts, payment requests, mandates
+├── shared/                         # Auth, validation, events, integrity
+├── docs/                           # Architecture, security, design, CI/CD
+└── .github/workflows/              # 6 CI/CD pipelines
+```
+
+---
+
+<p align="center">
+  <strong>Built by <a href="https://github.com/Tombomeke-Studios">Tombomeke Studios</a></strong>
+</p>
