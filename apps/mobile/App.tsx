@@ -336,6 +336,7 @@ export default function App() {
   const [cards, setCards] = useState<CardItem[]>([]);
   const [goals, setGoals] = useState<Goal[]>([]);
   const [beneficiaries, setBeneficiaries] = useState<Beneficiary[]>([]);
+  const [unreadNotifications, setUnreadNotifications] = useState(0);
   const [authError, setAuthError] = useState('');
   const [authSuccess, setAuthSuccess] = useState('');
   const [upgradeOpen, setUpgradeOpen] = useState(false);
@@ -500,6 +501,19 @@ export default function App() {
     } catch {}
   }, [token]);
 
+  const fetchNotificationCount = useCallback(async () => {
+    if (!token || token === 'mock-token') return;
+    try {
+      const res = await fetch(`${API_URL}/api/notifications`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (res.ok) {
+        const notifs = await res.json();
+        setUnreadNotifications(notifs.filter((n: any) => !n.read).length);
+      }
+    } catch {}
+  }, [token]);
+
   const fetchProfile = useCallback(async () => {
     if (!token || token === 'mock-token') {
       setupMockSession();
@@ -517,6 +531,7 @@ export default function App() {
         fetchCards();
         fetchGoals();
         fetchBeneficiaries();
+        fetchNotificationCount();
       } else {
         // Access token expired/invalid — try one silent refresh before signing out.
         const refreshed = await tryRefreshSession(API_URL);
@@ -907,7 +922,7 @@ export default function App() {
           onFaceIdLogin={handleFaceIdLogin}
         />
       ) : (
-        <Shell route={route} setRoute={setRoute} user={appData.user}>
+        <Shell route={route} setRoute={setRoute} user={appData.user} unreadNotifications={unreadNotifications}>
           {renderScreen()}
         </Shell>
       )}

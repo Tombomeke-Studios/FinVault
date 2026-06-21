@@ -39,6 +39,13 @@ const NAV = [
   { id: 'analytics',    label: 'Insights', icon: 'chart'      },
   { id: 'savings',      label: 'Goals',    icon: 'targetRing' },
 ];
+const NAV_SERVICES = [
+  { id: 'scheduled-payments', label: 'Payments',  icon: 'calendar' },
+  { id: 'budgets',            label: 'Budgets',   icon: 'bar-chart-2' },
+  { id: 'fx-exchange',        label: 'Exchange',  icon: 'globe' },
+  { id: 'invoices',           label: 'Invoices',  icon: 'file-text' },
+  { id: 'disputes',           label: 'Disputes',  icon: 'alert-triangle' },
+];
 const BOTTOM = ['overview', 'transactions', 'transfer', 'cards', 'savings'];
 
 // ---- Notification item ----
@@ -239,6 +246,12 @@ export function Shell({ route, setRoute, compact, children, onLogout, fire, toas
         <nav role="menu" aria-label="Main navigation" style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
           {NAV.map(n => navBtn(n.id, n.label, n.icon))}
         </nav>
+        <div style={{ borderTop: '1px solid var(--line)', margin: '12px 10px 0', paddingTop: 12 }}>
+          <div style={{ fontSize: '0.68rem', fontWeight: 700, color: 'var(--text-3)', letterSpacing: '0.08em', textTransform: 'uppercase', padding: '0 10px 8px' }}>Services</div>
+          <nav role="menu" aria-label="Services" style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+            {NAV_SERVICES.map(n => navBtn(n.id, n.label, n.icon))}
+          </nav>
+        </div>
         <div style={{ marginTop: 'auto', display: 'flex', flexDirection: 'column', gap: 6 }}>
           {(!user?.plan || user.plan === 'FinVault Standard') && (
             <div style={{ padding: '14px 16px', borderRadius: 'var(--r-lg)', background: 'linear-gradient(145deg, var(--accent-soft), color-mix(in oklab, var(--surface-2) 70%, var(--accent-soft)))', border: '1px solid var(--accent-line)', display: 'flex', flexDirection: 'column', gap: 10 }}>

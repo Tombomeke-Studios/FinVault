@@ -21,8 +21,8 @@ export function ScreenMandates({ compact, token, navigate, fire }: Props) {
   const intervalLabel = (d: number) => d <= 1 ? 'Daily' : d === 7 ? 'Weekly' : d === 30 ? 'Monthly' : d === 365 ? 'Yearly' : `Every ${d}d`;
 
   return (
-    <div style={{ padding: compact ? 16 : 24, maxWidth: 720, margin: '0 auto' }}>
-      <PageHead title="Direct Debits" back={() => navigate('settings')} />
+    <div style={{ padding: compact ? 16 : 24, maxWidth: 760, margin: '0 auto' }}>
+      <PageHead title="Direct Debits" back={compact ? () => navigate('overview') : undefined} />
       {mandates.length === 0 ? (
         <div className="card" style={{ padding: 40, textAlign: 'center', color: 'var(--text-3)' }}>
           <Icon name="repeat" size={32} /><div style={{ marginTop: 8 }}>No active direct debits</div>

@@ -39,8 +39,8 @@ export function ScreenSecurityCenter({ compact, token, navigate, fire, onPasswor
   };
 
   return (
-    <div style={{ padding: compact ? 16 : 24, maxWidth: 720, margin: '0 auto' }}>
-      <PageHead title="Security Center" back={() => navigate('settings')} />
+    <div style={{ padding: compact ? 16 : 24, maxWidth: 760, margin: '0 auto' }}>
+      <PageHead title="Security Center" back={compact ? () => navigate('overview') : undefined} />
       <div className="card" style={{ padding: 16, display: 'flex', alignItems: 'center', gap: 14, cursor: 'pointer', marginBottom: 16 }} onClick={() => setPwOpen(true)}>
         <span style={{ width: 40, height: 40, borderRadius: 'var(--r-sm)', background: 'var(--surface-2)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Icon name="lock" size={18} /></span>
         <div style={{ flex: 1 }}><div style={{ fontWeight: 600 }}>Change Password</div><div style={{ color: 'var(--text-3)', fontSize: '0.8rem' }}>Update your account password</div></div>
