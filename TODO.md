@@ -20,9 +20,16 @@ Workflow rules live in [CLAUDE.md](CLAUDE.md#workflow-rules); short version:
 - [ ] Point `EXPO_PUBLIC_API_URL` to the live backend URL once deployed
 - [ ] Run `eas submit --platform android` for the first Play Store upload (internal track)
 
+**Known bugs (next session)**
+- [ ] QR scan-to-pay shows "That QR is not a SEPA payment code" — the EPC069-12 parser
+  likely rejects the QR format or encoding; debug `parseEpcQr()` in `src/lib/epc.ts`
+  and the camera output in `QrScanSheet.tsx`
+- [ ] Face ID / fingerprint not working in Expo Go — check `isBiometricAvailable()`
+  return value, verify `expo-local-authentication` plugin in `app.json`, test with
+  `authenticateBiometric()` debug logging; may need a dev build (Expo Go has limited
+  biometric support on some devices)
+
 **Quality & testing**
-- [ ] Manual device-test: QR scan-to-pay (#43) — scan EPC QR, verify prefill + transfer
-- [ ] Manual device-test: Biometrics (#7) — enable toggle, kill + reopen, verify gate
 - [ ] Add integration/E2E tests for the new endpoints (scheduled-payments, budgets, notifications, disputes, FX)
 - [ ] Set up staging DB for smoke testing before `staging → main` promotions
 
