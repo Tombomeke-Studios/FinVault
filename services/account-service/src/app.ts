@@ -6,9 +6,12 @@ import crypto from 'crypto';
 import { PrismaClient } from '../generated/prisma/index.js';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
+import { TOTP, generateSecret, generateURI } from 'otplib';
+import QRCode from 'qrcode';
 import { publishEvent, validateBody, LoginSchema, RegisterSchema, requireServiceSecret } from 'shared';
 
 export const prisma = new PrismaClient();
+const totp = new TOTP();
 export const app = express();
 const JWT_SECRET = process.env.JWT_SECRET || 'finvault-super-secret-key-98765';
 const BCRYPT_ROUNDS = 12;
@@ -234,6 +237,12 @@ app.post('/auth/login', async (req, res) => {
 
     failedLoginAttemptsByEmail.delete(email);
 
+    if (user.totpEnabled) {
+      const tempToken = jwt.sign({ userId: user.id, pending2FA: true }, JWT_SECRET, { expiresIn: '5m' });
+      await logAudit(user.id, 'Login requires 2FA verification', req);
+      return res.status(200).json({ requires2FA: true, tempToken });
+    }
+
     const { accessToken, refreshToken } = await issueTokenPair(user);
 
     await logAudit(user.id, 'User login successful', req);
@@ -251,6 +260,46 @@ app.post('/auth/login', async (req, res) => {
   } catch (error: any) {
     console.error('Login error:', error);
     res.status(500).json({ error: 'Login failed', message: error.message });
+  }
+});
+
+app.post('/auth/verify-2fa', async (req, res) => {
+  const { tempToken, code } = req.body || {};
+  if (!tempToken || !code) return res.status(400).json({ error: 'tempToken and code are required' });
+
+  try {
+    let decoded: any;
+    try {
+      decoded = jwt.verify(tempToken, JWT_SECRET);
+    } catch {
+      return res.status(401).json({ error: 'Expired or invalid token — please log in again' });
+    }
+    if (!decoded.pending2FA) return res.status(400).json({ error: 'Invalid token type' });
+
+    const user = await prisma.user.findUnique({ where: { id: decoded.userId }, include: { profile: true } });
+    if (!user || !user.totpSecret) return res.status(400).json({ error: 'User not found' });
+
+    const valid = new TOTP({ secret: user.totpSecret }).verify(code);
+    if (!valid) {
+      await logAudit(user.id, 'Failed 2FA attempt', req);
+      return res.status(401).json({ error: 'Invalid 2FA code' });
+    }
+
+    const { accessToken, refreshToken } = await issueTokenPair(user);
+    await logAudit(user.id, 'User login successful (2FA verified)', req);
+
+    res.status(200).json({
+      accessToken,
+      refreshToken,
+      user: {
+        id: user.id,
+        email: user.email,
+        accountType: user.accountType,
+        profile: user.profile || undefined
+      }
+    });
+  } catch (error: any) {
+    res.status(500).json({ error: '2FA verification failed', message: error.message });
   }
 });
 
@@ -483,6 +532,115 @@ app.delete('/users/sessions/:id', authenticateToken, async (req, res) => {
     res.status(200).json({ status: 'revoked' });
   } catch (error: any) {
     res.status(500).json({ error: 'Failed to revoke session', message: error.message });
+  }
+});
+
+// =============================================
+// TOTP 2FA
+// =============================================
+app.post('/users/2fa/setup', authenticateToken, async (req, res) => {
+  const tokenUser = (req as any).user;
+  try {
+    const user = await prisma.user.findUnique({ where: { id: tokenUser.userId } });
+    if (!user) return res.status(404).json({ error: 'User not found' });
+    if (user.totpEnabled) return res.status(400).json({ error: '2FA is already enabled' });
+
+    const secret = generateSecret();
+    await prisma.user.update({ where: { id: user.id }, data: { totpSecret: secret } });
+
+    const otpauth = generateURI({ issuer: 'FinVault', label: user.email, secret });
+    const qrDataUrl = await QRCode.toDataURL(otpauth);
+
+    await logAudit(user.id, '2FA setup initiated', req);
+    res.status(200).json({ secret, otpauth, qrDataUrl });
+  } catch (error: any) {
+    res.status(500).json({ error: 'Failed to setup 2FA', message: error.message });
+  }
+});
+
+app.post('/users/2fa/verify', authenticateToken, async (req, res) => {
+  const tokenUser = (req as any).user;
+  const { code } = req.body;
+  if (!code) return res.status(400).json({ error: 'code is required' });
+
+  try {
+    const user = await prisma.user.findUnique({ where: { id: tokenUser.userId } });
+    if (!user || !user.totpSecret) return res.status(400).json({ error: '2FA not set up' });
+
+    const valid = new TOTP({ secret: user.totpSecret }).verify(code);
+    if (!valid) return res.status(401).json({ error: 'Invalid code' });
+
+    await prisma.user.update({ where: { id: user.id }, data: { totpEnabled: true } });
+    await logAudit(user.id, '2FA enabled successfully', req);
+    res.status(200).json({ enabled: true });
+  } catch (error: any) {
+    res.status(500).json({ error: 'Failed to verify 2FA', message: error.message });
+  }
+});
+
+app.post('/users/2fa/disable', authenticateToken, async (req, res) => {
+  const tokenUser = (req as any).user;
+  const { code } = req.body;
+  if (!code) return res.status(400).json({ error: 'code is required' });
+
+  try {
+    const user = await prisma.user.findUnique({ where: { id: tokenUser.userId } });
+    if (!user || !user.totpEnabled || !user.totpSecret) return res.status(400).json({ error: '2FA is not enabled' });
+
+    const valid = new TOTP({ secret: user.totpSecret }).verify(code);
+    if (!valid) return res.status(401).json({ error: 'Invalid code' });
+
+    await prisma.user.update({ where: { id: user.id }, data: { totpEnabled: false, totpSecret: null } });
+    await logAudit(user.id, '2FA disabled', req);
+    res.status(200).json({ enabled: false });
+  } catch (error: any) {
+    res.status(500).json({ error: 'Failed to disable 2FA', message: error.message });
+  }
+});
+
+app.get('/users/2fa/status', authenticateToken, async (req, res) => {
+  const tokenUser = (req as any).user;
+  try {
+    const user = await prisma.user.findUnique({ where: { id: tokenUser.userId }, select: { totpEnabled: true } });
+    res.status(200).json({ enabled: user?.totpEnabled ?? false });
+  } catch (error: any) {
+    res.status(500).json({ error: 'Failed to get 2FA status', message: error.message });
+  }
+});
+
+// =============================================
+// Push Token Registration
+// =============================================
+app.post('/users/push-token', authenticateToken, async (req, res) => {
+  const tokenUser = (req as any).user;
+  const { pushToken } = req.body;
+  if (!pushToken) return res.status(400).json({ error: 'pushToken is required' });
+
+  try {
+    await prisma.user.update({ where: { id: tokenUser.userId }, data: { pushToken } });
+    res.status(200).json({ status: 'registered' });
+  } catch (error: any) {
+    res.status(500).json({ error: 'Failed to register push token', message: error.message });
+  }
+});
+
+app.get('/users/push-token/:userId', requireServiceSecret, async (req, res) => {
+  try {
+    const user = await prisma.user.findUnique({ where: { id: req.params.userId }, select: { pushToken: true } });
+    if (!user) return res.status(404).json({ error: 'User not found' });
+    res.status(200).json({ pushToken: user.pushToken });
+  } catch (error: any) {
+    res.status(500).json({ error: 'Failed to get push token', message: error.message });
+  }
+});
+
+app.delete('/users/push-token', authenticateToken, async (req, res) => {
+  const tokenUser = (req as any).user;
+  try {
+    await prisma.user.update({ where: { id: tokenUser.userId }, data: { pushToken: null } });
+    res.status(200).json({ status: 'removed' });
+  } catch (error: any) {
+    res.status(500).json({ error: 'Failed to remove push token', message: error.message });
   }
 });
 

@@ -18,6 +18,11 @@ interface Props {
 export function ScreenSecurityCenter({ token, apiUrl, fire, onBack, onPasswordChanged }: Props) {
   const [sessions, setSessions] = useState<Session[]>([]);
   const [pwOpen, setPwOpen] = useState(false);
+  const [twoFAEnabled, setTwoFAEnabled] = useState(false);
+  const [twoFAOpen, setTwoFAOpen] = useState(false);
+  const [twoFASetup, setTwoFASetup] = useState<{ secret: string; qrDataUrl: string } | null>(null);
+  const [twoFACode, setTwoFACode] = useState('');
+  const [twoFALoading, setTwoFALoading] = useState(false);
   const [currentPw, setCurrentPw] = useState('');
   const [newPw, setNewPw] = useState('');
   const [confirmPw, setConfirmPw] = useState('');
@@ -31,7 +36,15 @@ export function ScreenSecurityCenter({ token, apiUrl, fire, onBack, onPasswordCh
     } catch { /* offline */ }
   }, [token, apiUrl]);
 
-  useEffect(() => { fetchSessions(); }, [fetchSessions]);
+  const fetch2FAStatus = useCallback(async () => {
+    if (!token) return;
+    try {
+      const res = await fetch(`${apiUrl}/api/users/2fa/status`, { headers: { Authorization: `Bearer ${token}` } });
+      if (res.ok) { const data = await res.json(); setTwoFAEnabled(data.enabled); }
+    } catch {}
+  }, [token, apiUrl]);
+
+  useEffect(() => { fetchSessions(); fetch2FAStatus(); }, [fetchSessions, fetch2FAStatus]);
 
   const changePassword = async () => {
     if (!currentPw || !newPw) return;
@@ -93,6 +106,32 @@ export function ScreenSecurityCenter({ token, apiUrl, fire, onBack, onPasswordCh
         </TouchableOpacity>
       </FadeSlideIn>
 
+      <FadeSlideIn delay={90}>
+        <TouchableOpacity style={styles.actionCard} onPress={async () => {
+          if (twoFAEnabled) {
+            setTwoFAOpen(true);
+          } else {
+            try {
+              const res = await fetch(`${apiUrl}/api/users/2fa/setup`, {
+                method: 'POST', headers: { Authorization: `Bearer ${token}` }
+              });
+              if (res.ok) { const data = await res.json(); setTwoFASetup(data); setTwoFAOpen(true); }
+            } catch { fire('Error', 'Failed to setup 2FA', 'error'); }
+          }
+        }}>
+          <View style={[styles.actionIcon, { backgroundColor: twoFAEnabled ? '#34d3991A' : THEME.colors.accentSoft }]}>
+            <Icon name="shield" size={20} color={twoFAEnabled ? '#34d399' : THEME.colors.accent} />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.actionTitle}>Two-Factor Authentication</Text>
+            <Text style={styles.actionSub}>{twoFAEnabled ? 'Enabled — tap to disable' : 'Protect your account with TOTP'}</Text>
+          </View>
+          <View style={{ backgroundColor: twoFAEnabled ? '#34d3991A' : THEME.colors.surface2, paddingHorizontal: 10, paddingVertical: 4, borderRadius: THEME.radius.pill }}>
+            <Text style={{ fontSize: 11, fontWeight: '800', color: twoFAEnabled ? '#34d399' : THEME.colors.text3 }}>{twoFAEnabled ? 'ON' : 'OFF'}</Text>
+          </View>
+        </TouchableOpacity>
+      </FadeSlideIn>
+
       <FadeSlideIn delay={120}>
         <Text style={styles.sectionTitle}>Active Sessions ({sessions.length})</Text>
         {sessions.map((s, i) => (
@@ -115,6 +154,68 @@ export function ScreenSecurityCenter({ token, apiUrl, fire, onBack, onPasswordCh
           <TextInput style={styles.input} placeholder="Confirm new password" placeholderTextColor={THEME.colors.text3} value={confirmPw} onChangeText={setConfirmPw} secureTextEntry />
           <TouchableOpacity style={[styles.ctaBtn, { marginTop: 8 }]} onPress={changePassword} disabled={loading}>
             <Text style={styles.ctaBtnText}>{loading ? 'Changing...' : 'Change Password'}</Text>
+          </TouchableOpacity>
+        </View>
+      </MobileSheet>
+
+      <MobileSheet open={twoFAOpen} onClose={() => { setTwoFAOpen(false); setTwoFACode(''); }} title={twoFAEnabled ? 'Disable 2FA' : 'Enable 2FA'}>
+        <View style={{ gap: 16, paddingVertical: 4, alignItems: 'center' }}>
+          {!twoFAEnabled && twoFASetup && (
+            <>
+              <Text style={{ color: THEME.colors.text2, fontSize: 13, textAlign: 'center', lineHeight: 18 }}>
+                Scan this QR code with your authenticator app (Google Authenticator, Authy, etc.)
+              </Text>
+              <View style={{ backgroundColor: '#fff', padding: 12, borderRadius: THEME.radius.lg }}>
+                <Text style={{ fontSize: 11, color: '#000', textAlign: 'center', fontFamily: 'monospace' }}>[QR Code — scan in authenticator app]</Text>
+                <Text selectable style={{ fontSize: 12, color: '#333', textAlign: 'center', marginTop: 8, fontFamily: 'monospace', letterSpacing: 1 }}>{twoFASetup.secret}</Text>
+              </View>
+              <Text style={{ color: THEME.colors.text3, fontSize: 12, textAlign: 'center' }}>
+                Or enter this key manually: <Text style={{ fontWeight: '700', color: THEME.colors.text }}>{twoFASetup.secret}</Text>
+              </Text>
+            </>
+          )}
+          {twoFAEnabled && (
+            <Text style={{ color: THEME.colors.text2, fontSize: 13, textAlign: 'center', lineHeight: 18 }}>
+              Enter your 6-digit authenticator code to disable 2FA
+            </Text>
+          )}
+          <TextInput
+            style={[styles.input, { fontSize: 24, fontWeight: '800', letterSpacing: 8, textAlign: 'center', paddingVertical: 16, width: '100%' }]}
+            value={twoFACode}
+            onChangeText={setTwoFACode}
+            placeholder="000000"
+            placeholderTextColor={THEME.colors.text3}
+            keyboardType="number-pad"
+            maxLength={6}
+            autoFocus
+          />
+          <TouchableOpacity
+            style={[styles.ctaBtn, { width: '100%' }, (twoFALoading || twoFACode.length !== 6) && { opacity: 0.5 }]}
+            disabled={twoFALoading || twoFACode.length !== 6}
+            onPress={async () => {
+              setTwoFALoading(true);
+              try {
+                const endpoint = twoFAEnabled ? '/api/users/2fa/disable' : '/api/users/2fa/verify';
+                const res = await fetch(`${apiUrl}${endpoint}`, {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+                  body: JSON.stringify({ code: twoFACode }),
+                });
+                if (res.ok) {
+                  fire(twoFAEnabled ? '2FA disabled' : '2FA enabled', twoFAEnabled ? 'Two-factor authentication has been turned off.' : 'Your account is now protected with 2FA.', 'success');
+                  setTwoFAEnabled(!twoFAEnabled);
+                  setTwoFAOpen(false);
+                  setTwoFACode('');
+                  setTwoFASetup(null);
+                } else {
+                  const err = await res.json();
+                  fire('Error', err.error || 'Invalid code', 'error');
+                }
+              } catch { fire('Error', 'Verification failed', 'error'); }
+              setTwoFALoading(false);
+            }}
+          >
+            <Text style={styles.ctaBtnText}>{twoFALoading ? 'Verifying...' : twoFAEnabled ? 'Disable 2FA' : 'Enable 2FA'}</Text>
           </TouchableOpacity>
         </View>
       </MobileSheet>

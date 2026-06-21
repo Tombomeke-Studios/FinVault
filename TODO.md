@@ -27,9 +27,9 @@ Workflow rules live in [CLAUDE.md](CLAUDE.md#workflow-rules); short version:
 - [ ] Set up staging DB for smoke testing before `staging → main` promotions
 
 **Feature polish (future milestone)**
-- [ ] TOTP 2FA in security center (currently: password + sessions only)
+- [x] TOTP 2FA — real working implementation: setup with QR/secret, verify, enable/disable, 2FA gate on login
+- [x] Push notifications — expo-notifications + expo-server-sdk: token registration, server-side sending on transfers
 - [ ] Scheduled payment executor — cron job that actually runs due payments
-- [ ] Push notifications (FCM) for mobile notification delivery
 - [ ] iOS build profile + App Store submission
 - [ ] Haptic feedback on mobile (expo-haptics) for transfers, button presses
 - [ ] Parallax scroll effect on Overview hero card
