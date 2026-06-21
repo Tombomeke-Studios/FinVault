@@ -1,4 +1,5 @@
 import * as Notifications from 'expo-notifications';
+import Constants from 'expo-constants';
 import { Platform } from 'react-native';
 
 Notifications.setNotificationHandler({
@@ -31,12 +32,16 @@ export async function registerForPushNotifications(): Promise<string | null> {
       });
     }
 
-    const tokenData = await Notifications.getExpoPushTokenAsync({
-      projectId: 'b944a054-e3b9-45b3-b052-2eac50ecfea3',
-    });
+    const projectId = Constants.expoConfig?.extra?.eas?.projectId;
+    if (!projectId) {
+      console.warn('[Push] No EAS projectId found — push registration skipped');
+      return null;
+    }
 
+    const tokenData = await Notifications.getExpoPushTokenAsync({ projectId });
     return tokenData.data;
-  } catch {
+  } catch (err) {
+    console.warn('[Push] Registration failed:', err);
     return null;
   }
 }
