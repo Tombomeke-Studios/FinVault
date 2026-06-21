@@ -134,6 +134,8 @@ npm run build        # Typecheck + build all workspaces
 npm run dev:mobile    # Opens Expo Go
 ```
 
+Expo Go is fine for day-to-day UI work, but remote push notifications are not available there anymore. To test push delivery, use an EAS development build or a standalone build from the EAS section below.
+
 ### EAS Build (standalone)
 
 ```bash

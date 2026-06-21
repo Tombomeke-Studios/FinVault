@@ -2,6 +2,13 @@ import * as Notifications from 'expo-notifications';
 import Constants from 'expo-constants';
 import { Platform } from 'react-native';
 
+function isExpoGoClient(): boolean {
+  const appOwnership = (Constants as { appOwnership?: string }).appOwnership;
+  const executionEnvironment = (Constants as { executionEnvironment?: string }).executionEnvironment;
+
+  return appOwnership === 'expo' || executionEnvironment === 'storeClient';
+}
+
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
     shouldShowAlert: true,
@@ -14,6 +21,11 @@ Notifications.setNotificationHandler({
 
 export async function registerForPushNotifications(): Promise<string | null> {
   try {
+    if (isExpoGoClient()) {
+      console.warn('[Push] Remote push notifications are not available in Expo Go. Use an EAS development build or a standalone build instead.');
+      return null;
+    }
+
     const existing = await Notifications.getPermissionsAsync();
     let canProceed = (existing as any).status === 'granted' || (existing as any).granted;
 

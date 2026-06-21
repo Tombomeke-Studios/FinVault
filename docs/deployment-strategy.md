@@ -154,6 +154,8 @@ eas build --platform android --profile development
 # Now npx expo start works with ALL native packages
 ```
 
+Remote push notifications are one of the features that no longer work in Expo Go on SDK 53+. Test them in a development build or standalone EAS build, and use the same production build path for Play Store delivery.
+
 ---
 
 ## 3. Backend & database self-hosting on a Linux VM
