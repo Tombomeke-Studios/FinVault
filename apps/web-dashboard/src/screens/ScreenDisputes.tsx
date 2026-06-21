@@ -32,8 +32,8 @@ export function ScreenDisputes({ compact, token, transactions, navigate, fire }:
   const statusColor = (s: string) => s === 'resolved' ? '#34d399' : s === 'investigating' ? 'var(--accent)' : s === 'rejected' ? '#fb7185' : 'var(--text-3)';
 
   return (
-    <div style={{ padding: compact ? 16 : 24, maxWidth: 720, margin: '0 auto' }}>
-      <PageHead title="Disputes" back={() => navigate('settings')} />
+    <div style={{ padding: compact ? 16 : 24, maxWidth: 760, margin: '0 auto' }}>
+      <PageHead title="Disputes" back={compact ? () => navigate('overview') : undefined} />
       <button className="btn" style={{ marginBottom: 16 }} onClick={() => setReportOpen(true)}><Icon name="plus" size={16} /> Report Transaction</button>
       {disputes.length === 0 ? (
         <div className="card" style={{ padding: 40, textAlign: 'center', color: 'var(--text-3)' }}><Icon name="shield" size={32} /><div style={{ marginTop: 8 }}>No disputes filed</div></div>

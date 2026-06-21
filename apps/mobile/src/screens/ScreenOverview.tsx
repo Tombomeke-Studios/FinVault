@@ -123,6 +123,25 @@ export function ScreenOverview({ navigate, data, onTopup }: OverviewProps) {
         ))}
       </FadeSlideIn>
 
+      {/* ── Services grid ── */}
+      <FadeSlideIn delay={100}>
+        <View style={styles.servicesGrid}>
+          {[
+            { icon: 'calendar', label: 'Payments', route: 'scheduled-payments', color: '#60a5fa' },
+            { icon: 'chart',    label: 'Budgets',  route: 'budgets',            color: '#a78bfa' },
+            { icon: 'globe',    label: 'Exchange',  route: 'fx-exchange',        color: '#38bdf8' },
+            { icon: 'file',     label: 'Invoices',  route: 'invoices',           color: '#fbbf24' },
+          ].map(s => (
+            <PressableScale key={s.route} onPress={() => navigate(s.route)} style={styles.serviceItem} innerStyle={styles.serviceInner} scaleTo={0.93}>
+              <View style={[styles.serviceIcon, { backgroundColor: s.color + '1A' }]}>
+                <Icon name={s.icon} size={18} color={s.color} />
+              </View>
+              <Text style={styles.serviceLabel}>{s.label}</Text>
+            </PressableScale>
+          ))}
+        </View>
+      </FadeSlideIn>
+
       {/* ── Accounts horizontal scroll ── */}
       <FadeSlideIn delay={120} style={styles.section}>
         <Text style={styles.sectionTitle}>Accounts</Text>
@@ -304,6 +323,13 @@ const styles = themedSheet(() => StyleSheet.create({
   qactionIconPrimary: { backgroundColor: THEME.colors.accent, shadowColor: THEME.colors.accent, shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.4, shadowRadius: 12, elevation: 8 },
   qactionIconGhost: { backgroundColor: THEME.colors.surface2, borderWidth: 1, borderColor: THEME.colors.line },
   qactionLabel: { fontSize: 12, fontWeight: '600', color: THEME.colors.text2, letterSpacing: 0.2 },
+
+  /* services grid */
+  servicesGrid: { flexDirection: 'row', gap: 10 },
+  serviceItem: { flex: 1 },
+  serviceInner: { backgroundColor: THEME.colors.surface, borderRadius: THEME.radius.lg, borderWidth: 1, borderColor: THEME.colors.line, padding: 14, alignItems: 'center', gap: 8, elevation: 2, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.08, shadowRadius: 3 },
+  serviceIcon: { width: 40, height: 40, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
+  serviceLabel: { fontSize: 12, fontWeight: '700', color: THEME.colors.text2, letterSpacing: 0.2 },
 
   /* accounts */
   section: { gap: 10 },

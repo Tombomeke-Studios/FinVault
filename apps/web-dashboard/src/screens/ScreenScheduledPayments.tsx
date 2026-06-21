@@ -60,27 +60,37 @@ export function ScreenScheduledPayments({ compact, token, navigate, wallets, fir
   const freqLabel = (f: string) => f === 'once' ? 'One-time' : f.charAt(0).toUpperCase() + f.slice(1);
 
   return (
-    <div style={{ padding: compact ? 16 : 24, maxWidth: 720, margin: '0 auto' }}>
-      <PageHead title="Scheduled Payments" back={() => navigate('settings')} />
-      <button className="btn" style={{ marginBottom: 16 }} onClick={() => setCreateOpen(true)}>
-        <Icon name="plus" size={16} /> New
+    <div style={{ padding: compact ? 16 : 24, maxWidth: 760, margin: '0 auto' }}>
+      <PageHead title="Scheduled Payments" back={compact ? () => navigate('overview') : undefined} />
+      <button className="btn" style={{ marginBottom: 20, display: 'inline-flex', alignItems: 'center', gap: 6 }} onClick={() => setCreateOpen(true)}>
+        <Icon name="plus" size={16} /> New payment
       </button>
       {payments.length === 0 ? (
-        <div className="card" style={{ padding: 40, textAlign: 'center', color: 'var(--text-3)' }}>
-          <Icon name="calendar" size={32} /><div style={{ marginTop: 8 }}>No scheduled payments yet</div>
+        <div className="card" style={{ padding: '48px 24px', textAlign: 'center', color: 'var(--text-3)' }}>
+          <div style={{ width: 56, height: 56, borderRadius: 'var(--r)', background: 'var(--surface-2)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', marginBottom: 12 }}>
+            <Icon name="calendar" size={26} />
+          </div>
+          <div style={{ fontWeight: 600, fontSize: '1rem', color: 'var(--text-2)', marginBottom: 4 }}>No scheduled payments</div>
+          <div style={{ fontSize: '0.84rem' }}>Set up recurring transfers to automate your payments</div>
         </div>
       ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
           {payments.map(p => (
-            <div key={p.id} className="card" style={{ padding: 16, display: 'flex', alignItems: 'center', gap: 12 }}>
-              <div style={{ flex: 1 }}>
-                <div style={{ fontWeight: 600 }}>{p.targetName || p.targetEmail || p.targetIban}</div>
-                <div style={{ color: 'var(--text-3)', fontSize: '0.82rem' }}>{freqLabel(p.frequency)} · {p.description}</div>
-                <div style={{ fontSize: '0.75rem', fontWeight: 700, color: p.status === 'active' ? 'var(--accent)' : 'var(--text-3)', marginTop: 4 }}>{p.status.toUpperCase()}</div>
+            <div key={p.id} className="card" style={{ padding: '16px 20px', display: 'flex', alignItems: 'center', gap: 14 }}>
+              <div style={{ width: 42, height: 42, borderRadius: 'var(--r)', background: p.status === 'active' ? 'color-mix(in oklab, var(--accent) 15%, transparent)' : 'var(--surface-2)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                <Icon name="calendar" size={20} style={{ color: p.status === 'active' ? 'var(--accent)' : 'var(--text-3)' }} />
               </div>
-              <div style={{ textAlign: 'right' }}>
-                <div style={{ fontWeight: 700, fontSize: '1.05rem' }}>{money(p.amount)}</div>
-                {p.status === 'active' && <button className="btn btn--ghost" style={{ fontSize: '0.75rem', color: '#fb7185', marginTop: 4 }} onClick={() => cancel(p.id)}>Cancel</button>}
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontWeight: 600, fontSize: '0.95rem' }}>{p.targetName || p.targetEmail || p.targetIban}</div>
+                <div style={{ color: 'var(--text-3)', fontSize: '0.82rem', marginTop: 2 }}>{freqLabel(p.frequency)} · {p.description}</div>
+                <div style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: '0.72rem', fontWeight: 700, color: p.status === 'active' ? 'var(--accent)' : 'var(--text-3)', marginTop: 6, letterSpacing: '0.05em' }}>
+                  <span style={{ width: 6, height: 6, borderRadius: '50%', background: p.status === 'active' ? 'var(--accent)' : 'var(--text-3)' }} />
+                  {p.status.toUpperCase()}
+                </div>
+              </div>
+              <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                <div className="num" style={{ fontWeight: 700, fontSize: '1.1rem' }}>{money(p.amount)}</div>
+                {p.status === 'active' && <button className="btn btn--ghost" style={{ fontSize: '0.75rem', color: '#fb7185', marginTop: 6, padding: '4px 8px' }} onClick={() => cancel(p.id)}>Cancel</button>}
               </div>
             </div>
           ))}

@@ -26,9 +26,9 @@ export function ScreenNotifications({ compact, token, navigate, fire }: Props) {
   const unread = notifications.filter(n => !n.read).length;
 
   return (
-    <div style={{ padding: compact ? 16 : 24, maxWidth: 720, margin: '0 auto' }}>
+    <div style={{ padding: compact ? 16 : 24, maxWidth: 760, margin: '0 auto' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>
-        <PageHead title="Notifications" back={() => navigate('settings')} />
+        <PageHead title="Notifications" back={compact ? () => navigate('overview') : undefined} />
         {unread > 0 && <button className="btn btn--ghost" style={{ marginLeft: 'auto', fontSize: '0.8rem' }} onClick={markAllRead}>Mark all read</button>}
       </div>
       {notifications.length === 0 ? (

@@ -37,8 +37,8 @@ export function ScreenBudgets({ compact, token, navigate, fire }: Props) {
   };
 
   return (
-    <div style={{ padding: compact ? 16 : 24, maxWidth: 720, margin: '0 auto' }}>
-      <PageHead title="Budgets" back={() => navigate('settings')} />
+    <div style={{ padding: compact ? 16 : 24, maxWidth: 760, margin: '0 auto' }}>
+      <PageHead title="Budgets" back={compact ? () => navigate('overview') : undefined} />
       <div style={{ color: 'var(--text-3)', fontSize: '0.85rem', marginBottom: 16 }}>{new Date().toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}</div>
       <button className="btn" style={{ marginBottom: 16 }} onClick={() => setCreateOpen(true)}><Icon name="plus" size={16} /> Set Budget</button>
       {budgets.length === 0 ? (

@@ -26,8 +26,8 @@ export function ScreenInvoices({ compact, token, navigate, fire }: Props) {
   const statusColor = (s: string) => s === 'paid' ? '#34d399' : s === 'pending' ? 'var(--accent)' : '#fb7185';
 
   return (
-    <div style={{ padding: compact ? 16 : 24, maxWidth: 720, margin: '0 auto' }}>
-      <PageHead title="Invoices & Receipts" back={() => navigate('settings')} />
+    <div style={{ padding: compact ? 16 : 24, maxWidth: 760, margin: '0 auto' }}>
+      <PageHead title="Invoices & Receipts" back={compact ? () => navigate('overview') : undefined} />
       <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
         <button className={`chip ${tab === 'receipts' ? 'chip--active' : ''}`} onClick={() => setTab('receipts')}>Receipts</button>
         <button className={`chip ${tab === 'requests' ? 'chip--active' : ''}`} onClick={() => setTab('requests')}>Payment Requests</button>

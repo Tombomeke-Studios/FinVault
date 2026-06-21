@@ -41,8 +41,8 @@ export function ScreenFxExchange({ compact, token, navigate, wallets, fire, onRe
   };
 
   return (
-    <div style={{ padding: compact ? 16 : 24, maxWidth: 520, margin: '0 auto' }}>
-      <PageHead title="Currency Exchange" back={() => navigate('settings')} />
+    <div style={{ padding: compact ? 16 : 24, maxWidth: 560, margin: '0 auto' }}>
+      <PageHead title="Currency Exchange" back={compact ? () => navigate('overview') : undefined} />
       <div className="card" style={{ padding: 24 }}>
         <div className="eyebrow">From</div>
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 12 }}>
