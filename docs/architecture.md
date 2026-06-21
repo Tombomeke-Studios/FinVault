@@ -1,103 +1,341 @@
 # FinVault Architecture
 
-FinVault is a fintech banking demo built as a monorepo with two frontends and an
-event-driven microservices backend.
+> Last updated: 2026-06-21 · v2.0.0
 
+FinVault is a fintech banking platform built as an npm workspaces monorepo with two frontends and an event-driven microservices backend.
+
+---
+
+## System Overview
+
+```mermaid
+graph TB
+    subgraph Clients
+        MOB["📱 Mobile App<br/><small>Expo SDK 54 · React Native</small>"]
+        WEB["🖥️ Web Dashboard<br/><small>Vite · React 18</small>"]
+    end
+
+    subgraph Gateway["API Gateway :8000"]
+        PROXY["REST Proxy"]
+        WS["WebSocket Hub"]
+        RL["Rate Limiter<br/><small>Redis / in-memory</small>"]
+        EH["Event Hub"]
+    end
+
+    subgraph Services
+        ACC["Account Service :8001<br/><small>Auth · Users · Sessions</small>"]
+        WAL["Wallet Service :8002<br/><small>Ledger · Transfers · Cards</small>"]
+        INV["Invoice Service :8003<br/><small>Receipts · Mandates</small>"]
+    end
+
+    subgraph Data
+        DB1["SQLite<br/><small>account.db</small>"]
+        DB2["SQLite<br/><small>wallet.db</small>"]
+        DB3["SQLite<br/><small>invoice.db</small>"]
+        RMQ["RabbitMQ<br/><small>Topic Exchange + DLQ</small>"]
+    end
+
+    MOB -->|"HTTPS /api/*"| PROXY
+    WEB -->|"HTTPS /api/*"| PROXY
+    MOB -.->|"WS ?token=JWT"| WS
+    WEB -.->|"WS ?token=JWT"| WS
+
+    PROXY --> ACC
+    PROXY --> WAL
+    PROXY --> INV
+
+    ACC --> DB1
+    WAL --> DB2
+    INV --> DB3
+
+    EH --> RMQ
+    RMQ --> WAL
+    RMQ --> INV
+
+    ACC -->|"events"| EH
+    WAL -->|"events"| EH
+
+    style Gateway fill:#1a1a2e,stroke:#34d399,color:#f7f7f9
+    style Services fill:#1a1a2e,stroke:#60a5fa,color:#f7f7f9
+    style Data fill:#1a1a2e,stroke:#a78bfa,color:#f7f7f9
+    style Clients fill:#1a1a2e,stroke:#fbbf24,color:#f7f7f9
 ```
-┌──────────────┐    ┌───────────────────┐
-│ apps/mobile   │    │ apps/web-dashboard │
-│ Expo SDK 54   │    │ Vite + React 18    │
-└──────┬───────┘    └─────────┬─────────┘
-       │   HTTPS /api/* + WS (token)
-       ▼                      ▼
-┌─────────────────────────────────────────┐
-│ services/gateway :8000                   │
-│ helmet · CORS allowlist · rate limit     │
-│ /api proxy · WebSocket hub · Event Hub   │
-└──────┬─────────────┬─────────────┬──────┘
-       ▼             ▼             ▼
-┌────────────┐ ┌──────────────┐ ┌─────────────┐
-│ account    │ │ wallet-      │ │ invoice     │
-│ service    │ │ transaction  │ │ service     │
-│ :8001      │ │ service :8002│ │ :8003       │
-│ auth, users│ │ wallets, tx, │ │ invoices,   │
-│ audit logs │ │ cards, goals │ │ PDF receipts│
-└─────┬──────┘ └──────┬───────┘ └──────┬──────┘
-      └──── Prisma/SQLite per service ──┘
-              RabbitMQ topic exchange (events.*) + DLQ
+
+---
+
+## Request Flow
+
+```mermaid
+sequenceDiagram
+    participant C as Client
+    participant G as Gateway
+    participant A as Account Service
+    participant W as Wallet Service
+    participant R as RabbitMQ
+    participant WS as WebSocket Hub
+
+    C->>G: POST /api/auth/login
+    G->>A: proxy → POST /auth/login
+    A-->>G: { accessToken, refreshToken }
+    G-->>C: 200 OK + tokens
+
+    C->>G: POST /api/transactions/transfer
+    G->>W: proxy → POST /transactions/transfer
+    W->>W: validate, debit/credit in $transaction
+    W->>G: POST /api/events/publish
+    G->>R: events.payment.confirmed
+    G->>WS: push to sender + receiver
+    W-->>G: 200 OK + transaction
+    G-->>C: 200 OK
 ```
 
-## Components
+---
 
-### Frontends
-- **apps/mobile** — Expo SDK 54 / React Native 0.81, dark-only theme. State is plain
-  React state in `App.tsx` (no router lib; `route` string + `account:<walletId>`
-  convention). Falls back to a full in-memory demo mode when the backend is
-  unreachable (see [security.md](security.md#demo-mode)).
-- **apps/web-dashboard** — Vite + React 18 SPA with React Router. Renders a simulated
-  iOS device frame ("compact" mode) or a desktop sidebar layout. Full theming engine
-  via `data-*` attributes on `<html>` (mode/radius/density/card + accent/font CSS vars).
+## Gateway Routes
 
-### Gateway (`services/gateway`)
-- Proxies `/api/auth|users → account`, `/api/wallets|transactions|cards|goals|
-  scheduled-payments|budgets|notifications|disputes|fx|beneficiaries → wallet`,
-  `/api/invoices → invoice`.
-- **WebSocket hub**: clients connect with `?token=<JWT>`; events are pushed per-user.
-- **Event Hub** (`POST /api/events/publish`, guarded by `X-Service-Secret`): fans out
-  envelopes to subscribed services via webhooks, to WebSocket clients, and onto
-  RabbitMQ (`events.<type>` routing keys, with dead-letter queue).
-- Per-IP rate limiting (500 req/min): Redis-backed via ioredis when `REDIS_URL` is
-  set, automatic fallback to in-memory map otherwise.
+```mermaid
+graph LR
+    subgraph "/api"
+        AUTH["/auth/*"] --> ACC["Account :8001"]
+        USERS["/users/*"] --> ACC
+        WALLETS["/wallets/*"] --> WAL["Wallet :8002"]
+        TX["/transactions/*"] --> WAL
+        CARDS["/cards/*"] --> WAL
+        GOALS["/goals/*"] --> WAL
+        BENEF["/beneficiaries/*"] --> WAL
+        SCHED["/scheduled-payments/*"] --> WAL
+        BUDG["/budgets/*"] --> WAL
+        NOTIF["/notifications/*"] --> WAL
+        DISP["/disputes/*"] --> WAL
+        FX["/fx/*"] --> WAL
+        INV["/invoices/*"] --> INVSVC["Invoice :8003"]
+    end
 
-### Account service
-- Registration/login (Zod-validated, bcrypt cost 12), JWT access tokens (1 h) +
-  rotating refresh tokens (7 d, sha256-hashed at rest).
-- `/auth/refresh` (rotation; replay revokes all sessions), `/auth/logout` (revocation).
-- `/users/change-password` (revokes all sessions, issues new token pair),
-  `/users/sessions` (list active), `DELETE /users/sessions/:id` (revoke one).
-- Per-IP rate limits (5 logins / 15 min, 3 registrations / h) + per-email lockout
-  (10 failures → account frozen) + `AuditLog` table for all auth events.
-- Internal `/users/profile-by-email` requires `X-Service-Secret`.
+    style ACC fill:#3b82f6,color:#fff
+    style WAL fill:#34d399,color:#000
+    style INVSVC fill:#a78bfa,color:#fff
+```
 
-### Wallet-transaction service
-- Wallets (checking / savings / travel) with IBAN generation, interest simulation,
-  credit lines, balance history.
-- Transactions: P2P by email **or IBAN** (`/transactions/transfer` accepts
-  `receiverEmail` or `receiverIban`; format validation in `iban.ts`), SEPA XML by IBAN
-  (`sepa-validator.ts`), own-wallet transfers, deposits — all in Prisma `$transaction`
-  blocks with an integrity hash per transaction (`shared/src/integrity.ts`).
-- Every transfer request and every rejection path is logged server-side
-  (`Transfer request:` / `Transfer rejected (status): reason`) — failures are never
-  silent (#11). Note: seeded demo IBANs are structurally valid but not mod-97
-  checksummed, so target lookups validate *format* only.
-- Cards (freeze, limits) and savings goals (fund/edit/delete) CRUD.
-- Beneficiaries: saved payees with auto-upsert on transfer.
-- Scheduled payments: CRUD with frequency (once/daily/weekly/monthly), status
-  management (active/paused/completed).
-- Budgets: per-category monthly limits with spend tracking (`@@unique` on
-  userId+category+month), upsert semantics.
-- Notifications: user-scoped, mark-read / mark-all-read.
-- Disputes: file against a transaction, auto-creates notification.
-- FX exchange: mock rate table (EUR/USD/GBP/CHF/JPY/SEK/NOK/DKK), atomic
-  balance swap between two user wallets.
-- Round-up savings: rounds card spend up to nearest euro, moves the diff into a
-  savings goal.
-- Transaction filters: `GET /transactions` accepts `from`, `to`, `minAmount`,
-  `maxAmount`, `walletId` query params.
-- Self-healing seed reconciliation on startup for demo accounts.
+---
 
-### Shared (`shared/`)
-- `auth.ts` — JWT verification, `requireAuth`, `requireServiceSecret`, secrets with
-  loud dev-fallback warnings.
-- `validation.ts` — Zod schemas (auth, deposits, transfers, SEPA, payment requests,
-  mandates) + `validateBody` helper.
-- `events.ts` / `rabbitmq.ts` — event envelope publishing (gateway hub + RabbitMQ).
-- `integrity.ts` — HMAC transaction hashing (`FINVAULT_MESSAGE_KEY`).
+## Data Models
+
+### Account Service
+
+```mermaid
+erDiagram
+    User ||--o| UserProfile : has
+    User ||--o{ RefreshToken : owns
+    User ||--o{ AuditLog : generates
+
+    User {
+        string id PK
+        string email UK
+        string passwordHash
+        string accountType
+        string status
+        string plan
+    }
+    UserProfile {
+        string userId PK
+        string firstName
+        string lastName
+    }
+    RefreshToken {
+        string id PK
+        string tokenHash
+        boolean revoked
+        datetime expiresAt
+    }
+    AuditLog {
+        string id PK
+        string action
+        string ipAddress
+        datetime timestamp
+    }
+```
+
+### Wallet Service
+
+```mermaid
+erDiagram
+    Wallet ||--o{ BalanceHistory : tracks
+    Wallet ||--o| CreditLine : extends
+    Wallet ||--o{ Card : has
+
+    Wallet {
+        string id PK
+        string userId
+        string iban UK
+        string currency
+        string type
+        float balance
+    }
+    Transaction {
+        string id PK
+        string reference UK
+        string senderWalletId FK
+        string receiverWalletId FK
+        float amount
+        string status
+        string integrityHash
+    }
+    SavingsGoal {
+        string id PK
+        string userId
+        string name
+        float target
+        float saved
+    }
+    ScheduledPayment {
+        string id PK
+        string userId
+        string frequency
+        datetime nextRunAt
+        string status
+    }
+    Budget {
+        string id PK
+        string userId
+        string category
+        float monthlyLimit
+        float currentSpend
+    }
+    Notification {
+        string id PK
+        string userId
+        string title
+        boolean read
+    }
+    Dispute {
+        string id PK
+        string transactionId
+        string reason
+        string status
+    }
+```
+
+---
+
+## Service Responsibilities
+
+### Account Service `:8001`
+
+| Endpoint | Method | Purpose |
+|---|---|---|
+| `/auth/register` | POST | User registration with Zod validation |
+| `/auth/login` | POST | Login with bcrypt (cost 12) + JWT pair |
+| `/auth/refresh` | POST | Token rotation; replay revokes all sessions |
+| `/auth/logout` | POST | Refresh token revocation |
+| `/users/profile` | GET | Authenticated user profile |
+| `/users/plan` | PUT | Plan upgrade (Standard/Metal/Metal+) |
+| `/users/change-password` | POST | Password change + session revocation |
+| `/users/sessions` | GET | List active refresh tokens |
+| `/users/sessions/:id` | DELETE | Revoke a specific session |
+| `/users/audit-logs` | GET | Security activity log |
+| `/users/profile-by-email` | GET | Internal (X-Service-Secret) |
+
+### Wallet Service `:8002`
+
+| Endpoint | Method | Purpose |
+|---|---|---|
+| `/wallets` | GET/POST | Multi-wallet management |
+| `/transactions` | GET | Filterable (date, amount, wallet) |
+| `/transactions/transfer` | POST | P2P by email or IBAN |
+| `/transactions/own-transfer` | POST | Between own wallets |
+| `/transactions/sepa-transfer` | POST | SEPA XML transfer |
+| `/cards` | GET/POST | Card management |
+| `/cards/:id/freeze` | PUT | Freeze/unfreeze |
+| `/cards/:id/controls` | PUT | Contactless/foreign/ATM toggles |
+| `/goals` | CRUD | Savings goals |
+| `/goals/:id/fund` | POST | Fund a goal |
+| `/goals/:id/round-up` | POST | Round-up savings |
+| `/scheduled-payments` | CRUD | Standing orders |
+| `/budgets` | GET/POST/DELETE | Monthly category budgets |
+| `/notifications` | GET | User notifications |
+| `/notifications/:id/read` | PUT | Mark as read |
+| `/notifications/read-all` | PUT | Mark all as read |
+| `/disputes` | GET/POST | Transaction disputes |
+| `/fx/rates` | GET | Exchange rate table |
+| `/fx/exchange` | POST | Currency exchange |
+| `/beneficiaries` | CRUD | Saved payees |
+
+### Invoice Service `:8003`
+
+| Endpoint | Method | Purpose |
+|---|---|---|
+| `/receipts` | GET/POST | Transaction receipts + PDF |
+| `/payment-requests` | GET/POST | Payment requests |
+| `/payment-requests/:id/pay` | POST | Pay a request |
+| `/payment-requests/:id/decline` | POST | Decline a request |
+| `/mandates` | GET/POST | SEPA direct debit mandates |
+| `/mandates/:id/cancel` | POST | Cancel a mandate |
+
+---
+
+## Event System
+
+```mermaid
+graph LR
+    subgraph Publishers
+        A["Account Service"]
+        W["Wallet Service"]
+    end
+
+    subgraph "Event Hub (Gateway)"
+        HUB["POST /api/events/publish"]
+    end
+
+    subgraph Consumers
+        WH["Webhook Subscribers"]
+        WSC["WebSocket Clients"]
+        RMQ["RabbitMQ Queue"]
+    end
+
+    A -->|"account.created<br/>account.frozen"| HUB
+    W -->|"balance.updated<br/>payment.confirmed"| HUB
+
+    HUB --> WH
+    HUB --> WSC
+    HUB --> RMQ
+
+    RMQ -->|"events.account.created"| W
+    RMQ -->|"events.account.frozen"| W
+
+    style HUB fill:#34d399,color:#000
+```
+
+| Event | Publisher | Payload | Consumers |
+|---|---|---|---|
+| `account.created` | Account | userId, email, accountType | Wallet (creates default wallets + cards) |
+| `account.frozen` | Account | userId, reason | Wallet (freezes all wallets) |
+| `balance.updated` | Wallet | walletId, userId, balance | WebSocket → client |
+| `payment.confirmed` | Wallet | transaction details | WebSocket → sender + receiver |
+
+---
+
+## Technology Stack
+
+| Layer | Technology | Purpose |
+|---|---|---|
+| **Mobile** | Expo SDK 54, React Native 0.81 | Cross-platform mobile app |
+| **Web** | Vite, React 18, React Router | Single-page dashboard |
+| **Backend** | Express.js, TypeScript, ESM | REST API services |
+| **ORM** | Prisma 5 | Type-safe database access |
+| **Database** | SQLite (dev), PostgreSQL-ready | Per-service data store |
+| **Auth** | JWT + bcrypt + sha256 | Token-based authentication |
+| **Messaging** | RabbitMQ (AMQP) | Async event streaming |
+| **Rate Limiting** | ioredis / in-memory | Request throttling |
+| **Validation** | Zod | Runtime schema validation |
+| **Testing** | Vitest | Unit + integration tests |
+| **CI/CD** | GitHub Actions | Validation + Docker builds |
+| **Build** | EAS Build | Android APK/AAB |
+
+---
 
 ## Conventions
-- Both frontends implement the same screen set (`ScreenOverview`, `ScreenCards`, …) in
-  parallel; a change to one usually wants a sibling change in the other.
+
+- Both frontends implement the same screen set in parallel — a change in one usually needs a sibling change in the other.
 - Mobile uses `THEME` object tokens (hex); web uses OKLCH CSS custom properties.
-- Money formatting differs per app — see CLAUDE.md "gotchas" before touching it.
-- Run order for local dev: RabbitMQ (docker) → services (`npm run dev` each, or
-  `docker-compose up`) → web (`npm run dev`) / mobile (`npx expo start`).
+- Money formatting differs per app — see [CLAUDE.md](../CLAUDE.md) gotchas.
+- `shared/` is consumed from `dist/` — rebuild after edits (`npm run build --workspace=shared`).
