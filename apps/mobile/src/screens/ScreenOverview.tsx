@@ -1,5 +1,5 @@
-import React from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
+import React, { useState, useCallback } from 'react';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, RefreshControl } from 'react-native';
 import { Icon } from '../components/Icon';
 import { money, Sparkline, relTime, CategoryIcon, Ring, catColor, Delta } from '../components/UI';
 import { BankCard } from '../components/BankCard';
@@ -11,6 +11,7 @@ interface OverviewProps {
   navigate: (r: string) => void;
   data: AppData;
   onTopup: () => void;
+  onRefresh?: () => Promise<void>;
 }
 
 const QUICK_ACTIONS = [
@@ -25,7 +26,13 @@ const QUICK_ACTIONS = [
 const ACCOUNT_CARD_W = 222;
 const ACCOUNT_CARD_GAP = 12;
 
-export function ScreenOverview({ navigate, data, onTopup }: OverviewProps) {
+export function ScreenOverview({ navigate, data, onTopup, onRefresh }: OverviewProps) {
+  const [refreshing, setRefreshing] = useState(false);
+  const handleRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await onRefresh?.();
+    setRefreshing(false);
+  }, [onRefresh]);
 
   const { wallets, transactions, cards, goals, spendByCat, balanceTrend, monthly } = data;
 
@@ -45,7 +52,9 @@ export function ScreenOverview({ navigate, data, onTopup }: OverviewProps) {
   const greeting = hour < 12 ? 'Good morning' : hour < 18 ? 'Good afternoon' : 'Good evening';
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+    <ScrollView style={styles.container} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}
+      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor={THEME.colors.accent} colors={[THEME.colors.accent]} />}
+    >
 
       {/* ── Greeting ── */}
       <FadeSlideIn style={styles.greeting} distance={10}>
