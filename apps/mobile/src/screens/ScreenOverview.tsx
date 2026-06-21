@@ -302,85 +302,88 @@ export function ScreenOverview({ navigate, data, onTopup, onRefresh }: OverviewP
   );
 }
 
+const S = THEME.spacing;
+const R = THEME.radius;
+
 const styles = themedSheet(() => StyleSheet.create({
   container: { flex: 1, backgroundColor: THEME.colors.bg },
-  content: { padding: 16, gap: 14, paddingBottom: 88 },
+  content: { padding: S.gap, gap: S.gap, paddingBottom: 96 },
 
-  /* greeting */
-  greeting: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end' },
-  greetingLabel: { fontSize: 12, color: THEME.colors.text3, fontWeight: '600', letterSpacing: 0.3 },
-  greetingName: { fontSize: 30, fontWeight: 'bold', color: THEME.colors.text, marginTop: 2, letterSpacing: -0.6 },
-  planBadge: { flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: THEME.colors.accentSoft, borderColor: THEME.colors.accentLine, borderWidth: 1, borderRadius: 99, paddingVertical: 4, paddingHorizontal: 10 },
-  planText: { color: THEME.colors.accent, fontSize: 11, fontWeight: 'bold' },
+  /* ── greeting ── */
+  greeting: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end', paddingTop: S.sm },
+  greetingLabel: { fontSize: 13, color: THEME.colors.text3, fontWeight: '500', letterSpacing: 0.2 },
+  greetingName: { fontSize: 32, fontWeight: '800', color: THEME.colors.text, marginTop: 2, letterSpacing: -1 },
+  planBadge: { flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: THEME.colors.accentSoft, borderColor: THEME.colors.accentLine, borderWidth: 1, borderRadius: R.pill, paddingVertical: 5, paddingHorizontal: 12 },
+  planText: { color: THEME.colors.accent, fontSize: 11, fontWeight: '700', letterSpacing: 0.3 },
 
-  /* hero card */
-  heroCard: { backgroundColor: THEME.colors.surface, borderRadius: THEME.radius.xl, borderWidth: 1, borderColor: THEME.colors.line, padding: 20, gap: 16, overflow: 'hidden', position: 'relative', elevation: 4, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.14, shadowRadius: 8 },
-  heroGlow: { position: 'absolute', top: -60, right: -60, width: 200, height: 200, borderRadius: 100, backgroundColor: THEME.colors.accentSoft },
+  /* ── hero balance card ── glass morphism + accent glow */
+  heroCard: { backgroundColor: THEME.colors.glassBg, borderRadius: R['2xl'], borderWidth: 1, borderColor: THEME.colors.line2, padding: 24, gap: S.gap, overflow: 'hidden', position: 'relative', ...THEME.shadow.cardLg },
+  heroGlow: { position: 'absolute', top: -80, right: -80, width: 240, height: 240, borderRadius: 120, backgroundColor: THEME.colors.accentSoft, opacity: 0.6 },
   heroTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
-  heroLabel: { fontSize: 11, fontWeight: '700', textTransform: 'uppercase', color: THEME.colors.text3, letterSpacing: 1.2 },
-  heroBalance: { fontSize: 36, fontWeight: 'bold', color: THEME.colors.text, letterSpacing: -1, marginTop: 4 },
-  heroFlowCol: { gap: 12, alignItems: 'flex-end' },
-  heroFlowItem: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  heroFlowIcon: { width: 30, height: 30, borderRadius: 8, justifyContent: 'center', alignItems: 'center' },
-  heroFlowLabel: { fontSize: 10, color: THEME.colors.text3, fontWeight: '600' },
-  heroFlowValue: { fontSize: 13, fontWeight: 'bold', color: THEME.colors.text, marginTop: 1 },
-  sparkWrap: { marginHorizontal: -4 },
+  heroLabel: { fontSize: 11, fontWeight: '700', textTransform: 'uppercase', color: THEME.colors.text3, letterSpacing: 1.4 },
+  heroBalance: { fontSize: 40, fontWeight: '800', color: THEME.colors.text, letterSpacing: -1.5, marginTop: 4 },
+  heroFlowCol: { gap: S.md, alignItems: 'flex-end' },
+  heroFlowItem: { flexDirection: 'row', alignItems: 'center', gap: S.sm },
+  heroFlowIcon: { width: 32, height: 32, borderRadius: R.sm, justifyContent: 'center', alignItems: 'center' },
+  heroFlowLabel: { fontSize: 10, color: THEME.colors.text3, fontWeight: '600', letterSpacing: 0.3 },
+  heroFlowValue: { fontSize: 14, fontWeight: '700', color: THEME.colors.text, marginTop: 1 },
+  sparkWrap: { marginHorizontal: -4, marginTop: S.xs },
 
-  /* quick actions */
-  quickRow: { flexDirection: 'row', backgroundColor: THEME.colors.surface, borderRadius: THEME.radius.xl, borderWidth: 1, borderColor: THEME.colors.line, padding: 8 },
-  qaction: { flex: 1, paddingVertical: 10 },
-  qactionInner: { alignItems: 'center', gap: 7 },
-  qactionIcon: { width: 60, height: 60, borderRadius: THEME.radius.xl, justifyContent: 'center', alignItems: 'center' },
-  qactionIconPrimary: { backgroundColor: THEME.colors.accent, shadowColor: THEME.colors.accent, shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.4, shadowRadius: 12, elevation: 8 },
+  /* ── quick actions ── */
+  quickRow: { flexDirection: 'row', backgroundColor: THEME.colors.surface, borderRadius: R.xl, borderWidth: 1, borderColor: THEME.colors.line, padding: S.sm },
+  qaction: { flex: 1, paddingVertical: S.md },
+  qactionInner: { alignItems: 'center', gap: S.sm },
+  qactionIcon: { width: 56, height: 56, borderRadius: R.lg, justifyContent: 'center', alignItems: 'center' },
+  qactionIconPrimary: { backgroundColor: THEME.colors.accent, ...THEME.shadow.glow(THEME.colors.accent) },
   qactionIconGhost: { backgroundColor: THEME.colors.surface2, borderWidth: 1, borderColor: THEME.colors.line },
-  qactionLabel: { fontSize: 12, fontWeight: '600', color: THEME.colors.text2, letterSpacing: 0.2 },
+  qactionLabel: { fontSize: 12, fontWeight: '600', color: THEME.colors.text2, letterSpacing: 0.1 },
 
-  /* services grid */
-  servicesGrid: { flexDirection: 'row', gap: 10 },
+  /* ── services grid ── */
+  servicesGrid: { flexDirection: 'row', gap: S.md },
   serviceItem: { flex: 1 },
-  serviceInner: { backgroundColor: THEME.colors.surface, borderRadius: THEME.radius.lg, borderWidth: 1, borderColor: THEME.colors.line, padding: 14, alignItems: 'center', gap: 8, elevation: 2, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.08, shadowRadius: 3 },
-  serviceIcon: { width: 40, height: 40, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
-  serviceLabel: { fontSize: 12, fontWeight: '700', color: THEME.colors.text2, letterSpacing: 0.2 },
+  serviceInner: { backgroundColor: THEME.colors.surface, borderRadius: R.xl, borderWidth: 1, borderColor: THEME.colors.line, paddingVertical: S.gap, paddingHorizontal: S.sm, alignItems: 'center', gap: S.sm, ...THEME.shadow.card },
+  serviceIcon: { width: 44, height: 44, borderRadius: R.regular, alignItems: 'center', justifyContent: 'center' },
+  serviceLabel: { fontSize: 11, fontWeight: '700', color: THEME.colors.text2, letterSpacing: 0.2 },
 
-  /* accounts */
-  section: { gap: 10 },
-  sectionTitle: { fontSize: 17, fontWeight: 'bold', color: THEME.colors.text, letterSpacing: -0.3 },
-  hScroll: { gap: 12, paddingRight: 16 },
-  accountCard: { width: 222, backgroundColor: THEME.colors.surface, borderWidth: 1, borderColor: THEME.colors.line, borderRadius: THEME.radius.lg, padding: 16, gap: 10, borderTopWidth: 3, elevation: 2, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.1, shadowRadius: 3 },
+  /* ── accounts ── */
+  section: { gap: S.md },
+  sectionTitle: { fontSize: 18, fontWeight: '700', color: THEME.colors.text, letterSpacing: -0.4 },
+  hScroll: { gap: S.md, paddingRight: S.gap },
+  accountCard: { width: 228, backgroundColor: THEME.colors.surface, borderWidth: 1, borderColor: THEME.colors.line, borderRadius: R.xl, padding: S.gap, gap: S.md, borderTopWidth: 3, ...THEME.shadow.card },
   accTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   accNameRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   accName: { fontSize: 13, fontWeight: '600', color: THEME.colors.text },
-  accCurrency: { fontSize: 11, fontWeight: 'bold', color: THEME.colors.text3 },
-  accBalance: { fontSize: 22, fontWeight: 'bold', color: THEME.colors.text, letterSpacing: -0.5 },
+  accCurrency: { fontSize: 11, fontWeight: '700', color: THEME.colors.text3, letterSpacing: 0.5 },
+  accBalance: { fontSize: 24, fontWeight: '800', color: THEME.colors.text, letterSpacing: -0.8 },
   accBottom: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  accIban: { fontSize: 10, color: THEME.colors.text3, flex: 1 },
-  viewLabel: { fontSize: 10, color: THEME.colors.text3, fontWeight: '600' },
-  apyBadge: { backgroundColor: THEME.colors.accentSoft, borderColor: THEME.colors.accentLine, borderWidth: 1, borderRadius: 99, paddingHorizontal: 8, paddingVertical: 2 },
-  apyText: { fontSize: 10, color: THEME.colors.accent, fontWeight: 'bold' },
+  accIban: { fontSize: 10, color: THEME.colors.text3, flex: 1, fontVariant: ['tabular-nums'] as any },
+  viewLabel: { fontSize: 10, color: THEME.colors.accent, fontWeight: '700', letterSpacing: 0.3 },
+  apyBadge: { backgroundColor: THEME.colors.accentSoft, borderColor: THEME.colors.accentLine, borderWidth: 1, borderRadius: R.pill, paddingHorizontal: 8, paddingVertical: 2 },
+  apyText: { fontSize: 10, color: THEME.colors.accent, fontWeight: '700' },
 
-  /* card */
-  card: { backgroundColor: THEME.colors.surface, borderRadius: THEME.radius.lg, borderWidth: 1, borderColor: THEME.colors.line, padding: 16, gap: 14, elevation: 2, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.1, shadowRadius: 3 },
+  /* ── card section ── */
+  card: { backgroundColor: THEME.colors.surface, borderRadius: R.xl, borderWidth: 1, borderColor: THEME.colors.line, padding: S.gap, gap: S.md, ...THEME.shadow.card },
   cardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  seeAll: { fontSize: 13, color: THEME.colors.accent, fontWeight: 'bold' },
+  seeAll: { fontSize: 13, color: THEME.colors.accent, fontWeight: '700' },
 
-  /* transactions */
-  txRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 10, borderTopWidth: 1, borderTopColor: THEME.colors.line },
+  /* ── transactions ── */
+  txRow: { flexDirection: 'row', alignItems: 'center', gap: S.md, paddingVertical: S.md, borderTopWidth: 1, borderTopColor: THEME.colors.line },
   txMeta: { flex: 1 },
-  txDesc: { fontSize: 14, fontWeight: '600', color: THEME.colors.text },
-  txTime: { fontSize: 11, color: THEME.colors.text3, marginTop: 2 },
-  txAmt: { fontSize: 15, fontWeight: 'bold' },
+  txDesc: { fontSize: 14, fontWeight: '600', color: THEME.colors.text, letterSpacing: -0.2 },
+  txTime: { fontSize: 11, color: THEME.colors.text3, marginTop: 3 },
+  txAmt: { fontSize: 15, fontWeight: '700', fontVariant: ['tabular-nums'] as any },
   txCur: { fontSize: 10, color: THEME.colors.text3, marginTop: 1 },
-  emptyText: { color: THEME.colors.text3, fontSize: 13, textAlign: 'center', paddingVertical: 12 },
+  emptyText: { color: THEME.colors.text3, fontSize: 13, textAlign: 'center', paddingVertical: S.gap },
 
-  /* spending */
-  catRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  /* ── spending ── */
+  catRow: { flexDirection: 'row', alignItems: 'center', gap: S.md },
   catDot: { flexShrink: 0 },
   catName: { fontSize: 13, fontWeight: '600', color: THEME.colors.text2 },
-  catAmt: { fontSize: 13, fontWeight: 'bold', color: THEME.colors.text },
+  catAmt: { fontSize: 13, fontWeight: '700', color: THEME.colors.text, fontVariant: ['tabular-nums'] as any },
 
-  /* goals */
-  goalRow: { flexDirection: 'row', alignItems: 'center', gap: 14 },
-  goalName: { fontSize: 14, fontWeight: '600', color: THEME.colors.text },
-  goalPct: { fontSize: 14, fontWeight: 'bold' },
-  goalSub: { fontSize: 11, color: THEME.colors.text3, marginTop: 4 },
+  /* ── goals ── */
+  goalRow: { flexDirection: 'row', alignItems: 'center', gap: S.md },
+  goalName: { fontSize: 14, fontWeight: '600', color: THEME.colors.text, letterSpacing: -0.2 },
+  goalPct: { fontSize: 14, fontWeight: '700', fontVariant: ['tabular-nums'] as any },
+  goalSub: { fontSize: 11, color: THEME.colors.text3, marginTop: 4, fontVariant: ['tabular-nums'] as any },
 }));
