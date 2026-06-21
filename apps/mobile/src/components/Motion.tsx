@@ -1,5 +1,5 @@
-import React, { useEffect, useRef, useState, useCallback } from 'react';
-import { AccessibilityInfo, Animated, Pressable, View, Text, Easing } from 'react-native';
+import React, { useEffect, useRef, useState, useCallback, useMemo } from 'react';
+import { AccessibilityInfo, Animated, Pressable, View, Text, Easing, StyleSheet, type ViewStyle, type TextStyle, type NativeSyntheticEvent, type NativeScrollEvent } from 'react-native';
 import { THEME } from '../theme';
 
 /**
@@ -300,4 +300,107 @@ export function SlideInFromRight({
       {children}
     </Animated.View>
   );
+}
+
+// ── AnimatedCard — glass surface + entrance + press feedback ────────
+export function AnimatedCard({
+  children,
+  delay = 0,
+  glass = false,
+  onPress,
+  style,
+}: {
+  children: React.ReactNode;
+  delay?: number;
+  glass?: boolean;
+  onPress?: () => void;
+  style?: ViewStyle;
+}) {
+  const cardStyle = useMemo<ViewStyle>(() => ({
+    backgroundColor: glass ? THEME.colors.glassBg : THEME.colors.surface,
+    borderRadius: glass ? (THEME.radius as any)['2xl'] ?? 28 : THEME.radius.xl,
+    borderWidth: 1,
+    borderColor: glass ? THEME.colors.line2 : THEME.colors.line,
+    padding: THEME.spacing.gap,
+    overflow: 'hidden' as const,
+    ...THEME.shadow[glass ? 'cardLg' : 'card'],
+    ...style,
+  }), [glass, style]);
+
+  const content = (
+    <FadeSlideIn delay={delay}>
+      <View style={cardStyle}>{children}</View>
+    </FadeSlideIn>
+  );
+
+  if (!onPress) return content;
+
+  return (
+    <FadeSlideIn delay={delay}>
+      <PressableScale onPress={onPress} scaleTo={0.97}>
+        <View style={cardStyle}>{children}</View>
+      </PressableScale>
+    </FadeSlideIn>
+  );
+}
+
+// ── BalanceDisplay — consistent money typography ────────────────────
+export function BalanceDisplay({
+  value,
+  formatter,
+  size = 40,
+  color,
+  style,
+}: {
+  value: number;
+  formatter: (v: number) => string;
+  size?: number;
+  color?: string;
+  style?: TextStyle;
+}) {
+  const textStyle = useMemo<TextStyle>(() => ({
+    fontSize: size,
+    fontWeight: '800',
+    letterSpacing: size > 30 ? -1.5 : -0.8,
+    color: color ?? THEME.colors.text,
+    fontVariant: ['tabular-nums'],
+    ...style,
+  }), [size, color, style]);
+
+  return <CountUp value={value} duration={900} formatter={formatter} style={textStyle} />;
+}
+
+// ── useParallax — scroll-driven parallax for hero cards ────────────
+export function useParallax(factor = 0.4) {
+  const scrollY = useRef(new Animated.Value(0)).current;
+  const reduced = useReducedMotion();
+
+  const onScroll = useMemo(() =>
+    Animated.event(
+      [{ nativeEvent: { contentOffset: { y: scrollY } } }],
+      { useNativeDriver: true }
+    ),
+    []
+  );
+
+  const heroStyle = useMemo(() => {
+    if (reduced) return {};
+    return {
+      transform: [{
+        translateY: scrollY.interpolate({
+          inputRange: [-100, 0, 200],
+          outputRange: [100 * factor, 0, -200 * factor],
+          extrapolate: 'clamp',
+        }),
+      }, {
+        scale: scrollY.interpolate({
+          inputRange: [-200, 0],
+          outputRange: [1.1, 1],
+          extrapolate: 'clamp',
+        }),
+      }],
+    };
+  }, [reduced, factor]);
+
+  return { onScroll, heroStyle, scrollY };
 }
