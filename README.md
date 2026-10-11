@@ -95,12 +95,12 @@ npm run dev
 npm run dev:all
 ```
 
-### Test Accounts
+### Demo Accounts
 
-| Account | Email | Password |
-|---|---|---|
-| Business / Admin | `admin@finvault.com` | `admin123` |
-| Personal / Consumer | `test@finvault.com` | `test123` |
+On first start the account service seeds two demo accounts (a business/admin and a
+personal one) so the apps have data to show. They exist for local development only:
+see `seedAccounts()` in `services/account-service/src/app.ts` for the details, and
+change or disable them before running FinVault anywhere other people can reach.
 
 > Both apps fall back to a client-side demo mode when the backend is unreachable.
 
