@@ -342,7 +342,8 @@ sequenceDiagram
 - **Who pays is an email**, because a NexusInfra user id means nothing here. FinVault does not check
   that an account with that email exists — the request simply waits for one — so a requester learns
   nothing about who banks here.
-- **Delivered twice is created once**: the requester's reference is unique.
+- **Delivered twice is created once**: a reference that already has a request creates nothing. One
+  consumer takes requests one at a time, so looking first is enough.
 - **A request FinVault cannot honour is answered**, with `payment.failed` and the reason (no customer
   email, a non-EUR currency, an amount over the limit, no merchant account, or five requests already
   open for that customer from the same requester — the email is unverified on the other side, and

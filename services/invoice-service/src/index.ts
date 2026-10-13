@@ -57,7 +57,7 @@ async function resolveMerchant(): Promise<Merchant | null> {
 
 const externalRequests = createExternalRequests({
   store: {
-    findByExternalReference: (reference) => prisma.paymentRequest.findUnique({ where: { externalReference: reference } }),
+    findByExternalReference: (reference) => prisma.paymentRequest.findFirst({ where: { externalReference: reference } }),
     countPending: (recipientEmail, source) =>
       prisma.paymentRequest.count({ where: { recipientEmail, externalSource: source, status: 'pending' } }),
     create: (input) =>
