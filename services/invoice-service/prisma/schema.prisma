@@ -34,6 +34,12 @@ model PaymentRequest {
   expiresAt      DateTime?
   paidAt         DateTime?
   transactionRef String?             // filled when paid, links to Transaction
+  // Set when the request came from another system over the event bus (#89):
+  // the requester's own reference (answered back on pay/decline), who asked,
+  // and when the answer reached the bus.
+  externalReference  String?   @unique
+  externalSource     String?
+  externalNotifiedAt DateTime?
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 }

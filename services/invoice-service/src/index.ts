@@ -5,6 +5,8 @@ import helmet from 'helmet';
 import { PrismaClient } from '../generated/prisma/index.js';
 import {
   publishEvent,
+  consumeRabbitQueue,
+  readEventPayload,
   requireAuth,
   validateBody,
   PaymentRequestSchema,
@@ -12,6 +14,13 @@ import {
   SERVICE_SECRET
 } from 'shared';
 import { generateReceiptPdf } from './pdf-generator.js';
+import {
+  createExternalRequests,
+  normalizeEmail,
+  EXTERNAL_REQUEST_KEY,
+  EXTERNAL_REQUEST_QUEUE,
+  type Merchant,
+} from './external-requests.js';
 
 const prisma = new PrismaClient();
 const app = express();
@@ -22,6 +31,80 @@ const ACCOUNT_SERVICE_URL = process.env.ACCOUNT_SERVICE_URL || 'http://localhost
 app.use(helmet());
 app.use(cors());
 app.use(express.json({ limit: '1mb' }));
+
+// =============================================
+// External payment requests (NexusInfra top-ups, #89)
+// =============================================
+
+// The FinVault account that receives what external requesters ask customers to
+// pay. Decided here, never by the request: a requester that could name the payee
+// could ask anyone to pay anyone.
+const MERCHANT_EMAIL = (process.env.NEXUSINFRA_MERCHANT_EMAIL || '').trim();
+let merchantCache: Merchant | null = null;
+
+async function resolveMerchant(): Promise<Merchant | null> {
+  if (!MERCHANT_EMAIL) return null;
+  if (merchantCache) return merchantCache;
+  const res = await fetch(`${ACCOUNT_SERVICE_URL}/users/profile-by-email?email=${encodeURIComponent(MERCHANT_EMAIL)}`, {
+    headers: { 'X-Service-Secret': SERVICE_SECRET }
+  });
+  if (res.status === 404) return null;
+  if (!res.ok) throw new Error(`account service answered ${res.status} looking up the merchant account`);
+  const user = await res.json();
+  merchantCache = { userId: user.id, email: user.email };
+  return merchantCache;
+}
+
+const externalRequests = createExternalRequests({
+  store: {
+    findByExternalReference: (reference) => prisma.paymentRequest.findUnique({ where: { externalReference: reference } }),
+    countPending: (recipientEmail, source) =>
+      prisma.paymentRequest.count({ where: { recipientEmail, externalSource: source, status: 'pending' } }),
+    create: (input) =>
+      prisma.paymentRequest.create({
+        data: {
+          creatorUserId: input.merchant.userId,
+          creatorEmail: input.merchant.email,
+          recipientEmail: input.recipientEmail,
+          amount: input.amount,
+          currency: input.currency,
+          description: input.description,
+          status: 'pending',
+          externalReference: input.externalReference,
+          externalSource: input.externalSource
+        }
+      }),
+    listUnnotified: () =>
+      prisma.paymentRequest.findMany({
+        where: { externalReference: { not: null }, externalNotifiedAt: null, status: { in: ['paid', 'declined'] } }
+      }),
+    markNotified: async (id) => {
+      await prisma.paymentRequest.update({ where: { id }, data: { externalNotifiedAt: new Date() } });
+    }
+  },
+  merchant: resolveMerchant,
+  publish: (event) => publishEvent('invoice-service', event, process.env.GATEWAY_URL)
+});
+
+async function startExternalRequests() {
+  if (!MERCHANT_EMAIL) {
+    console.log('[Invoice Service] NEXUSINFRA_MERCHANT_EMAIL not set — external payment requests are off.');
+    return;
+  }
+  try {
+    await consumeRabbitQueue(EXTERNAL_REQUEST_QUEUE, [EXTERNAL_REQUEST_KEY], async (envelope) => {
+      if (envelope.event.type !== 'payment.request') return;
+      await externalRequests.handle(envelope, readEventPayload(envelope.event));
+    });
+    // An answer that did not reach the bus when the customer paid is sent again.
+    setInterval(() => {
+      externalRequests.flush().catch((err: any) => console.error('[Invoice Service] Reporting settled requests failed:', err.message));
+    }, 60_000).unref();
+    console.log(`[Invoice Service] External payment requests on — paid to ${MERCHANT_EMAIL}`);
+  } catch (error: any) {
+    console.error('[Invoice Service] External payment requests could not start:', error.message);
+  }
+}
 
 // =============================================
 // Internal Service Authentication Helper
@@ -203,7 +286,14 @@ app.get('/payment-requests', requireAuth, async (req, res) => {
       orderBy: { createdAt: 'desc' }
     });
 
-    res.status(200).json(requests);
+    // `direction` lets a client offer Pay/Decline only on what the user was asked
+    // to pay, without knowing the user's email itself.
+    res.status(200).json(
+      requests.map(({ externalNotifiedAt, ...r }) => ({
+        ...r,
+        direction: normalizeEmail(r.recipientEmail) === normalizeEmail(email) ? 'incoming' : 'outgoing'
+      }))
+    );
   } catch (error: any) {
     res.status(500).json({ error: 'Failed to retrieve payment requests', message: error.message });
   }
@@ -214,6 +304,12 @@ app.post('/payment-requests/:id/pay', requireAuth, async (req, res) => {
   const { userId, email } = (req as any).user;
   const { id } = req.params;
   const authHeader = req.headers['authorization'] || '';
+  let claimed = false;
+  const release = async () => {
+    if (!claimed) return;
+    claimed = false;
+    await prisma.paymentRequest.updateMany({ where: { id, status: 'processing' }, data: { status: 'pending' } }).catch(() => undefined);
+  };
 
   try {
     const request = await prisma.paymentRequest.findUnique({ where: { id } });
@@ -225,9 +321,18 @@ app.post('/payment-requests/:id/pay', requireAuth, async (req, res) => {
       return res.status(400).json({ error: 'This payment request is no longer pending' });
     }
 
-    if (request.recipientEmail !== email) {
+    if (normalizeEmail(request.recipientEmail) !== normalizeEmail(email)) {
       return res.status(403).json({ error: 'Forbidden: You are not the recipient of this request' });
     }
+
+    // Claim the request before any money moves: two taps on Pay used to both
+    // read "pending" and both transfer. Only the caller that makes this change
+    // goes on; everything below releases the claim if the transfer does not happen.
+    const claim = await prisma.paymentRequest.updateMany({ where: { id, status: 'pending' }, data: { status: 'processing' } });
+    if (claim.count !== 1) {
+      return res.status(400).json({ error: 'This payment request is no longer pending' });
+    }
+    claimed = true;
 
     // Resolve buyer checking account
     const walletsRes = await fetch(`${WALLET_SERVICE_URL}/wallets`, {
@@ -235,6 +340,7 @@ app.post('/payment-requests/:id/pay', requireAuth, async (req, res) => {
     });
 
     if (!walletsRes.ok) {
+      await release();
       return res.status(500).json({ error: 'Failed to fetch checking account from Wallet Service' });
     }
 
@@ -242,6 +348,7 @@ app.post('/payment-requests/:id/pay', requireAuth, async (req, res) => {
     const buyerCheckingWallet = wallets.find((w: any) => w.type === 'checking' && w.currency === 'EUR');
 
     if (!buyerCheckingWallet) {
+      await release();
       return res.status(404).json({ error: 'No active EUR checking account found' });
     }
 
@@ -251,6 +358,7 @@ app.post('/payment-requests/:id/pay', requireAuth, async (req, res) => {
     }
 
     if (buyerCheckingWallet.balance + availableCredit < request.amount) {
+      await release();
       return res.status(400).json({ error: 'Insufficient balance to satisfy this payment request' });
     }
 
@@ -271,10 +379,12 @@ app.post('/payment-requests/:id/pay', requireAuth, async (req, res) => {
 
     const transferData = await transferRes.json();
     if (!transferRes.ok) {
+      await release();
       return res.status(400).json({ error: transferData.error || 'Transaction failed' });
     }
 
-    // Update Request status
+    // The money has moved: from here the claim is never released.
+    claimed = false;
     const updatedRequest = await prisma.paymentRequest.update({
       where: { id },
       data: {
@@ -284,12 +394,17 @@ app.post('/payment-requests/:id/pay', requireAuth, async (req, res) => {
       }
     });
 
+    // Tell an external requester (#89). Not awaited into the response: a failed
+    // publish is retried by the flush, and the customer has paid either way.
+    externalRequests.notify(updatedRequest).catch((err: any) => console.error('[Invoice Service] Reporting a paid request failed:', err.message));
+
     res.status(200).json({
       message: 'Payment request fulfilled successfully.',
       request: updatedRequest,
       transaction: transferData.transaction
     });
   } catch (error: any) {
+    await release();
     res.status(500).json({ error: 'Failed to satisfy payment request', message: error.message });
   }
 });
@@ -309,14 +424,17 @@ app.post('/payment-requests/:id/decline', requireAuth, async (req, res) => {
       return res.status(400).json({ error: 'Payment request is not pending' });
     }
 
-    if (request.recipientEmail !== email) {
+    if (normalizeEmail(request.recipientEmail) !== normalizeEmail(email)) {
       return res.status(403).json({ error: 'Forbidden' });
     }
 
-    const updatedRequest = await prisma.paymentRequest.update({
-      where: { id },
-      data: { status: 'declined' }
-    });
+    // Conditional, so a decline cannot land on a request that is being paid.
+    const declined = await prisma.paymentRequest.updateMany({ where: { id, status: 'pending' }, data: { status: 'declined' } });
+    if (declined.count !== 1) {
+      return res.status(400).json({ error: 'Payment request is not pending' });
+    }
+    const updatedRequest = { ...request, status: 'declined' };
+    externalRequests.notify(updatedRequest).catch((err: any) => console.error('[Invoice Service] Reporting a declined request failed:', err.message));
 
     res.status(200).json({ message: 'Payment request declined.', request: updatedRequest });
   } catch (error: any) {
@@ -510,7 +628,10 @@ app.post('/mandates/process-charges', requireInternalAuth, async (req, res) => {
 
 let invoiceRetries = 8;
 const startInvoice = () => {
-  const srv = app.listen(PORT, () => console.log(`[Invoice Service] running on http://localhost:${PORT}`));
+  const srv = app.listen(PORT, () => {
+    console.log(`[Invoice Service] running on http://localhost:${PORT}`);
+    void startExternalRequests();
+  });
   srv.once('error', (e: any) => {
     srv.close();
     if (e.code === 'EADDRINUSE' && invoiceRetries-- > 0) {
