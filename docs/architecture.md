@@ -265,7 +265,7 @@ erDiagram
 | Endpoint | Method | Purpose |
 |---|---|---|
 | `/receipts` | GET/POST | Transaction receipts + PDF |
-| `/payment-requests` | GET/POST | Payment requests |
+| `/payment-requests` | GET/POST | Payment requests; each one says whether it is `incoming` or `outgoing` for the caller |
 | `/payment-requests/:id/pay` | POST | Pay a request |
 | `/payment-requests/:id/decline` | POST | Decline a request |
 | `/mandates` | GET/POST | SEPA direct debit mandates |
@@ -311,6 +311,47 @@ graph LR
 | `account.frozen` | Account | userId, reason | Wallet (freezes all wallets) |
 | `balance.updated` | Wallet | walletId, userId, balance | WebSocket → client |
 | `payment.confirmed` | Wallet | transaction details | WebSocket → sender + receiver |
+| `payment.request` *(external, on `bank.payment.request`)* | NexusInfra | reference, customerEmail, amount, currency | Invoice (creates a payment request for the customer) |
+| `payment.confirmed` / `payment.failed` | Invoice | the requester's reference, amount / reason | NexusInfra (credits or fails the top-up) |
+
+### External payment requests (NexusInfra top-ups)
+
+NexusInfra's hosted edition sells server hosting on prepaid credit and collects the money through
+FinVault. It shares this broker and `FINVAULT_MESSAGE_KEY`, and the two systems only ever talk over
+events:
+
+```mermaid
+sequenceDiagram
+    participant N as NexusInfra (billing bridge)
+    participant R as RabbitMQ
+    participant I as Invoice Service
+    participant C as Customer (web / mobile)
+    participant W as Wallet Service
+
+    N->>R: payment.request on bank.payment.request (reference, customerEmail, amount)
+    R->>I: finvault.invoice.external-requests
+    I->>I: create a payment request for customerEmail, payable to the merchant account
+    C->>I: Pay (or Decline) under Invoices → Payment Requests
+    I->>W: transfer customer → merchant
+    I->>R: payment.confirmed (NexusInfra's reference + amount) via the Event Hub
+    R->>N: credit is added
+```
+
+- **Off unless `NEXUSINFRA_MERCHANT_EMAIL` is set** to an existing FinVault account, and `RABBITMQ_URL`
+  is configured. That account receives the money; a request never names its own payee.
+- **Who pays is an email**, because a NexusInfra user id means nothing here. FinVault does not check
+  that an account with that email exists — the request simply waits for one — so a requester learns
+  nothing about who banks here.
+- **Delivered twice is created once**: the requester's reference is unique.
+- **A request FinVault cannot honour is answered**, with `payment.failed` and the reason (no customer
+  email, a non-EUR currency, an amount over the limit, no merchant account, or five requests already
+  open for that customer from the same requester — the email is unverified on the other side, and
+  without a cap anyone could fill a stranger's list).
+- **The answer is sent at least once.** It is marked as sent only when the Event Hub accepted it and
+  retried every minute otherwise: by then the customer's money has moved.
+- **Paying claims the request first** (`pending → processing`) and releases the claim if the transfer
+  does not happen, so two taps on Pay cannot transfer twice. This applies to every payment request,
+  not only external ones.
 
 ---
 

@@ -44,6 +44,14 @@ Workflow rules live in [CLAUDE.md](CLAUDE.md#workflow-rules); short version:
 - [ ] Skeleton loading screens (shimmer placeholders during data fetch)
 - [ ] Search functionality in web top bar (currently non-functional input)
 
+## Active — `feature/nexusinfra-topup`
+
+NexusInfra's hosted edition asks FinVault to collect a customer's credit top-up. Nothing here
+consumed the request, and neither app could pay a payment request at all.
+
+- [x] Turn a NexusInfra top-up request into a payment request the customer approves (#89)
+- [x] Payment requests cannot be paid or declined from either app (#90) 🐛
+
 ## Done — `feature/animations-and-polish` (PR pending)
 
 - [x] CountUp animation on balance (Revolut-style number counter)
