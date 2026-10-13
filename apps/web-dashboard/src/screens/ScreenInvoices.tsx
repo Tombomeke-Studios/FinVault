@@ -3,12 +3,13 @@ import { Icon } from '../components/Icon';
 import { money, PageHead } from '../components/UI';
 
 interface Receipt { id: string; transactionRef: string; payerEmail: string; payeeEmail?: string; amount: number; currency: string; description: string; createdAt: string; }
-interface PaymentRequest { id: string; creatorEmail: string; recipientEmail: string; amount: number; currency: string; description: string; status: string; createdAt: string; }
+interface PaymentRequest { id: string; creatorEmail: string; recipientEmail: string; amount: number; currency: string; description: string; status: string; createdAt: string; direction?: 'incoming' | 'outgoing'; }
 interface Props { compact: boolean; token: string; navigate: (r: string) => void; fire: (t: string, b: string, type?: string) => void; }
 
 const STATUS_META: Record<string, { color: string; label: string }> = {
   paid:     { color: '#34d399', label: 'Paid' },
   pending:  { color: 'var(--accent)', label: 'Pending' },
+  processing: { color: 'var(--accent)', label: 'Processing' },
   declined: { color: '#fb7185', label: 'Declined' },
   expired:  { color: 'var(--text-3)', label: 'Expired' },
 };
@@ -29,6 +30,28 @@ export function ScreenInvoices({ compact, token, navigate, fire }: Props) {
     } catch {}
   }, [token]);
   useEffect(() => { fetchData(); }, [fetchData]);
+
+  // The request being paid or declined — its buttons are disabled meanwhile, so
+  // an impatient second click cannot submit it again.
+  const [busyId, setBusyId] = useState<string | null>(null);
+  const settle = async (r: PaymentRequest, action: 'pay' | 'decline') => {
+    if (busyId) return;
+    setBusyId(r.id);
+    try {
+      const res = await fetch(`/api/invoices/payment-requests/${r.id}/${action}`, { method: 'POST', headers: { Authorization: `Bearer ${token}` } });
+      const body = await res.json().catch(() => ({}));
+      if (res.ok) {
+        fire(action === 'pay' ? 'Request paid' : 'Request declined', action === 'pay' ? `${money(r.amount, r.currency)} sent to ${r.creatorEmail}.` : `${r.creatorEmail} has been told.`, action === 'pay' ? 'success' : 'info');
+      } else {
+        fire(action === 'pay' ? 'Payment failed' : 'Could not decline', body.error || 'Please try again.', 'error');
+      }
+    } catch {
+      fire('Could not reach FinVault', 'Check your connection and try again.', 'error');
+    } finally {
+      setBusyId(null);
+      fetchData();
+    }
+  };
 
   const emptyState = (icon: string, title: string, sub: string) => (
     <div className="card" style={{ padding: '48px 24px', textAlign: 'center', color: 'var(--text-3)' }}>
@@ -79,19 +102,27 @@ export function ScreenInvoices({ compact, token, navigate, fire }: Props) {
           {requests.map(r => {
             const meta = STATUS_META[r.status] || STATUS_META.pending;
             return (
-              <div key={r.id} className="card" style={{ padding: '14px 20px', display: 'flex', alignItems: 'center', gap: 14 }}>
+              <div key={r.id} className="card" style={{ padding: '14px 20px', display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap' }}>
                 <div style={{ width: 38, height: 38, borderRadius: 'var(--r-sm)', background: `color-mix(in oklab, ${meta.color} 12%, transparent)`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                   <Icon name="inbox" size={16} style={{ color: meta.color }} />
                 </div>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontWeight: 600, fontSize: '0.92rem' }}>{r.description}</div>
-                  <div style={{ color: 'var(--text-3)', fontSize: '0.78rem', marginTop: 2 }}>From: {r.creatorEmail}</div>
+                  <div style={{ color: 'var(--text-3)', fontSize: '0.78rem', marginTop: 2 }}>{r.direction === 'outgoing' ? `To: ${r.recipientEmail}` : `From: ${r.creatorEmail}`}</div>
                   <div style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: '0.72rem', fontWeight: 700, color: meta.color, marginTop: 6, letterSpacing: '0.05em' }}>
                     <span style={{ width: 6, height: 6, borderRadius: '50%', background: meta.color }} />
                     {meta.label.toUpperCase()}
                   </div>
                 </div>
                 <div className="num" style={{ fontWeight: 700, fontSize: '1.05rem', flexShrink: 0 }}>{money(r.amount, r.currency)}</div>
+                {r.direction === 'incoming' && r.status === 'pending' && (
+                  <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
+                    <button className="btn btn-ghost" disabled={busyId !== null} onClick={() => settle(r, 'decline')}>Decline</button>
+                    <button className="btn btn-primary" disabled={busyId !== null} onClick={() => settle(r, 'pay')}>
+                      {busyId === r.id ? 'Working…' : `Pay ${money(r.amount, r.currency)}`}
+                    </button>
+                  </div>
+                )}
               </div>
             );
           })}
