@@ -13,7 +13,10 @@ export type FinVaultEvent =
   | { type: 'payment.request'; payload: { reference: string; senderWalletId: string; receiverWalletId: string; amount: number; currency: string; description: string; customerEmail?: string } }
   | { type: 'payment.processing'; payload: { transactionId: string; reference: string } }
   | { type: 'payment.confirmed'; payload: { transactionId: string; reference: string; amount: number; senderWalletId: string; receiverWalletId: string } }
-  | { type: 'payment.failed'; payload: { transactionId: string; reference: string; reason: string } };
+  | { type: 'payment.failed'; payload: { transactionId: string; reference: string; reason: string } }
+  // Published by an external requester (NexusInfra) when a billing month closes:
+  // what a customer used, charged against credit they prepaid through FinVault.
+  | { type: 'invoice.generate'; payload: { reference: string; userId: string; periodStart: string; periodEnd: string; amount: number; currency: string; customerEmail?: string } };
 
 export interface EventEnvelope<T extends FinVaultEvent = FinVaultEvent> {
   eventId: string;

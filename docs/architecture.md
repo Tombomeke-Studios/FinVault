@@ -313,6 +313,7 @@ graph LR
 | `payment.confirmed` | Wallet | transaction details | WebSocket → sender + receiver |
 | `payment.request` *(external, on `bank.payment.request`)* | NexusInfra | reference, customerEmail, amount, currency | Invoice (creates a payment request for the customer) |
 | `payment.confirmed` / `payment.failed` | Invoice | the requester's reference, amount / reason | NexusInfra (credits or fails the top-up) |
+| `invoice.generate` *(external)* | NexusInfra | reference, customerEmail, period, amount | Invoice (records a monthly hosting statement for the customer) |
 
 ### External payment requests (NexusInfra top-ups)
 
@@ -350,6 +351,13 @@ sequenceDiagram
   without a cap anyone could fill a stranger's list).
 - **The answer is sent at least once.** It is marked as sent only when the Event Hub accepted it and
   retried every minute otherwise: by then the customer's money has moved.
+- **A monthly statement closes the loop (#94).** When a billing month closes NexusInfra publishes
+  `invoice.generate`; the Invoice Service records it for the FinVault account with that address, where
+  it appears under Invoices → Receipts with a PDF: *Server hosting — usage for September 2026, paid from
+  your prepaid credit*. It is a statement, not a payment — the money moved when the top-up was paid.
+  Filed under a reference of its own (`HOST-<month>-<digest>`), because the requester's contains
+  characters a file name cannot. Delivered twice is recorded once; an address with no account here is
+  skipped.
 - **Paying claims the request first** (`pending → processing`) and releases the claim if the transfer
   does not happen, so two taps on Pay cannot transfer twice. This applies to every payment request,
   not only external ones.
