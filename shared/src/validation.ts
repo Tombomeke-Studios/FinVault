@@ -6,7 +6,10 @@ import { z } from 'zod';
 
 export const LoginSchema = z.object({
   email: z.string().email('Invalid email format').max(255, 'Email too long'),
-  password: z.string().min(8, 'Password must be at least 8 characters').max(128, 'Password too long')
+  // Only that there is one. The rules for choosing a password belong to
+  // registration: applied here they reject an existing account whose password
+  // predates them before it is ever compared (#92).
+  password: z.string().min(1, 'Password is required').max(128, 'Password too long')
 });
 
 export const RegisterSchema = z.object({

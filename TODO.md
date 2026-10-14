@@ -44,7 +44,11 @@ Workflow rules live in [CLAUDE.md](CLAUDE.md#workflow-rules); short version:
 - [ ] Skeleton loading screens (shimmer placeholders during data fetch)
 - [ ] Search functionality in web top bar (currently non-functional input)
 
-## Active — `feature/nexusinfra-topup`
+## Active — `fix/seeded-login`
+
+- [x] The seeded demo customer cannot sign in — its password is shorter than login allows (#92) 🐛
+
+## Done — `feature/nexusinfra-topup` (merged into `dev` via PR #91, issues #89/#90 auto-closed, 2026-10-14)
 
 NexusInfra's hosted edition asks FinVault to collect a customer's credit top-up. Nothing here
 consumed the request, and neither app could pay a payment request at all.
