@@ -21,6 +21,7 @@ import {
   EXTERNAL_REQUEST_QUEUE,
   type Merchant,
 } from './external-requests.js';
+import { createExternalInvoices, EXTERNAL_INVOICE_KEY } from './external-invoices.js';
 
 const prisma = new PrismaClient();
 const app = express();
@@ -86,15 +87,42 @@ const externalRequests = createExternalRequests({
   publish: (event) => publishEvent('invoice-service', event, process.env.GATEWAY_URL)
 });
 
+// Monthly statements from NexusInfra (#94): recorded as a receipt the customer
+// can open, described as usage paid from prepaid credit. No money moves here.
+const externalInvoices = createExternalInvoices({
+  store: {
+    exists: async (transactionRef) => Boolean(await prisma.receipt.findUnique({ where: { transactionRef } })),
+    create: async (input) => {
+      const receipt = await prisma.receipt.create({ data: input });
+      generateReceiptPdf(receipt)
+        .then((filePath) => prisma.receipt.update({ where: { id: receipt.id }, data: { pdfPath: filePath } }))
+        .catch((err: any) => console.error(`[Invoice Service] Failed to generate PDF for ${input.transactionRef}:`, err.message));
+    }
+  },
+  resolveUser: async (email) => {
+    const res = await fetch(`${ACCOUNT_SERVICE_URL}/users/profile-by-email?email=${encodeURIComponent(email)}`, {
+      headers: { 'X-Service-Secret': SERVICE_SECRET }
+    });
+    if (res.status === 404) return null;
+    if (!res.ok) throw new Error(`account service answered ${res.status} looking up a statement's customer`);
+    const user = await res.json();
+    return { id: user.id, email: user.email };
+  },
+  merchantEmail: MERCHANT_EMAIL || null
+});
+
 async function startExternalRequests() {
   if (!MERCHANT_EMAIL) {
     console.log('[Invoice Service] NEXUSINFRA_MERCHANT_EMAIL not set — external payment requests are off.');
     return;
   }
   try {
-    await consumeRabbitQueue(EXTERNAL_REQUEST_QUEUE, [EXTERNAL_REQUEST_KEY], async (envelope) => {
-      if (envelope.event.type !== 'payment.request') return;
-      await externalRequests.handle(envelope, readEventPayload(envelope.event));
+    await consumeRabbitQueue(EXTERNAL_REQUEST_QUEUE, [EXTERNAL_REQUEST_KEY, EXTERNAL_INVOICE_KEY], async (envelope) => {
+      if (envelope.event.type === 'payment.request') {
+        await externalRequests.handle(envelope, readEventPayload(envelope.event));
+      } else if (envelope.event.type === 'invoice.generate') {
+        await externalInvoices.handle(envelope, readEventPayload(envelope.event));
+      }
     });
     // An answer that did not reach the bus when the customer paid is sent again.
     setInterval(() => {

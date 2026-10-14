@@ -44,7 +44,11 @@ Workflow rules live in [CLAUDE.md](CLAUDE.md#workflow-rules); short version:
 - [ ] Skeleton loading screens (shimmer placeholders during data fetch)
 - [ ] Search functionality in web top bar (currently non-functional input)
 
-## Active — `fix/seeded-login`
+## Active — `feature/nexusinfra-statements`
+
+- [x] Show a NexusInfra customer their monthly hosting statement (#94)
+
+## Done — `fix/seeded-login` (merged into `dev` via PR #93, issue #92 auto-closed, 2026-10-14)
 
 - [x] The seeded demo customer cannot sign in — its password is shorter than login allows (#92) 🐛
 
