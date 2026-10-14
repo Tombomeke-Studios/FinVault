@@ -21,9 +21,9 @@ Workflow rules live in [CLAUDE.md](CLAUDE.md#workflow-rules); short version:
 - [ ] Run `eas submit --platform android` for the first Play Store upload (internal track)
 
 **Known bugs (next session)**
-- [ ] QR scan-to-pay shows "That QR is not a SEPA payment code" — the EPC069-12 parser
-  likely rejects the QR format or encoding; debug `parseEpcQr()` in `src/lib/epc.ts`
-  and the camera output in `QrScanSheet.tsx`
+- [x] QR scan-to-pay shows "That QR is not a SEPA payment code" — the parser was right: every
+  wallet was issued a 22-character IBAN, which is not a Belgian one (#98). Scanning with a
+  camera has not been re-tested on a device; the payload now parses (see `epc.test.ts`)
 - [ ] Face ID / fingerprint not working in Expo Go — check `isBiometricAvailable()`
   return value, verify `expo-local-authentication` plugin in `app.json`, test with
   `authenticateBiometric()` debug logging; may need a dev build (Expo Go has limited
@@ -44,7 +44,11 @@ Workflow rules live in [CLAUDE.md](CLAUDE.md#workflow-rules); short version:
 - [ ] Skeleton loading screens (shimmer placeholders during data fetch)
 - [ ] Search functionality in web top bar (currently non-functional input)
 
-## Active — `fix/receipt-pdf`
+## Active — `fix/valid-ibans`
+
+- [x] Every generated IBAN is 22 characters, so QR payments and IBAN transfers to FinVault accounts always fail (#98) 🐛
+
+## Done — `fix/receipt-pdf` (merged into `dev` via PR #97, issue #95 auto-closed, 2026-10-14)
 
 - [x] No receipt PDF can be downloaded: the gateway parses every response as JSON (#95) 🐛
 
