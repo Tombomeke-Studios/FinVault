@@ -34,8 +34,19 @@ model PaymentRequest {
   expiresAt      DateTime?
   paidAt         DateTime?
   transactionRef String?             // filled when paid, links to Transaction
+  // Set when the request came from another system over the event bus (#89):
+  // the requester's own reference (answered back on pay/decline), who asked,
+  // and when the answer reached the bus.
+  // Indexed, not unique: the image applies the schema with `prisma db push`,
+  // which refuses to add a unique constraint to a table that already has rows.
+  // One consumer handles requests one at a time, so look-then-create is enough.
+  externalReference  String?
+  externalSource     String?
+  externalNotifiedAt DateTime?
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
+
+  @@index([externalReference])
 }
 
 model Mandate {

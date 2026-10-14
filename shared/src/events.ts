@@ -7,7 +7,10 @@ export type FinVaultEvent =
   | { type: 'card.created'; payload: { cardId: string; userId: string; walletId: string; name: string; last4: string } }
   | { type: 'balance.updated'; payload: { walletId: string; userId: string; balance: number; currency: string } }
   | { type: 'balance.low'; payload: { walletId: string; userId: string; balance: number; currency: string } }
-  | { type: 'payment.request'; payload: { reference: string; senderWalletId: string; receiverWalletId: string; amount: number; currency: string; description: string } }
+  // `customerEmail` is set by an external requester (NexusInfra's hosted edition):
+  // it names who should pay in a way FinVault can resolve, which a wallet id from
+  // another system is not.
+  | { type: 'payment.request'; payload: { reference: string; senderWalletId: string; receiverWalletId: string; amount: number; currency: string; description: string; customerEmail?: string } }
   | { type: 'payment.processing'; payload: { transactionId: string; reference: string } }
   | { type: 'payment.confirmed'; payload: { transactionId: string; reference: string; amount: number; senderWalletId: string; receiverWalletId: string } }
   | { type: 'payment.failed'; payload: { transactionId: string; reference: string; reason: string } };
@@ -53,6 +56,22 @@ export function decryptPayload(ciphertext: string, secret: string): Record<strin
   decipher.setAuthTag(tag);
   const pt = Buffer.concat([decipher.update(ct), decipher.final()]);
   return JSON.parse(pt.toString('utf8'));
+}
+
+/**
+ * The payload of a received event, decrypted when it arrived encrypted.
+ *
+ * Throws when the payload is encrypted and no key is configured, or the key is
+ * wrong — a consumer then dead-letters the message instead of acting on
+ * ciphertext as if it were data.
+ */
+export function readEventPayload<T = Record<string, unknown>>(event: { payload: unknown }, secret = process.env.FINVAULT_MESSAGE_KEY): T {
+  const payload = event.payload as { encrypted?: boolean; data?: string } | null;
+  if (payload && payload.encrypted === true && typeof payload.data === 'string') {
+    if (!secret) throw new Error('received an encrypted payload but FINVAULT_MESSAGE_KEY is not set');
+    return decryptPayload(payload.data, secret) as T;
+  }
+  return event.payload as T;
 }
 
 /**
