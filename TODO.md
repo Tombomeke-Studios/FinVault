@@ -44,7 +44,11 @@ Workflow rules live in [CLAUDE.md](CLAUDE.md#workflow-rules); short version:
 - [ ] Skeleton loading screens (shimmer placeholders during data fetch)
 - [ ] Search functionality in web top bar (currently non-functional input)
 
-## Active — `feature/nexusinfra-statements`
+## Active — `fix/receipt-pdf`
+
+- [x] No receipt PDF can be downloaded: the gateway parses every response as JSON (#95) 🐛
+
+## Done — `feature/nexusinfra-statements` (merged into `dev` via PR #96, issue #94 auto-closed, 2026-10-14)
 
 - [x] Show a NexusInfra customer their monthly hosting statement (#94)
 

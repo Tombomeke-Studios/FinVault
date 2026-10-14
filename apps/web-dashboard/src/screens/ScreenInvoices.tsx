@@ -53,6 +53,32 @@ export function ScreenInvoices({ compact, token, navigate, fire }: Props) {
     }
   };
 
+  // A receipt's PDF needs the session, so a plain link will not do: fetch it
+  // with the token and hand the browser the bytes.
+  const [pdfBusyId, setPdfBusyId] = useState<string | null>(null);
+  const openPdf = async (r: Receipt) => {
+    if (pdfBusyId) return;
+    setPdfBusyId(r.id);
+    try {
+      const res = await fetch(`/api/invoices/receipts/${r.id}/pdf`, { headers: { Authorization: `Bearer ${token}` } });
+      if (!res.ok) throw new Error('not available');
+      const url = URL.createObjectURL(await res.blob());
+      const opened = window.open(url, '_blank', 'noopener');
+      if (!opened) {
+        // A blocked pop-up: fall back to a download.
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `Receipt_${r.transactionRef}.pdf`;
+        link.click();
+      }
+      setTimeout(() => URL.revokeObjectURL(url), 60_000);
+    } catch {
+      fire('PDF not available', 'The receipt could not be opened. Try again in a moment.', 'error');
+    } finally {
+      setPdfBusyId(null);
+    }
+  };
+
   const emptyState = (icon: string, title: string, sub: string) => (
     <div className="card" style={{ padding: '48px 24px', textAlign: 'center', color: 'var(--text-3)' }}>
       <div style={{ width: 56, height: 56, borderRadius: 'var(--r)', background: 'var(--surface-2)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', marginBottom: 12 }}>
@@ -93,6 +119,9 @@ export function ScreenInvoices({ compact, token, navigate, fire }: Props) {
                 <div style={{ color: 'var(--text-3)', fontSize: '0.78rem', marginTop: 2 }}>Ref: {r.transactionRef} · {new Date(r.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</div>
               </div>
               <div className="num" style={{ fontWeight: 700, fontSize: '1.05rem', flexShrink: 0 }}>{money(r.amount, r.currency)}</div>
+              <button className="btn btn-quiet" disabled={pdfBusyId !== null} onClick={() => openPdf(r)} aria-label={`Open the PDF for ${r.description}`}>
+                {pdfBusyId === r.id ? 'Opening…' : 'PDF'}
+              </button>
             </div>
           ))}
         </div>

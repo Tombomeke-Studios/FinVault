@@ -5,6 +5,7 @@ import { createServer } from 'http';
 import { WebSocketServer, WebSocket } from 'ws';
 import { EventEnvelope, verifyToken, publishRabbitEvent } from 'shared';
 import { Redis } from 'ioredis';
+import { relayResponse } from './relay.js';
 
 const PORT = process.env.PORT || 8000;
 const ACCOUNT_SERVICE_URL = process.env.ACCOUNT_SERVICE_URL || 'http://localhost:8001';
@@ -86,8 +87,8 @@ const proxyTo = (targetUrl: string, stripPrefix?: string) => async (req: express
       body: ['POST', 'PUT', 'PATCH'].includes(req.method) ? JSON.stringify(req.body) : undefined
     });
 
-    const data = await response.json();
-    res.status(response.status).json(data);
+    // Not every answer is JSON — a receipt is a PDF (#95).
+    await relayResponse(response, res);
   } catch (error: any) {
     console.error(`Proxy error for ${url}:`, error.message);
     res.status(502).json({ error: 'Bad Gateway', message: error.message });

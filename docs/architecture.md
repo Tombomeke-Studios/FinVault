@@ -264,7 +264,7 @@ erDiagram
 
 | Endpoint | Method | Purpose |
 |---|---|---|
-| `/receipts` | GET/POST | Transaction receipts + PDF |
+| `/receipts` | GET/POST | Transaction receipts + PDF (`GET /receipts/:id/pdf` — relayed by the gateway as the PDF it is, #95) |
 | `/payment-requests` | GET/POST | Payment requests; each one says whether it is `incoming` or `outgoing` for the caller |
 | `/payment-requests/:id/pay` | POST | Pay a request |
 | `/payment-requests/:id/decline` | POST | Decline a request |
