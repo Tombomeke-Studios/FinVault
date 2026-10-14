@@ -51,4 +51,16 @@ describe('parseEpcQr', () => {
     const crlf = buildEpcQr(sample).replace(/\n/g, '\r\n');
     expect(parseEpcQr(crlf)?.iban).toBe('BE89377007719941');
   });
+
+  // #98: every wallet used to be issued a 22-character "Belgian" IBAN. The QR a
+  // user showed was built from it, and this parser — correctly — refused it:
+  // "That QR is not a SEPA payment code". The parser was never the bug.
+  it('refuses the 22-character account numbers FinVault used to issue', () => {
+    expect(parseEpcQr(buildEpcQr({ name: 'Ada Lovelace', iban: 'BE89377007711234567890' }))).toBeNull();
+  });
+
+  it('reads a QR built from an IBAN as wallets are issued now', () => {
+    const parsed = parseEpcQr(buildEpcQr({ name: 'Ada Lovelace', iban: 'BE15377171990030', amount: 12.5, description: 'Lunch' }));
+    expect(parsed).toEqual({ name: 'Ada Lovelace', iban: 'BE15377171990030', amount: 12.5, description: 'Lunch' });
+  });
 });

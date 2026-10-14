@@ -5,7 +5,8 @@ import helmet from 'helmet';
 import { PrismaClient } from '../generated/prisma/index.js';
 import { publishEvent, requireAuth, requireServiceSecret, extractTokenFromRequest, computeTransactionHash, consumeRabbitQueue, SERVICE_SECRET } from 'shared';
 import { validateSEPAXML } from './sepa-validator.js';
-import { normalizeIban, isValidIbanFormat } from './iban.js';
+import { normalizeIban, isValidIbanFormat, generateBelgianIban } from './iban.js';
+import { repairInvalidIbans, type IbanRepairClient } from './iban-repair.js';
 import { Expo, type ExpoPushMessage } from 'expo-server-sdk';
 
 const prisma = new PrismaClient();
@@ -209,8 +210,7 @@ async function createDefaultWalletsAndCardsForUser(userId: string, email: string
   try {
     let checkingWallet = await prisma.wallet.findFirst({ where: { userId, type: 'checking' } });
     if (!checkingWallet) {
-      const randomDigits = Math.floor(1000000000 + Math.random() * 9000000000);
-      const iban = `BE8937700771${randomDigits}`;
+      const iban = generateBelgianIban();
       checkingWallet = await prisma.wallet.create({
         data: {
           userId,
@@ -247,8 +247,7 @@ async function createDefaultWalletsAndCardsForUser(userId: string, email: string
 
     let savingsWallet = await prisma.wallet.findFirst({ where: { userId, type: 'savings' } });
     if (!savingsWallet) {
-      const randomDigitsSav = Math.floor(1000000000 + Math.random() * 9000000000);
-      const ibanSav = `BE1234567890${randomDigitsSav}`;
+      const ibanSav = generateBelgianIban();
       savingsWallet = await prisma.wallet.create({
         data: {
           userId,
@@ -266,8 +265,7 @@ async function createDefaultWalletsAndCardsForUser(userId: string, email: string
 
     let travelWallet = await prisma.wallet.findFirst({ where: { userId, type: 'travel' } });
     if (!travelWallet) {
-      const randomDigitsTrav = Math.floor(1000000000 + Math.random() * 9000000000);
-      const ibanTrav = `BE5537700771${randomDigitsTrav}`;
+      const ibanTrav = generateBelgianIban();
       travelWallet = await prisma.wallet.create({
         data: {
           userId,
@@ -414,8 +412,7 @@ app.get('/wallets', requireAuth, async (req, res) => {
 
     if (!checkingWallet) {
       console.log(`[Wallet Service] No checking wallet found for user ${userId}. Automatically generating default checking wallet.`);
-      const randomDigits = Math.floor(1000000000 + Math.random() * 9000000000);
-      const iban = `BE8937700771${randomDigits}`;
+      const iban = generateBelgianIban();
 
       checkingWallet = await prisma.wallet.create({
         data: {
@@ -453,8 +450,7 @@ app.get('/wallets', requireAuth, async (req, res) => {
 
     if (!savingsWallet) {
       console.log(`[Wallet Service] No savings wallet found for user ${userId}. Automatically generating default savings wallet.`);
-      const randomDigitsSav = Math.floor(1000000000 + Math.random() * 9000000000);
-      const ibanSav = `BE1234567890${randomDigitsSav}`;
+      const ibanSav = generateBelgianIban();
 
       savingsWallet = await prisma.wallet.create({
         data: {
@@ -474,8 +470,7 @@ app.get('/wallets', requireAuth, async (req, res) => {
 
     if (!travelWallet) {
       console.log(`[Wallet Service] No travel wallet found for user ${userId}. Automatically generating default travel wallet.`);
-      const randomDigitsTrav = Math.floor(1000000000 + Math.random() * 9000000000);
-      const ibanTrav = `BE5537700771${randomDigitsTrav}`;
+      const ibanTrav = generateBelgianIban();
 
       travelWallet = await prisma.wallet.create({
         data: {
@@ -548,8 +543,7 @@ app.post('/wallets', requireAuth, async (req, res) => {
   const startBonus = accountType === 'savings' ? 50.00 : 100.00; // €50 starting bonus for savings, €100 for checking
 
   try {
-    const randomDigits = Math.floor(1000000000 + Math.random() * 9000000000);
-    const iban = `BE8937700771${randomDigits}`;
+    const iban = generateBelgianIban();
 
     const wallet = await prisma.wallet.create({
       data: {
@@ -2615,6 +2609,14 @@ const startWallet = () => {
     console.log(`[Wallet & Transaction Service] running on http://localhost:${PORT}`);
     startRabbitConsumer();
     healSeedAccountsWithRetry();
+    // Wallets from before #98 hold account numbers the validator rejects.
+    repairInvalidIbans(prisma as unknown as IbanRepairClient)
+      .then((r) => {
+        if (r.wallets > 0) {
+          console.log(`[Wallet Service] ${r.wallets} wallet(s) had an invalid IBAN and were given a valid one (${r.beneficiaries} saved payee(s) and ${r.scheduledPayments} scheduled payment(s) followed).`);
+        }
+      })
+      .catch((err: any) => console.error('[Wallet Service] Repairing invalid IBANs failed:', err.message));
   });
   srv.once('error', (e: any) => {
     srv.close();
