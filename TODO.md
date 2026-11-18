@@ -44,6 +44,24 @@ Workflow rules live in [CLAUDE.md](CLAUDE.md#workflow-rules); short version:
 - [ ] Skeleton loading screens (shimmer placeholders during data fetch)
 - [ ] Search functionality in web top bar (currently non-functional input)
 
+## Backlog — Final Work (EhB, 2026–2027)
+
+The Final Work turns NexusInfra, FinVault and NexusWatch into one ecosystem. FinVault has to become
+observable (NexusWatch cannot see it today: no service has `/health` or `/metrics`) and reachable from
+the NexusInfra app.
+
+**Observability (`feature/observability`)**
+- [ ] Add `/health` and Prometheus `/metrics` to every service (gateway, account, wallet, invoice) — follow NexusInfra's `shared/src/metrics.ts`
+- [ ] Publish service heartbeats on `monitoring.heartbeat.#` (shared `finvault.events` exchange) — NexusWatch already consumes those keys
+- [ ] Count payments and top-ups by outcome as metrics, so NexusWatch can show failed payments and top-ups per day
+- [ ] Correlation id on the event envelope (optional, additive) — mirrors NexusInfra's half; ship together
+
+**Ecosystem (`feature/nexusinfra-ecosystem`)**
+- [ ] Deep link: a `finvault://` URL scheme that opens a payment request or the top-up screen — the NexusInfra app links into it
+- [ ] Auto top-up for NexusInfra: the customer authorises NexusInfra with a mandate and a monthly cap; a `payment.request` within the cap is paid without a manual approval, anything above still asks
+- [ ] A "Hosting" category: NexusInfra payments and monthly statements count as hosting in insights and budgets, so a budget can cap hosting spend
+- [ ] Merchant view on the web dashboard for the NexusInfra merchant account: incoming top-ups, statements filed, failed requests
+
 ## Active — `fix/receipt-pdf`
 
 - [x] No receipt PDF can be downloaded: the gateway parses every response as JSON (#95) 🐛
