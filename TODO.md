@@ -44,6 +44,11 @@ Workflow rules live in [CLAUDE.md](CLAUDE.md#workflow-rules); short version:
 - [ ] Skeleton loading screens (shimmer placeholders during data fetch)
 - [ ] Search functionality in web top bar (currently non-functional input)
 
+## Done — `fix/fresh-clone-startup` (PR pending)
+
+- [x] A fresh clone cannot start the backend: every service needs a .env and pushed tables (#101) 🐛
+- [x] The mobile app only reaches the backend on one home network (#102) 🐛
+
 ## Active — `fix/receipt-pdf`
 
 - [x] No receipt PDF can be downloaded: the gateway parses every response as JSON (#95) 🐛

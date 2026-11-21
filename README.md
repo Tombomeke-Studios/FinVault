@@ -135,6 +135,11 @@ npm run build        # Typecheck + build all workspaces
 npm run dev:mobile    # Opens Expo Go
 ```
 
+The app finds the gateway on the machine that runs the Expo dev server (port 8000), so a
+phone on the same Wi-Fi network needs no configuration. Set `EXPO_PUBLIC_API_URL` in
+`apps/mobile/.env` to point it anywhere else. When no server answers, signing in as a demo
+account opens the offline demo, and the sign-in screen says which address it tried.
+
 Expo Go is fine for day-to-day UI work, but remote push notifications are not available there anymore. To test push delivery, use an EAS development build or a standalone build from the EAS section below.
 
 ### EAS Build (standalone)
