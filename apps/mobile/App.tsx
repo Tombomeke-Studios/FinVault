@@ -27,6 +27,8 @@ import { saveSession, loadSession, clearSession, tryRefreshSession, revokeSessio
 import { isBiometricAvailable, authenticateBiometric, getBiometricPref, setBiometricPref, hasDismissedBioPrompt, setDismissedBioPrompt } from './src/biometrics';
 import { THEME, themedSheet, setAppTheme, persistThemeConfig, loadPersistedThemeConfig } from './src/theme';
 import { registerForPushNotifications, sendTokenToServer } from './src/push';
+import Constants from 'expo-constants';
+import { resolveApiUrl } from './src/lib/apiUrl';
 
 // ── Global error boundary — catches render-time crashes in production ──────────
 interface EBState { error: Error | null; }
@@ -430,8 +432,9 @@ export default function App() {
     initializeGoals();
   }, [initializeCards, initializeGoals]);
 
-  // Configure via apps/mobile/.env → EXPO_PUBLIC_API_URL=http://<your-lan-ip>:8000
-  const API_URL = process.env.EXPO_PUBLIC_API_URL || 'http://192.168.0.6:8000';
+  // EXPO_PUBLIC_API_URL wins; in development the gateway is found on the
+  // machine running the Expo dev server (see src/lib/apiUrl.ts).
+  const API_URL = resolveApiUrl(process.env.EXPO_PUBLIC_API_URL, Constants.expoConfig?.hostUri);
 
   // Restore the persisted session once on launch (keystore-backed). When the
   // user enabled biometric sign-in, the auto-login is gated behind the system
@@ -588,9 +591,9 @@ export default function App() {
         await saveSession('mock-token');
         setToken('mock-token');
         setupMockSession();
-        setAuthSuccess('Welcome back (Demo mode)!');
+        setAuthSuccess(`Demo mode — no FinVault server answered at ${API_URL}`);
       } else {
-        setAuthError('Offline — use admin@finvault.com to log in as demo.');
+        setAuthError(`No FinVault server answered at ${API_URL}. Use admin@finvault.com for the offline demo.`);
       }
     }
   };

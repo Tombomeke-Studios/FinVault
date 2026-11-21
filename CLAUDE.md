@@ -222,7 +222,7 @@ the same emails offline → client-side mock demo mode. Mobile API base: `EXPO_P
 | `src/components/Toast.tsx` | `useToasts()` + `<ToastHost/>`; `fire(title, body, type)` success/info/warn/error |
 | `src/components/MobileExtras.tsx` | `MobileSheet` (bottom sheet: spring, drag-dismiss, keyboard-aware), `MobileCardDetail` (reveal + clipboard copy), `LimitsSheet` |
 | `src/components/QrScanSheet.tsx` | Scan-to-pay sheet: expo-camera + permission flow, accepts EPC069-12 SEPA QR only |
-| `src/lib/` | `epc.ts` (EPC QR build/parse), `validate.ts` (email/IBAN), `csv.ts` (export) — all unit-tested |
+| `src/lib/` | `epc.ts` (EPC QR build/parse), `validate.ts` (email/IBAN), `csv.ts` (export), `apiUrl.ts` (`resolveApiUrl`: `EXPO_PUBLIC_API_URL`, else the Expo dev server's host on port 8000, else localhost — never a hard-coded LAN address) — all unit-tested |
 | `src/components/BankCard.tsx` | Card visual; `CARD_SCHEMES` (metal/cyan/violet/gold/accent) |
 | `src/components/UI.tsx` | `money()` (nl-NL! use `{whole:true}`, never string-strip), `relTime`, `Ring`, `Donut`, `Sparkline`, `Bars`, `CategoryIcon`, `Delta`, `Avatar` |
 | `src/components/Shell.tsx` | Top bar (logo + avatar→settings) + bottom nav (5 items, center Send FAB) |
@@ -260,6 +260,10 @@ the same emails offline → client-side mock demo mode. Mobile API base: `EXPO_P
   for round amounts. **Web money():** en-US, `.replace('.00','')` is safe there.
 - Mobile is **state-routed** (no nav lib): `setRoute('cards')`, `route === 'account:<id>'`.
 - `shared/` is consumed from `dist/` — rebuild it or service imports go stale.
+- **Every service starts with `node --env-file=../../.env`, and Node exits (code 9) when that file is
+  missing.** `scripts/ensure-env.js` creates it from `.env.example` before `npm run dev` and before each
+  service's own `dev` script; keep it in front of any new dev script. The services' `dev` scripts also run
+  `prisma db push`, so a fresh clone has its tables — Docker images do the same in their `CMD`.
 - Wallet model has **no `name` column**; display names derive from `type`
   (`walletLabel()` server-side, inline ternaries client-side).
 - Services run on Node ESM + tsx; Prisma clients are generated into `generated/prisma`.

@@ -83,17 +83,18 @@ graph TB
 # Install all workspaces
 npm install
 
-# Push database schemas
-npx prisma db push --schema=services/account-service/prisma/schema.prisma
-npx prisma db push --schema=services/wallet-transaction-service/prisma/schema.prisma
-npx prisma db push --schema=services/invoice-service/prisma/schema.prisma
-
 # Start everything (gateway + 3 services + web dashboard)
 npm run dev
 
 # Or include the mobile app
 npm run dev:all
 ```
+
+`npm run dev` prepares a fresh clone by itself: it creates `.env` from `.env.example`
+when there is none (every service is started with `node --env-file=../../.env`, and Node
+refuses to start without that file), and each service pushes its database schema before
+it starts. The example's secrets are empty, so the services use their development
+fallbacks and say so in the log — set real values before deploying.
 
 ### Demo Accounts
 
@@ -133,6 +134,11 @@ npm run build        # Typecheck + build all workspaces
 ```bash
 npm run dev:mobile    # Opens Expo Go
 ```
+
+The app finds the gateway on the machine that runs the Expo dev server (port 8000), so a
+phone on the same Wi-Fi network needs no configuration. Set `EXPO_PUBLIC_API_URL` in
+`apps/mobile/.env` to point it anywhere else. When no server answers, signing in as a demo
+account opens the offline demo, and the sign-in screen says which address it tried.
 
 Expo Go is fine for day-to-day UI work, but remote push notifications are not available there anymore. To test push delivery, use an EAS development build or a standalone build from the EAS section below.
 
