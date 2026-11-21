@@ -260,6 +260,10 @@ the same emails offline → client-side mock demo mode. Mobile API base: `EXPO_P
   for round amounts. **Web money():** en-US, `.replace('.00','')` is safe there.
 - Mobile is **state-routed** (no nav lib): `setRoute('cards')`, `route === 'account:<id>'`.
 - `shared/` is consumed from `dist/` — rebuild it or service imports go stale.
+- **Every service starts with `node --env-file=../../.env`, and Node exits (code 9) when that file is
+  missing.** `scripts/ensure-env.js` creates it from `.env.example` before `npm run dev` and before each
+  service's own `dev` script; keep it in front of any new dev script. The services' `dev` scripts also run
+  `prisma db push`, so a fresh clone has its tables — Docker images do the same in their `CMD`.
 - Wallet model has **no `name` column**; display names derive from `type`
   (`walletLabel()` server-side, inline ternaries client-side).
 - Services run on Node ESM + tsx; Prisma clients are generated into `generated/prisma`.
