@@ -17,7 +17,8 @@ Workflow rules live in [CLAUDE.md](CLAUDE.md#workflow-rules); short version:
 - [ ] Create a Google service-account JSON and place at `apps/mobile/google-services.json` for EAS Submit
 - [ ] Set the `EXPO_TOKEN` repository secret on GitHub for automated EAS builds
 - [ ] Deploy backend services to a hosted environment (VM, Railway, Fly.io, etc.)
-- [ ] Point `EXPO_PUBLIC_API_URL` to the live backend URL once deployed
+- [x] Point `EXPO_PUBLIC_API_URL` to the live backend (home server `http://192.168.0.117:8000`, all EAS profiles); cleartext only for `http://`; no silent demo fallback in release builds (#104)
+- [ ] Expose the gateway on a public HTTPS hostname (Cloudflare Tunnel) so the app works off-LAN / on the Play Store, then switch `EXPO_PUBLIC_API_URL` to it (#105)
 - [ ] Run `eas submit --platform android` for the first Play Store upload (internal track)
 
 **Known bugs (next session)**

@@ -102,7 +102,8 @@ personal one) so the apps have data to show. They exist for local development on
 see `seedAccounts()` in `services/account-service/src/app.ts` for the details, and
 change or disable them before running FinVault anywhere other people can reach.
 
-> Both apps fall back to a client-side demo mode when the backend is unreachable.
+> When the backend is unreachable, the web app and *dev* mobile bundles (Expo Go) fall back to a client-side demo mode.
+> Mobile release builds (EAS) show a connection error instead. Mobile backend URL: `EXPO_PUBLIC_API_URL` (`apps/mobile/src/config.ts`).
 
 ### Run Tests
 
