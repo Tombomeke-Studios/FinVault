@@ -174,8 +174,9 @@ on expo.dev, where the download link appears.
 | `production` | signed AAB | Play Store upload only; can't be installed directly |
 
 If the app says *"Can't reach the FinVault server (http://192.168.0.117:8000)"*: check that the
-phone is on the home Wi-Fi and that `http://192.168.0.117:8000/api/...` answers from the phone's
-browser. Also check that the build was made after this config landed.
+phone is on the home Wi-Fi, then open `http://192.168.0.117:8000/api/wallets` in the phone's
+browser. A JSON "unauthorized" answer means the server is reachable and the build is at fault
+(rebuild). A timeout means the network or server is at fault. On the server, run `./nexus ps`.
 
 See [docs/deployment-strategy.md](docs/deployment-strategy.md) for the full deployment guide.
 
