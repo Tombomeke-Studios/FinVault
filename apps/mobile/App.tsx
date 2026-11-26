@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useEffect, Component } from 'react';
-import { View, StyleSheet, SafeAreaView, TouchableOpacity, Text, StatusBar, TextInput, Alert, Platform, BackHandler } from 'react-native';
+import { View, StyleSheet, SafeAreaView, TouchableOpacity, Text, StatusBar, TextInput, Alert, Platform, BackHandler, AppState } from 'react-native';
 import { ScreenAuth } from './src/screens/ScreenAuth';
 import { ScreenOverview } from './src/screens/ScreenOverview';
 import { ScreenTransactions } from './src/screens/ScreenTransactions';
@@ -28,6 +28,7 @@ import { isBiometricAvailable, authenticateBiometric, getBiometricPref, setBiome
 import { THEME, themedSheet, setAppTheme, persistThemeConfig, loadPersistedThemeConfig } from './src/theme';
 import { registerForPushNotifications, sendTokenToServer } from './src/push';
 import { API_URL, DEMO_MODE_ENABLED, UNREACHABLE_MESSAGE } from './src/config';
+import { liveAction, liveSocketUrl, reconnectDelayMs, withBalance } from './src/lib/live';
 
 // ── Global error boundary — catches render-time crashes in production ──────────
 interface EBState { error: Error | null; }
@@ -474,6 +475,57 @@ export default function App() {
     } catch {}
   }, [token]);
 
+  // Live updates (#107): the gateway's WebSocket hub, as the web dashboard uses
+  // it. Open while signed in to the backend (never in demo mode), reconnect
+  // after a drop, and reload on returning to the foreground — events sent while
+  // the app was in the background are not replayed.
+  useEffect(() => {
+    if (!token || token === 'mock-token') return;
+    const url = liveSocketUrl(API_URL, token);
+    if (!url) return;
+    let socket: WebSocket | null = null;
+    let retry: ReturnType<typeof setTimeout> | null = null;
+    let attempt = 0;
+    let stopped = false;
+
+    const connect = () => {
+      retry = null;
+      if (stopped) return;
+      socket = new WebSocket(url);
+      socket.onopen = () => { attempt = 0; };
+      socket.onmessage = (e) => {
+        const action = liveAction(e.data);
+        if (!action) return;
+        if (action.kind === 'balance') {
+          setWallets(prev => withBalance(prev, action.walletId, action.balance));
+          fetchTransactions();
+        } else {
+          fetchWallets();
+          fetchTransactions();
+        }
+      };
+      socket.onclose = () => {
+        socket = null;
+        if (stopped || AppState.currentState !== 'active') return;
+        retry = setTimeout(connect, reconnectDelayMs(attempt++));
+      };
+    };
+
+    const appState = AppState.addEventListener('change', (state) => {
+      if (state !== 'active') return;
+      fetchWallets();
+      fetchTransactions();
+      if (!socket && !retry) { attempt = 0; connect(); }
+    });
+
+    connect();
+    return () => {
+      stopped = true;
+      appState.remove();
+      if (retry) clearTimeout(retry);
+      socket?.close();
+    };
+  }, [token, fetchWallets, fetchTransactions]);
 
   const fetchCards = useCallback(async () => {
     if (!token || token === 'mock-token') return;

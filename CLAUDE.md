@@ -207,7 +207,7 @@ the same emails offline → client-side mock demo mode (mobile: dev bundles only
 ### apps/mobile (Expo SDK 54, RN 0.81, themed dark/light)
 | File | Contents |
 |---|---|
-| `App.tsx` | All app state: auth/token, wallets/transactions/cards/goals, route string (`'overview'`, `'account:<walletId>'`, …), all API handlers (`handleLogin/Transfer/Deposit/OwnTransfer/UpgradePlan`), mock-data builder, deposit + plan-upgrade sheets, Android BackHandler, session restore + splash. `ErrorBoundary` class wraps the root to catch render-time crashes in production builds |
+| `App.tsx` | All app state: auth/token, wallets/transactions/cards/goals, route string (`'overview'`, `'account:<walletId>'`, …), all API handlers (`handleLogin/Transfer/Deposit/OwnTransfer/UpgradePlan`), mock-data builder, deposit + plan-upgrade sheets, Android BackHandler, session restore + splash, the live WebSocket connection to the gateway hub (#107). `ErrorBoundary` class wraps the root to catch render-time crashes in production builds |
 | `index.ts` | Entry point: `registerRootComponent` + global `ErrorUtils` handler for async crashes in standalone builds |
 | `app.json` | Expo config: `android.package` (`com.tombomekestudio.finvault`), `versionCode`, `owner` (tombomekestudios), EAS `projectId`, plugins (`expo-local-authentication` + `expo-secure-store` + `expo-camera`) — all three plugins are required; missing one = instant crash |
 | `babel.config.js` | **Required for standalone builds** — `babel-preset-expo`; Expo Go provides this implicitly but EAS-built APKs crash without it |
@@ -224,7 +224,7 @@ the same emails offline → client-side mock demo mode (mobile: dev bundles only
 | `src/components/Toast.tsx` | `useToasts()` + `<ToastHost/>`; `fire(title, body, type)` success/info/warn/error |
 | `src/components/MobileExtras.tsx` | `MobileSheet` (bottom sheet: spring, drag-dismiss, keyboard-aware), `MobileCardDetail` (reveal + clipboard copy), `LimitsSheet` |
 | `src/components/QrScanSheet.tsx` | Scan-to-pay sheet: expo-camera + permission flow, accepts EPC069-12 SEPA QR only |
-| `src/lib/` | `epc.ts` (EPC QR build/parse), `validate.ts` (email/IBAN), `csv.ts` (export) — all unit-tested |
+| `src/lib/` | `epc.ts` (EPC QR build/parse), `validate.ts` (email/IBAN), `csv.ts` (export), `live.ts` (WebSocket hub URL, message → action, reconnect backoff, #107) — all unit-tested |
 | `src/components/BankCard.tsx` | Card visual; `CARD_SCHEMES` (metal/cyan/violet/gold/accent) |
 | `src/components/UI.tsx` | `money()` (nl-NL! use `{whole:true}`, never string-strip), `relTime`, `Ring`, `Donut`, `Sparkline`, `Bars`, `CategoryIcon`, `Delta`, `Avatar` |
 | `src/components/Shell.tsx` | Top bar (logo + avatar→settings) + bottom nav (5 items, center Send FAB) |
