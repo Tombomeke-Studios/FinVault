@@ -22,7 +22,8 @@ Workflow rules live in [CLAUDE.md](CLAUDE.md#workflow-rules); short version:
 - [ ] Run `eas submit --platform android` for the first Play Store upload (internal track)
 
 **Known bugs (next session)**
-- [ ] QR scan-to-pay shows "That QR is not a SEPA payment code" — the EPC069-12 parser
+- [ ] QR scan-to-pay shows "That QR is not a SEPA payment code" — #112 made `parseEpcQr()` tolerate a byte-order mark,
+  CR line ends and padded header lines; recheck on a device before closing. — the EPC069-12 parser
   likely rejects the QR format or encoding; debug `parseEpcQr()` in `src/lib/epc.ts`
   and the camera output in `QrScanSheet.tsx`
 - [ ] Face ID / fingerprint not working in Expo Go — check `isBiometricAvailable()`
@@ -45,14 +46,18 @@ Workflow rules live in [CLAUDE.md](CLAUDE.md#workflow-rules); short version:
 - [ ] Skeleton loading screens (shimmer placeholders during data fetch)
 - [ ] Search functionality in web top bar (currently non-functional input)
 
-## Active — `feature/private-payment-events`
+## Active — `feature/qr-topup`
 
-- [x] The gateway sends every `payment.confirmed` / `payment.failed` to all connected users, amounts and references included (#108) 🐛
-- [x] `npm run build` failed on a fresh clone: services built before `shared` (#110) 🐛
+- [x] Pay a NexusInfra top-up by scanning its EPC QR code (#112)
 
 ## Active — `fix/receipt-pdf`
 
 - [x] No receipt PDF can be downloaded: the gateway parses every response as JSON (#95) 🐛
+
+## Done — `feature/private-payment-events` (merged into `dev` via PR #111, issues #108/#110 auto-closed, 2026-11-26)
+
+- [x] The gateway sends every `payment.confirmed` / `payment.failed` to all connected users, amounts and references included (#108) 🐛
+- [x] `npm run build` failed on a fresh clone: services built before `shared` (#110) 🐛
 
 ## Done — `feature/live-balance` (merged into `dev` via PR #109, issue #107 auto-closed, 2026-11-26)
 

@@ -268,6 +268,8 @@ erDiagram
 | `/payment-requests` | GET/POST | Payment requests; each one says whether it is `incoming` or `outgoing` for the caller |
 | `/payment-requests/:id/pay` | POST | Pay a request |
 | `/payment-requests/:id/decline` | POST | Decline a request |
+| `/payment-requests/by-reference/:reference` | GET | What an external request's reference would pay — shown before paying a scanned QR (#112) |
+| `/payment-requests/by-reference/:reference/pay` | POST | Pay an external request by its reference, by whoever scanned it; body may carry the QR's amount, which must match (#112) |
 | `/mandates` | GET/POST | SEPA direct debit mandates |
 | `/mandates/:id/cancel` | POST | Cancel a mandate |
 
@@ -342,6 +344,13 @@ sequenceDiagram
     R->>N: credit is added
 ```
 
+- **Or scan its QR (#112).** NexusInfra also shows the top-up as an EPC QR: the merchant's name and IBAN, the
+  amount, and the request's reference as an ISO 11649 RF creditor reference in the structured-reference field.
+  Scanning it in the mobile app looks the reference up and offers "Pay €X" for that request — through the same
+  claim → transfer → paid → `payment.confirmed` path as Invoices — instead of filling in a plain transfer. Anyone
+  signed in may pay an **external** request this way, so a customer whose FinVault address differs from their
+  NexusInfra one can still pay; a request between two FinVault users still needs its recipient. A QR whose amount
+  differs from the request is refused.
 - **Off unless `NEXUSINFRA_MERCHANT_EMAIL` is set** to an existing FinVault account, and `RABBITMQ_URL`
   is configured. That account receives the money; a request never names its own payee.
 - **Who pays is an email**, because a NexusInfra user id means nothing here. FinVault does not check

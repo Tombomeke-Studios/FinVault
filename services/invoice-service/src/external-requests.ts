@@ -215,3 +215,36 @@ export function createExternalRequests(deps: ExternalRequestDeps) {
 }
 
 export type ExternalRequests = ReturnType<typeof createExternalRequests>;
+
+// ── Paying by reference: a scanned QR (#436) ─────────────────────────────────
+//
+// An external request is addressed to the customer's email, and only that
+// FinVault account can pay it from Invoices. NexusInfra also shows the request
+// as an EPC QR carrying its reference, so whoever scans it pays it — the person
+// whose FinVault address differs from their NexusInfra one included. Paying
+// someone else's top-up is a gift, not a theft: the money goes to the merchant
+// and the credit to the account that asked for it. Only external requests can be
+// paid this way; a request between two FinVault users still needs its recipient.
+
+/** What a payer is shown before paying a request by reference. */
+export interface ReferenceView {
+  reference: string;
+  amount: number;
+  currency: string;
+  description: string;
+  payee: string;
+  status: string;
+}
+
+/** Why this request cannot be paid by reference — or null when it can. */
+export function payByReferenceProblem(
+  request: { status: string; amount: number; externalReference: string | null } | null,
+  scannedAmount?: number,
+): string | null {
+  if (!request || !request.externalReference) return 'No payment request has this reference';
+  if (request.status !== 'pending') return 'This payment request is no longer pending';
+  if (scannedAmount !== undefined && Math.round(scannedAmount * 100) !== Math.round(request.amount * 100)) {
+    return 'The amount in the QR code does not match the payment request';
+  }
+  return null;
+}
