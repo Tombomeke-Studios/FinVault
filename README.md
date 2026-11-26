@@ -129,21 +129,53 @@ npm run build        # Typecheck + build all workspaces
 
 ## Mobile App
 
+The app talks to the API gateway at `EXPO_PUBLIC_API_URL`. Every build profile in
+`apps/mobile/eas.json` points it at the home server, `http://192.168.0.117:8000`. That is a
+**LAN address**, so the phone must be on the same Wi-Fi as the server. Off-LAN use needs a public
+HTTPS hostname (#105).
+
 ### Expo Go (development)
 
 ```bash
-npm run dev:mobile    # Opens Expo Go
+npm run dev:mobile              # or: cd apps/mobile && npx expo start -c
 ```
 
-Expo Go is fine for day-to-day UI work, but remote push notifications are not available there anymore. To test push delivery, use an EAS development build or a standalone build from the EAS section below.
+Scan the QR code with Expo Go. A local `apps/mobile/.env` with `EXPO_PUBLIC_API_URL=...`
+overrides the default; delete it, or point it at the server. Use `-c` after changing it,
+because Metro caches inlined env values. Remote push notifications don't work in Expo Go;
+use an EAS build for those.
 
-### EAS Build (standalone)
+### Getting the latest installable build (EAS)
+
+The plain-HTTP setting and the API URL are baked into the native build, so **every config
+change needs a new build**. An installed APK never picks up a new URL by itself.
+
+**Option A: from your own machine** (needs `npx eas-cli login` once, with the `tombomekestudios` Expo account):
 
 ```bash
+git checkout dev && git pull
 cd apps/mobile
-npx eas build --profile preview --platform android     # Sideloadable APK
-npx eas build --profile production --platform android   # Signed AAB
+npx eas-cli build --platform android --profile preview      # sideloadable APK
 ```
+
+When it finishes (about 10–20 min on the free tier), EAS prints a link and a QR code. Open
+it on the phone, download the APK and install it (allow "install unknown apps" once).
+Every build is also listed at expo.dev → tombomekestudios → FinVault → Builds.
+
+**Option B: from GitHub** (needs the `EXPO_TOKEN` repository secret, see TODO.md):
+Actions → **Build Mobile (EAS)** → *Run workflow* → pick the branch (`dev`) and profile
+`preview`. Pushes to `main` build the `production` AAB automatically. The build itself runs
+on expo.dev, where the download link appears.
+
+| Profile | Output | Use |
+|---|---|---|
+| `preview` | APK | Install directly on your phone (this is what you want for testing) |
+| `development` | dev-client APK | Like Expo Go, but with all native modules |
+| `production` | signed AAB | Play Store upload only; can't be installed directly |
+
+If the app says *"Can't reach the FinVault server (http://192.168.0.117:8000)"*: check that the
+phone is on the home Wi-Fi and that `http://192.168.0.117:8000/api/...` answers from the phone's
+browser. Also check that the build was made after this config landed.
 
 See [docs/deployment-strategy.md](docs/deployment-strategy.md) for the full deployment guide.
 
