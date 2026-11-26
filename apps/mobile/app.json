@@ -32,7 +32,16 @@
           "cameraPermission": "FinVault uses the camera to scan SEPA payment QR codes."
         }
       ],
-      "expo-font"
+      "expo-font",
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/icon.png",
+          "color": "#34d399",
+          "defaultChannel": "default",
+          "enableBackgroundRemoteNotifications": false
+        }
+      ]
     ],
     "extra": {
       "eas": {

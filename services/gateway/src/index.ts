@@ -5,6 +5,8 @@ import { createServer } from 'http';
 import { WebSocketServer, WebSocket } from 'ws';
 import { EventEnvelope, verifyToken, publishRabbitEvent } from 'shared';
 import { Redis } from 'ioredis';
+import { relayResponse } from './relay.js';
+import { recipientsOf } from './ws-routing.js';
 
 const PORT = process.env.PORT || 8000;
 const ACCOUNT_SERVICE_URL = process.env.ACCOUNT_SERVICE_URL || 'http://localhost:8001';
@@ -86,8 +88,8 @@ const proxyTo = (targetUrl: string, stripPrefix?: string) => async (req: express
       body: ['POST', 'PUT', 'PATCH'].includes(req.method) ? JSON.stringify(req.body) : undefined
     });
 
-    const data = await response.json();
-    res.status(response.status).json(data);
+    // Not every answer is JSON — a receipt is a PDF (#95).
+    await relayResponse(response, res);
   } catch (error: any) {
     console.error(`Proxy error for ${url}:`, error.message);
     res.status(502).json({ error: 'Bad Gateway', message: error.message });
@@ -192,34 +194,12 @@ wss.on('connection', (ws, req) => {
   });
 });
 
-// WebSocket Broadcast helper
+// WebSocket delivery: only to the users an event names (#108, ws-routing.ts).
 function broadcastToWebSockets(envelope: EventEnvelope) {
-  const event = envelope.event;
-  console.log(`[WebSocket] Broadcasting event ${event.type}`);
-
-  // Broadcast to specific user or all depending on the event
-  if (event.type === 'balance.updated' || event.type === 'balance.low') {
-    const ws = clientConnections.get(event.payload.userId);
-    if (ws && ws.readyState === WebSocket.OPEN) {
-      ws.send(JSON.stringify(envelope));
-    }
-  } else if (event.type === 'payment.confirmed' || event.type === 'payment.failed') {
-    // Alert the sender and receiver if they are online
-    // Wait, the payload has senderWalletId and receiverWalletId, we can lookup users via wallet service in real scenario,
-    // or just broadcast to everyone for local simulation, or extract userId from the payload if we passed it.
-    // For ease, let's broadcast to all active connections so everyone sees it (simulating live banking environment)
-    for (const [userId, ws] of clientConnections.entries()) {
-      if (ws.readyState === WebSocket.OPEN) {
-        ws.send(JSON.stringify(envelope));
-      }
-    }
-  } else {
-    // Generic broadcast to everyone
-    for (const [userId, ws] of clientConnections.entries()) {
-      if (ws.readyState === WebSocket.OPEN) {
-        ws.send(JSON.stringify(envelope));
-      }
-    }
+  const recipients = recipientsOf(envelope.event);
+  for (const userId of recipients) {
+    const ws = clientConnections.get(userId);
+    if (ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(envelope));
   }
 }
 

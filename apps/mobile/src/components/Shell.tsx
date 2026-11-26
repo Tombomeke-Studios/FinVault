@@ -1,7 +1,8 @@
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Image } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { Icon } from './Icon';
 import { Avatar } from './UI';
+import { FVLogo } from './FVLogo';
 import { THEME, themedSheet } from '../theme';
 
 interface ShellProps {
@@ -9,6 +10,7 @@ interface ShellProps {
   setRoute: (r: string) => void;
   user: { firstName: string; lastName: string; initials: string; plan: string } | null;
   children: React.ReactNode;
+  unreadNotifications?: number;
 }
 
 const BOTTOM_NAV = [
@@ -19,18 +21,27 @@ const BOTTOM_NAV = [
   { id: 'savings',      label: 'Goals',    icon: 'targetRing' },
 ];
 
-export function Shell({ route, setRoute, user, children }: ShellProps) {
+export function Shell({ route, setRoute, user, children, unreadNotifications = 0 }: ShellProps) {
   return (
     <View style={styles.container}>
       {/* Top sticky bar */}
       <View style={styles.topBar}>
-        <Image
-          source={require('../../assets/icon.png')}
-          style={styles.logoImage}
-          resizeMode="contain"
-          accessibilityLabel="FinVault"
-        />
+        <FVLogo size={26} />
         <View style={styles.topRight}>
+          <TouchableOpacity
+            style={styles.topBtn}
+            onPress={() => setRoute('notifications')}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            accessibilityLabel="Notifications"
+            accessibilityRole="button"
+          >
+            <Icon name="bell" size={20} color={route === 'notifications' ? THEME.colors.accent : THEME.colors.text2} />
+            {unreadNotifications > 0 && (
+              <View style={styles.badge}>
+                <Text style={styles.badgeText}>{unreadNotifications > 9 ? '9+' : unreadNotifications}</Text>
+              </View>
+            )}
+          </TouchableOpacity>
           <TouchableOpacity
             style={styles.topBtn}
             onPress={() => setRoute('settings')}
@@ -111,10 +122,6 @@ const styles = themedSheet(() => StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: THEME.colors.line,
   },
-  logoImage: {
-    height: 32,
-    width: 120,
-  },
   topRight: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -122,6 +129,27 @@ const styles = themedSheet(() => StyleSheet.create({
   },
   topBtn: {
     padding: 4,
+    position: 'relative' as const,
+  },
+  badge: {
+    position: 'absolute' as const,
+    top: -2,
+    right: -4,
+    backgroundColor: '#fb7185',
+    borderRadius: 10,
+    minWidth: 18,
+    height: 18,
+    alignItems: 'center' as const,
+    justifyContent: 'center' as const,
+    paddingHorizontal: 4,
+    borderWidth: 2,
+    borderColor: THEME.colors.bg,
+  },
+  badgeText: {
+    color: '#fff',
+    fontSize: 10,
+    fontWeight: '800' as const,
+    letterSpacing: -0.3,
   },
   content: {
     flex: 1,

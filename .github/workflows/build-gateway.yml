@@ -2,7 +2,7 @@ name: Build and Push Gateway Service
 
 on:
   push:
-    branches: [ main, master ]
+    branches: [ main, staging ]
     paths:
       - 'services/gateway/**'
       - 'shared/**'

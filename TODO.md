@@ -10,7 +10,101 @@ Workflow rules live in [CLAUDE.md](CLAUDE.md#workflow-rules); short version:
   written + this file ticked. Only then start the next item.
 - **Branch group complete → push → PR → CI green** (`validate.yml`). Red PR ≠ done.
 
-## Branch: `feature/complete-backlog` — active
+## Next steps — post v2.0.0
+
+**Infrastructure & deployment**
+- [ ] Enable GitHub branch protection rules on `main` and `staging` (see docs/ci-cd.md §5)
+- [ ] Create a Google service-account JSON and place at `apps/mobile/google-services.json` for EAS Submit
+- [ ] Set the `EXPO_TOKEN` repository secret on GitHub for automated EAS builds
+- [ ] Deploy backend services to a hosted environment (VM, Railway, Fly.io, etc.)
+- [x] Point `EXPO_PUBLIC_API_URL` to the live backend (home server `http://192.168.0.117:8000`, all EAS profiles); cleartext only for `http://`; no silent demo fallback in release builds (#104)
+- [ ] Expose the gateway on a public HTTPS hostname (Cloudflare Tunnel) so the app works off-LAN / on the Play Store, then switch `EXPO_PUBLIC_API_URL` to it (#105)
+- [ ] Run `eas submit --platform android` for the first Play Store upload (internal track)
+
+**Known bugs (next session)**
+- [ ] QR scan-to-pay shows "That QR is not a SEPA payment code" — #112 made `parseEpcQr()` tolerate a byte-order mark,
+  CR line ends and padded header lines; recheck on a device before closing. — the EPC069-12 parser
+  likely rejects the QR format or encoding; debug `parseEpcQr()` in `src/lib/epc.ts`
+  and the camera output in `QrScanSheet.tsx`
+- [ ] Face ID / fingerprint not working in Expo Go — check `isBiometricAvailable()`
+  return value, verify `expo-local-authentication` plugin in `app.json`, test with
+  `authenticateBiometric()` debug logging; may need a dev build (Expo Go has limited
+  biometric support on some devices)
+
+**Quality & testing**
+- [ ] Add integration/E2E tests for the new endpoints (scheduled-payments, budgets, notifications, disputes, FX)
+- [ ] Set up staging DB for smoke testing before `staging → main` promotions
+
+**Feature polish (future milestone)**
+- [x] TOTP 2FA — real working implementation: setup with QR/secret, verify, enable/disable, 2FA gate on login
+- [x] Push notifications — expo-notifications + expo-server-sdk: token registration, server-side sending on transfers
+- [ ] Scheduled payment executor — cron job that actually runs due payments
+- [ ] iOS build profile + App Store submission
+- [ ] Haptic feedback on mobile (expo-haptics) for transfers, button presses
+- [ ] Parallax scroll effect on Overview hero card
+- [ ] Swipe-to-delete on transaction list items (swipeable row)
+- [ ] Skeleton loading screens (shimmer placeholders during data fetch)
+- [ ] Search functionality in web top bar (currently non-functional input)
+
+## Active — `fix/receipt-pdf`
+
+- [x] No receipt PDF can be downloaded: the gateway parses every response as JSON (#95) 🐛
+
+## Done — `feature/qr-topup` (merged into `dev` via PR #113, issue #112 auto-closed, 2026-11-26)
+
+- [x] Pay a NexusInfra top-up by scanning its EPC QR code (#112)
+
+## Done — `feature/private-payment-events` (merged into `dev` via PR #111, issues #108/#110 auto-closed, 2026-11-26)
+
+- [x] The gateway sends every `payment.confirmed` / `payment.failed` to all connected users, amounts and references included (#108) 🐛
+- [x] `npm run build` failed on a fresh clone: services built before `shared` (#110) 🐛
+
+## Done — `feature/live-balance` (merged into `dev` via PR #109, issue #107 auto-closed, 2026-11-26)
+
+- [x] Show the new balance right after paying a payment request, and live in the mobile app (#107) 🐛
+
+## Done — `feature/nexusinfra-statements` (merged into `dev` via PR #96, issue #94 auto-closed, 2026-10-14)
+
+- [x] Show a NexusInfra customer their monthly hosting statement (#94)
+
+## Done — `fix/seeded-login` (merged into `dev` via PR #93, issue #92 auto-closed, 2026-10-14)
+
+- [x] The seeded demo customer cannot sign in — its password is shorter than login allows (#92) 🐛
+
+## Done — `feature/nexusinfra-topup` (merged into `dev` via PR #91, issues #89/#90 auto-closed, 2026-10-14)
+
+NexusInfra's hosted edition asks FinVault to collect a customer's credit top-up. Nothing here
+consumed the request, and neither app could pay a payment request at all.
+
+- [x] Turn a NexusInfra top-up request into a payment request the customer approves (#89)
+- [x] Payment requests cannot be paid or declined from either app (#90) 🐛
+
+## Done — `feature/animations-and-polish` (PR pending)
+
+- [x] CountUp animation on balance (Revolut-style number counter)
+- [x] ScaleIn pop animation on plan badge and status badges
+- [x] Shimmer skeleton component in Motion library
+- [x] SlideInFromRight screen transition component
+- [x] CountUp on transaction detail hero amount
+- [x] Pull-to-refresh on mobile Overview
+- [x] Transaction detail screen (mobile + web)
+- [x] Notification bell with unread badge
+- [x] Services grid on Overview, Services section in web sidebar
+- [x] All web screens polished (Disputes, FX, Mandates, Notifications, Invoices, SecurityCenter)
+- [x] Web SecurityCenter: 2FA placeholder, current session badge, labeled form fields, inline validation
+
+**Dev-environment note (not a task):** RabbitMQ is Docker-only for local dev — run
+`docker run -d --name rabbitmq -p 5672:5672 rabbitmq:3` then add
+`RABBITMQ_URL=amqp://guest:guest@localhost:5672` to `.env` to enable async events.
+
+## Released — v2.0.0 (dev → staging PR #70, staging → main PR #71, tag v2.0.0, 2026-06-21)
+
+## Done — `feature/eas-config` (merged into `dev` via PR #69, issues #51/#52 auto-closed, 2026-06-21)
+
+- [x] Configure eas.json submit.production with serviceAccountKeyPath + track + releaseStatus (#51)
+- [x] Set `EXPO_PUBLIC_API_URL` in eas.json production build env (#52)
+
+## Done — `feature/complete-backlog` (merged into `dev` via PR #68, issues #6/#15-18/#26-34 auto-closed, 2026-06-21)
 
 - [x] Scheduled & recurring payments / standing orders (#26)
 - [x] Transactions: date-range + amount filters (#27)
@@ -26,20 +120,6 @@ Workflow rules live in [CLAUDE.md](CLAUDE.md#workflow-rules); short version:
 - [x] Savings goal "due date" — date picker on both apps (#15)
 - [x] Virtualize mobile transaction list with FlatList (#17)
 - [x] Rate limiting — Redis-backed with in-memory fallback (#18)
-
-- [x] Set `EXPO_PUBLIC_API_URL` in eas.json production build env (#52)
-- [x] Configure eas.json submit.production with serviceAccountKeyPath + track + releaseStatus (#51)
-
-## Manual device-test checklist (Expo Go) — before promoting `dev` → `staging`
-
-- [ ] QR (#43): scan an EPC QR (generate one on a second device via Request tab);
-  verify prefill + transfer; deny camera permission once and re-grant
-- [ ] Biometrics (#7): enable the Settings toggle, kill + reopen the app → biometric
-  prompt gates auto-login; cancel → auth screen → Face ID button retry works
-
-**Dev-environment note (not a task):** RabbitMQ is Docker-only for local dev — run
-`docker run -d --name rabbitmq -p 5672:5672 rabbitmq:3` then add
-`RABBITMQ_URL=amqp://guest:guest@localhost:5672` to `.env` to enable async events.
 
 ## Done — `feature/android-app-icon` (merged into `dev` via PR #48, issue #47 auto-closed, 2026-06-20)
 

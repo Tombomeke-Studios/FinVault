@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { Icon } from '../components/Icon';
-import { money, dayLabel, relTime, CategoryIcon, PageHead } from '../components/UI';
+import { money, dayLabel, relTime, CategoryIcon, PageHead, Sheet } from '../components/UI';
 import { buildTransactionsCsv, exportFileName } from '../lib/csv';
 import type { AppData } from '../App';
 
@@ -40,6 +40,7 @@ interface TxItem {
 export function ScreenTransactions({ compact, data, onExport }: TransactionsProps) {
   const [q, setQ] = useState('');
   const [cat, setCat] = useState('all');
+  const [selectedTx, setSelectedTx] = useState<TxItem | null>(null);
   const { search } = useLocation();
   const navigate = useNavigate();
 
@@ -163,7 +164,7 @@ export function ScreenTransactions({ compact, data, onExport }: TransactionsProp
             {items.map(t => {
               const dAmt = getDisplayAmt(t);
               return (
-                <div key={t.id} style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '11px 6px', borderTop: '1px solid var(--line)' }}>
+                <div key={t.id} onClick={() => setSelectedTx(t)} style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '11px 6px', borderTop: '1px solid var(--line)', cursor: 'pointer', borderRadius: 'var(--r-sm)', transition: 'background 0.12s' }} className="tx-row-hover">
                   <CategoryIcon cat={t.category} />
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontWeight: 600, fontSize: '0.95rem' }}>{t.name}</div>
@@ -173,12 +174,46 @@ export function ScreenTransactions({ compact, data, onExport }: TransactionsProp
                     <div className="num" style={{ fontWeight: 700, color: dAmt > 0 ? 'var(--pos)' : 'var(--text)' }}>{money(dAmt, 'EUR', { signed: true })}</div>
                     <div style={{ fontSize: '0.72rem', color: 'var(--text-3)', display: 'flex', alignItems: 'center', gap: 4, justifyContent: 'flex-end' }}><Icon name="check" size={11} /> {t.status}</div>
                   </div>
+                  <Icon name="chevron-right" size={14} style={{ color: 'var(--text-3)', flexShrink: 0 }} />
                 </div>
               );
             })}
           </div>
         ))}
       </div>
+
+      {/* Transaction detail sheet */}
+      <Sheet open={!!selectedTx} onClose={() => setSelectedTx(null)} mobile={compact} title="Transaction Details">
+        {selectedTx && (() => {
+          const dAmt = getDisplayAmt(selectedTx);
+          const statusCol = selectedTx.status === 'confirmed' ? '#34d399' : selectedTx.status === 'failed' ? '#fb7185' : 'var(--accent)';
+          return (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 16, alignItems: 'center' }}>
+              <div style={{ textAlign: 'center' }}>
+                <div className="num display" style={{ fontSize: '2rem', fontWeight: 800, color: dAmt > 0 ? 'var(--pos)' : 'var(--text)' }}>{money(dAmt, selectedTx.currency, { signed: true })}</div>
+                <div style={{ color: 'var(--text-2)', fontWeight: 600, marginTop: 4 }}>{selectedTx.description}</div>
+                <div style={{ display: 'inline-flex', alignItems: 'center', gap: 5, marginTop: 10, padding: '5px 12px', borderRadius: 'var(--r-pill)', background: `color-mix(in oklab, ${statusCol} 15%, transparent)` }}>
+                  <span style={{ width: 6, height: 6, borderRadius: '50%', background: statusCol }} />
+                  <span style={{ fontSize: '0.72rem', fontWeight: 700, color: statusCol, letterSpacing: '0.06em' }}>{selectedTx.status.toUpperCase()}</span>
+                </div>
+              </div>
+              <div style={{ width: '100%', borderTop: '1px solid var(--line)' }}>
+                {[
+                  ['Type', selectedTx.type.charAt(0).toUpperCase() + selectedTx.type.slice(1)],
+                  ['Currency', selectedTx.currency],
+                  ['Date', new Date(selectedTx.createdAt).toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })],
+                  ['Time', new Date(selectedTx.createdAt).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })],
+                ].map(([label, value]) => (
+                  <div key={label} style={{ display: 'flex', justifyContent: 'space-between', padding: '12px 4px', borderBottom: '1px solid var(--line)' }}>
+                    <span style={{ color: 'var(--text-3)', fontSize: '0.88rem' }}>{label}</span>
+                    <span style={{ fontWeight: 600, fontSize: '0.88rem' }}>{value}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          );
+        })()}
+      </Sheet>
     </div>
   );
 }

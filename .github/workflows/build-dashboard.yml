@@ -2,7 +2,7 @@ name: Build and Push Web Dashboard
 
 on:
   push:
-    branches: [ main, master ]
+    branches: [ main, staging ]
     paths:
       - 'apps/web-dashboard/**'
       - 'package*.json'

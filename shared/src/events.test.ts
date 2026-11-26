@@ -40,3 +40,23 @@ describe('Event envelope validation', () => {
     expect(body.timestamp).toBeDefined();
   });
 });
+
+describe('readEventPayload', () => {
+  it('returns a plaintext payload as it is', async () => {
+    const { readEventPayload } = await import('./events.js');
+    expect(readEventPayload({ payload: { reference: 'r-1' } }, 'key')).toEqual({ reference: 'r-1' });
+  });
+
+  it('decrypts an encrypted payload with the shared key', async () => {
+    const { readEventPayload, encryptPayload } = await import('./events.js');
+    const data = encryptPayload({ reference: 'r-1', amount: 20 }, 'key');
+    expect(readEventPayload({ payload: { encrypted: true, data } }, 'key')).toEqual({ reference: 'r-1', amount: 20 });
+  });
+
+  it('refuses ciphertext it cannot read rather than passing it on', async () => {
+    const { readEventPayload, encryptPayload } = await import('./events.js');
+    const data = encryptPayload({ reference: 'r-1' }, 'key');
+    expect(() => readEventPayload({ payload: { encrypted: true, data } }, '')).toThrow(/FINVAULT_MESSAGE_KEY/);
+    expect(() => readEventPayload({ payload: { encrypted: true, data } }, 'another key')).toThrow();
+  });
+});

@@ -4,7 +4,7 @@ import { Icon } from '../components/Icon';
 import { money } from '../components/UI';
 import QRCode from 'react-native-qrcode-svg';
 import { classifyRecipient, isEmail, normalizeIban } from '../lib/validate';
-import { buildEpcQr } from '../lib/epc';
+import { buildEpcQr, type EpcPayment } from '../lib/epc';
 import { QrScanSheet } from '../components/QrScanSheet';
 import { THEME, themedSheet } from '../theme';
 import type { AppData, Beneficiary } from '../../App';
@@ -14,9 +14,27 @@ interface TransferProps {
   beneficiaries?: Beneficiary[];
   onTransfer: (target: { email?: string; iban?: string }, amt: number, desc: string, walletId: string) => Promise<boolean>;
   onRequest: (email: string, amt: number, desc: string) => Promise<void>;
+  /**
+   * A scanned QR's creditor reference → the open payment request it pays (#436),
+   * e.g. a NexusInfra top-up. Null when it names none; the scan then fills the
+   * form as an ordinary transfer.
+   */
+  lookupReference?: (reference: string) => Promise<ReferenceRequest | null>;
+  /** Pays that request; true when the money moved. */
+  payReference?: (reference: string, amount: number) => Promise<boolean>;
 }
 
-export function ScreenTransfer({ data, beneficiaries, onTransfer, onRequest }: TransferProps) {
+/** What paying a scanned reference would do, from the invoice service. */
+export interface ReferenceRequest {
+  reference: string;
+  amount: number;
+  currency: string;
+  description: string;
+  payee: string;
+  status: string;
+}
+
+export function ScreenTransfer({ data, beneficiaries, onTransfer, onRequest, lookupReference, payReference }: TransferProps) {
   const [mode, setMode] = useState<'send' | 'request'>('send');
   const [recipient, setRecipient] = useState('');
   const [recipientName, setRecipientName] = useState('');
@@ -26,6 +44,51 @@ export function ScreenTransfer({ data, beneficiaries, onTransfer, onRequest }: T
   const [loading, setLoading] = useState(false);
   const [formError, setFormError] = useState('');
   const [scanOpen, setScanOpen] = useState(false);
+  // A scanned QR that pays an open payment request rather than a plain transfer (#436).
+  const [scannedRequest, setScannedRequest] = useState<ReferenceRequest | null>(null);
+  const [payingRequest, setPayingRequest] = useState(false);
+
+  const prefillFrom = (p: EpcPayment) => {
+    // Prefill the whole form from the scanned EPC payload (#43); the
+    // transfer itself rides the receiverIban path.
+    setRecipient(p.iban);
+    setRecipientName(p.name);
+    if (p.amount) setAmt(String(p.amount));
+    if (p.description) setDesc(p.description);
+    setFormError('');
+  };
+
+  const onScanned = async (p: EpcPayment) => {
+    setScannedRequest(null);
+    if (p.reference && lookupReference) {
+      const request = await lookupReference(p.reference);
+      if (request && request.status === 'pending') {
+        if (p.amount !== undefined && Math.round(p.amount * 100) !== Math.round(request.amount * 100)) {
+          setFormError('The amount in this QR code does not match its payment request, so it was not used.');
+          return;
+        }
+        setMode('send');
+        setFormError('');
+        setScannedRequest(request);
+        return;
+      }
+      if (request) {
+        setFormError('This payment request has already been paid or declined.');
+        return;
+      }
+    }
+    prefillFrom(p);
+  };
+
+  const payScanned = async () => {
+    if (!scannedRequest || !payReference || payingRequest) return;
+    setPayingRequest(true);
+    try {
+      if (await payReference(scannedRequest.reference, scannedRequest.amount)) setScannedRequest(null);
+    } finally {
+      setPayingRequest(false);
+    }
+  };
 
   const activeWallet = data.wallets.find(w => w.id === selWallet) || data.wallets[0];
 
@@ -99,6 +162,30 @@ export function ScreenTransfer({ data, beneficiaries, onTransfer, onRequest }: T
           <Text style={[styles.tabText, mode === 'request' ? styles.tabTextActive : null]}>REQUEST MONEY</Text>
         </TouchableOpacity>
       </View>
+
+      {/* A scanned payment request (#436): paid as that request, not as a transfer */}
+      {scannedRequest && (
+        <View style={[styles.card, styles.formCard]} accessibilityLabel="Scanned payment request">
+          <View>
+            <Text style={styles.label}>Payment request from {scannedRequest.payee}</Text>
+            <Text style={styles.requestAmount}>{money(scannedRequest.amount, scannedRequest.currency)}</Text>
+            <Text style={styles.requestText}>{scannedRequest.description}</Text>
+          </View>
+          <TouchableOpacity
+            style={styles.submitBtn}
+            onPress={payScanned}
+            disabled={payingRequest}
+            accessibilityRole="button"
+            accessibilityState={{ disabled: payingRequest, busy: payingRequest }}
+          >
+            <Icon name="send" size={16} color={THEME.colors.onAccent} />
+            <Text style={styles.submitText}>{payingRequest ? 'Paying…' : `Pay ${money(scannedRequest.amount, scannedRequest.currency)}`}</Text>
+          </TouchableOpacity>
+          <TouchableOpacity onPress={() => setScannedRequest(null)} accessibilityRole="button" disabled={payingRequest}>
+            <Text style={styles.requestCancel}>Cancel</Text>
+          </TouchableOpacity>
+        </View>
+      )}
 
       {/* Main card */}
       <View style={[styles.card, styles.formCard]}>
@@ -260,15 +347,7 @@ export function ScreenTransfer({ data, beneficiaries, onTransfer, onRequest }: T
       <QrScanSheet
         open={scanOpen}
         onClose={() => setScanOpen(false)}
-        onScanned={p => {
-          // Prefill the whole form from the scanned EPC payload (#43); the
-          // transfer itself rides the receiverIban path.
-          setRecipient(p.iban);
-          setRecipientName(p.name);
-          if (p.amount) setAmt(String(p.amount));
-          if (p.description) setDesc(p.description);
-          setFormError('');
-        }}
+        onScanned={p => { void onScanned(p); }}
       />
     </ScrollView>
   );
@@ -416,5 +495,21 @@ const styles = themedSheet(() => StyleSheet.create({
     color: THEME.colors.onAccent,
     fontSize: 15,
     fontWeight: 'bold',
+  },
+  requestAmount: {
+    fontSize: 28,
+    fontWeight: '700',
+    color: THEME.colors.text,
+  },
+  requestText: {
+    fontSize: 14,
+    color: THEME.colors.text2,
+    marginTop: 4,
+  },
+  requestCancel: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: THEME.colors.text2,
+    textAlign: 'center',
   },
 }));

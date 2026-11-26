@@ -2,9 +2,9 @@ name: Validate Codebase
 
 on:
   push:
-    # dev is the default/integration branch — every merge commit gets a status;
-    # main is the production tier. (master removed: the repo never had one.)
-    branches: [ dev, main ]
+    # dev is the default/integration branch, staging is the pre-production gate,
+    # main is the production tier. Every merge commit on these branches gets a status.
+    branches: [ dev, staging, main ]
   # Validate every PR regardless of base branch — stacked feature branches
   # (feature → parent → main) must each be green before merging.
   pull_request:
