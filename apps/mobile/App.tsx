@@ -3,7 +3,7 @@ import { View, StyleSheet, SafeAreaView, TouchableOpacity, Text, StatusBar, Text
 import { ScreenAuth } from './src/screens/ScreenAuth';
 import { ScreenOverview } from './src/screens/ScreenOverview';
 import { ScreenTransactions } from './src/screens/ScreenTransactions';
-import { ScreenTransfer } from './src/screens/ScreenTransfer';
+import { ScreenTransfer, type ReferenceRequest } from './src/screens/ScreenTransfer';
 import { ScreenCards } from './src/screens/ScreenCards';
 import { ScreenSavings } from './src/screens/ScreenSavings';
 import { ScreenAnalytics } from './src/screens/ScreenAnalytics';
@@ -845,6 +845,43 @@ export default function App() {
     }
   };
 
+  // A scanned QR whose creditor reference names an open payment request — a
+  // NexusInfra top-up — pays that request, not a plain transfer (#436). Never
+  // simulated in demo mode: a fake "paid" would be a fake balance change.
+  const lookupReference = async (reference: string): Promise<ReferenceRequest | null> => {
+    if (!token || token === 'mock-token') return null;
+    try {
+      const res = await fetch(`${API_URL}/api/invoices/payment-requests/by-reference/${encodeURIComponent(reference)}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      return res.ok ? await res.json() : null;
+    } catch {
+      return null;
+    }
+  };
+
+  const payReference = async (reference: string, amount: number): Promise<boolean> => {
+    try {
+      const res = await fetch(`${API_URL}/api/invoices/payment-requests/by-reference/${encodeURIComponent(reference)}/pay`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ amount }),
+      });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        fire('Payment failed', body.error || 'Please try again.', 'error');
+        return false;
+      }
+      fire('Request paid', `${money(amount)} paid.`, 'success');
+      fetchWallets();
+      fetchTransactions();
+      return true;
+    } catch {
+      fire('Payment not sent', UNREACHABLE_MESSAGE, 'error');
+      return false;
+    }
+  };
+
   const handleDeposit = () => {
     const val = parseFloat(depositAmt);
     if (!val || val <= 0) return;
@@ -1009,7 +1046,7 @@ export default function App() {
       case 'transactions':
         return <ScreenTransactions data={appData} onExport={() => fire('Export complete', 'Your transactions CSV was shared.', 'success')} navigate={setRoute} />;
       case 'transfer':
-        return <ScreenTransfer data={appData} beneficiaries={beneficiaries} onTransfer={handleTransfer} onRequest={handleRequest} />;
+        return <ScreenTransfer data={appData} beneficiaries={beneficiaries} onTransfer={handleTransfer} onRequest={handleRequest} lookupReference={lookupReference} payReference={payReference} />;
       case 'cards':
         return <ScreenCards data={appData} fire={fire} cards={cards} setCards={setCards} token={token} apiUrl={API_URL} navigate={setRoute} />;
       case 'analytics':

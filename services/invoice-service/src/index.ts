@@ -19,7 +19,9 @@ import {
   normalizeEmail,
   EXTERNAL_REQUEST_KEY,
   EXTERNAL_REQUEST_QUEUE,
+  payByReferenceProblem,
   type Merchant,
+  type ReferenceView,
 } from './external-requests.js';
 import { createExternalInvoices, EXTERNAL_INVOICE_KEY } from './external-invoices.js';
 
@@ -327,11 +329,11 @@ app.get('/payment-requests', requireAuth, async (req, res) => {
   }
 });
 
-// Pay a payment request (atomic P2P transfer via Wallet Service)
-app.post('/payment-requests/:id/pay', requireAuth, async (req, res) => {
-  const { userId, email } = (req as any).user;
-  const { id } = req.params;
-  const authHeader = req.headers['authorization'] || '';
+// Pay a payment request: the one money-moving path for paying by id (Invoices)
+// and by reference (a scanned QR, #436). Claims the request, checks the payer's
+// EUR checking account, transfers through the Wallet Service and marks it paid.
+// Every check about *who* may pay happens before this is called.
+async function settlePaymentRequest(id: string, authHeader: string, res: express.Response) {
   let claimed = false;
   const release = async () => {
     if (!claimed) return;
@@ -340,19 +342,6 @@ app.post('/payment-requests/:id/pay', requireAuth, async (req, res) => {
   };
 
   try {
-    const request = await prisma.paymentRequest.findUnique({ where: { id } });
-    if (!request) {
-      return res.status(404).json({ error: 'Payment request not found' });
-    }
-
-    if (request.status !== 'pending') {
-      return res.status(400).json({ error: 'This payment request is no longer pending' });
-    }
-
-    if (normalizeEmail(request.recipientEmail) !== normalizeEmail(email)) {
-      return res.status(403).json({ error: 'Forbidden: You are not the recipient of this request' });
-    }
-
     // Claim the request before any money moves: two taps on Pay used to both
     // read "pending" and both transfer. Only the caller that makes this change
     // goes on; everything below releases the claim if the transfer does not happen.
@@ -361,6 +350,7 @@ app.post('/payment-requests/:id/pay', requireAuth, async (req, res) => {
       return res.status(400).json({ error: 'This payment request is no longer pending' });
     }
     claimed = true;
+    const request = await prisma.paymentRequest.findUniqueOrThrow({ where: { id } });
 
     // Resolve buyer checking account
     const walletsRes = await fetch(`${WALLET_SERVICE_URL}/wallets`, {
@@ -435,6 +425,63 @@ app.post('/payment-requests/:id/pay', requireAuth, async (req, res) => {
     await release();
     res.status(500).json({ error: 'Failed to satisfy payment request', message: error.message });
   }
+}
+
+// Pay a payment request addressed to you (Invoices → Payment Requests)
+app.post('/payment-requests/:id/pay', requireAuth, async (req, res) => {
+  const { email } = (req as any).user;
+  const { id } = req.params;
+  try {
+    const request = await prisma.paymentRequest.findUnique({ where: { id } });
+    if (!request) {
+      return res.status(404).json({ error: 'Payment request not found' });
+    }
+    if (request.status !== 'pending') {
+      return res.status(400).json({ error: 'This payment request is no longer pending' });
+    }
+    if (normalizeEmail(request.recipientEmail) !== normalizeEmail(email)) {
+      return res.status(403).json({ error: 'Forbidden: You are not the recipient of this request' });
+    }
+  } catch (error: any) {
+    return res.status(500).json({ error: 'Failed to satisfy payment request', message: error.message });
+  }
+  return settlePaymentRequest(id, req.headers['authorization'] || '', res);
+});
+
+// What a scanned QR's reference would pay (#436): shown before paying it.
+// External requests only — see payByReferenceProblem.
+app.get('/payment-requests/by-reference/:reference', requireAuth, async (req, res) => {
+  try {
+    const request = await prisma.paymentRequest.findFirst({ where: { externalReference: req.params.reference } });
+    if (!request || !request.externalReference) return res.status(404).json({ error: 'No payment request has this reference' });
+    const view: ReferenceView = {
+      reference: request.externalReference,
+      amount: request.amount,
+      currency: request.currency,
+      description: request.description,
+      payee: request.creatorEmail,
+      status: request.status,
+    };
+    res.status(200).json(view);
+  } catch (error: any) {
+    res.status(500).json({ error: 'Failed to look up the payment request', message: error.message });
+  }
+});
+
+// Pay an external request by its reference, from a scanned QR (#436). Whoever
+// scans it may pay it; the body may carry the QR's amount, which must match.
+app.post('/payment-requests/by-reference/:reference/pay', requireAuth, async (req, res) => {
+  const scanned = typeof req.body?.amount === 'number' && Number.isFinite(req.body.amount) ? req.body.amount : undefined;
+  let id: string;
+  try {
+    const request = await prisma.paymentRequest.findFirst({ where: { externalReference: req.params.reference } });
+    const problem = payByReferenceProblem(request, scanned);
+    if (problem) return res.status(problem.startsWith('No payment request') ? 404 : 400).json({ error: problem });
+    id = request!.id;
+  } catch (error: any) {
+    return res.status(500).json({ error: 'Failed to satisfy payment request', message: error.message });
+  }
+  return settlePaymentRequest(id, req.headers['authorization'] || '', res);
 });
 
 // Decline a payment request
