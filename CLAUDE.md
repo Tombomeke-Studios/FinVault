@@ -200,7 +200,7 @@ belongs in a doc. Keep docs truthful — delete claims that stopped being true.
 | CI mirror | `npm run build && npm test` |
 
 Demo logins: `admin@finvault.com` / `test@finvault.com` (seeded backend accounts), or
-the same emails offline → client-side mock demo mode. Mobile API base: `EXPO_PUBLIC_API_URL`.
+the same emails offline → client-side mock demo mode (mobile: dev bundles only). Mobile API base: `EXPO_PUBLIC_API_URL` (`apps/mobile/src/config.ts`, per-profile in `eas.json`).
 
 ## 7. Codebase map — where is what
 
@@ -213,6 +213,8 @@ the same emails offline → client-side mock demo mode. Mobile API base: `EXPO_P
 | `babel.config.js` | **Required for standalone builds** — `babel-preset-expo`; Expo Go provides this implicitly but EAS-built APKs crash without it |
 | `eas.json` | EAS Build profiles: `development` (dev-client APK), `preview` (sideloadable APK), `production` (signed AAB for Play Store); all profiles set `EXPO_USE_METRO_WORKSPACE_ROOT=1` for monorepo support |
 | `metro.config.js` | **Critical for monorepo** — sets `watchFolders` to monorepo root and `nodeModulesPaths` to both workspace + root `node_modules`; without this, hoisted native packages are not compiled in and the standalone APK crashes instantly |
+| `app.config.js` | Dynamic layer over `app.json`: adds `expo-build-properties` with Android `usesCleartextTraffic` = true only when the bundled `EXPO_PUBLIC_API_URL` is `http://` |
+| `src/config.ts` | `API_URL` (`EXPO_PUBLIC_API_URL`, default = home server `http://192.168.0.117:8000`), `DEMO_MODE_ENABLED` (dev bundles only unless `EXPO_PUBLIC_DEMO_MODE`), `UNREACHABLE_MESSAGE`. Tests: `config.test.ts` |
 | `src/session.ts` | SecureStore token persistence: `saveSession/loadSession/clearSession/tryRefreshSession/revokeSession` |
 | `src/biometrics.ts` | Real biometric gate (expo-local-authentication): `isBiometricAvailable/authenticateBiometric` + keystore-persisted opt-in pref + `hasDismissedBioPrompt/setDismissedBioPrompt` (first-login prompt dismissal) |
 | `src/theme.ts` | Theme engine: mutable `THEME` tokens (hex), dark/light palettes × 6 accents, `setAppTheme`/`subscribeTheme`, `themedSheet` StyleSheet proxy, secure-store persistence. Tests: `theme.test.ts` |
@@ -280,6 +282,13 @@ the same emails offline → client-side mock demo mode. Mobile API base: `EXPO_P
 - **EAS plugins:** every native Expo package used by the mobile app MUST appear in the
   `plugins` array in `app.json` (currently: expo-local-authentication, expo-secure-store,
   expo-camera). Adding a native package without its plugin → crash on standalone build.
+- **Mobile demo fallback is dev-only:** every network `catch` in `App.tsx` must check
+  `DEMO_MODE_ENABLED` before simulating anything; release builds show `UNREACHABLE_MESSAGE`.
+  Never fake a balance change on a failed request.
+- **Plain-HTTP backend:** Android release builds block cleartext unless `app.config.js` turns
+  it on (it does when the API URL is `http://`). Expo Go allows HTTP, so "works in Expo Go,
+  fails in the APK" means cleartext or a wrong `EXPO_PUBLIC_API_URL`. Keep `DEFAULT_API_URL`
+  in `app.config.js` and `src/config.ts` in sync.
 - **Android launcher icon ≠ `icon.png`:** Android uses `android.adaptiveIcon`
   (foreground/monochrome PNGs + `backgroundColor`), which takes precedence over
   `icon.png`. Rebrand = regenerate the `android-icon-*.png` assets too

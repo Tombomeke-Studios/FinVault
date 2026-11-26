@@ -27,6 +27,7 @@ import { saveSession, loadSession, clearSession, tryRefreshSession, revokeSessio
 import { isBiometricAvailable, authenticateBiometric, getBiometricPref, setBiometricPref, hasDismissedBioPrompt, setDismissedBioPrompt } from './src/biometrics';
 import { THEME, themedSheet, setAppTheme, persistThemeConfig, loadPersistedThemeConfig } from './src/theme';
 import { registerForPushNotifications, sendTokenToServer } from './src/push';
+import { API_URL, DEMO_MODE_ENABLED, UNREACHABLE_MESSAGE } from './src/config';
 
 // ── Global error boundary — catches render-time crashes in production ──────────
 interface EBState { error: Error | null; }
@@ -430,8 +431,7 @@ export default function App() {
     initializeGoals();
   }, [initializeCards, initializeGoals]);
 
-  // Configure via apps/mobile/.env → EXPO_PUBLIC_API_URL=http://<your-lan-ip>:8000
-  const API_URL = process.env.EXPO_PUBLIC_API_URL || 'http://192.168.0.6:8000';
+  // Backend base URL + demo-mode switch live in src/config.ts (EXPO_PUBLIC_API_URL).
 
   // Restore the persisted session once on launch (keystore-backed). When the
   // user enabled biometric sign-in, the auto-login is gated behind the system
@@ -519,6 +519,12 @@ export default function App() {
 
   const fetchProfile = useCallback(async () => {
     if (!token || token === 'mock-token') {
+      if (token === 'mock-token' && !DEMO_MODE_ENABLED) {
+        // A demo session persisted by an older build — don't show fake data in release.
+        await clearSession();
+        setToken(null);
+        return;
+      }
       setupMockSession();
       return;
     }
@@ -547,9 +553,12 @@ export default function App() {
         }
       }
     } catch {
-      setupMockSession();
+      // Network failure: keep the session (the server may be back shortly) but
+      // never swap in mock data outside demo mode — it would look like real money.
+      if (DEMO_MODE_ENABLED) setupMockSession();
+      else fire('Offline', UNREACHABLE_MESSAGE, 'error');
     }
-  }, [token, fetchWallets, fetchTransactions, fetchCards, fetchGoals, fetchBeneficiaries, fetchNotificationCount]);
+  }, [token, fire, fetchWallets, fetchTransactions, fetchCards, fetchGoals, fetchBeneficiaries, fetchNotificationCount]);
 
   useEffect(() => {
     if (token) {
@@ -583,8 +592,11 @@ export default function App() {
         setAuthError(errorData.error || errorData.message || 'Invalid credentials.');
       }
     } catch {
-      // Offline fallback
-      if (email === 'admin@finvault.com' || email === 'tom@finvault.com') {
+      // Network failure. Demo mode (dev builds) falls back to mock data;
+      // release builds report the real problem instead of faking a login.
+      if (!DEMO_MODE_ENABLED) {
+        setAuthError(UNREACHABLE_MESSAGE);
+      } else if (email === 'admin@finvault.com' || email === 'tom@finvault.com') {
         await saveSession('mock-token');
         setToken('mock-token');
         setupMockSession();
@@ -603,6 +615,10 @@ export default function App() {
     setAuthError('');
     setAuthSuccess('');
     if (!(await isBiometricAvailable())) {
+      if (!DEMO_MODE_ENABLED) {
+        setAuthError('Biometrics are not available on this device — sign in with your password.');
+        return;
+      }
       setRawUser(null);
       saveSession('mock-token');
       setToken('mock-token');
@@ -667,7 +683,8 @@ export default function App() {
         setAuthError(err.message || 'Registration failed.');
       }
     } catch {
-      setAuthSuccess('Account created successfully (Demo mode)!');
+      if (DEMO_MODE_ENABLED) setAuthSuccess('Account created successfully (Demo mode)!');
+      else setAuthError(UNREACHABLE_MESSAGE);
     }
   };
 
@@ -738,7 +755,11 @@ export default function App() {
           return false;
         }
       } catch {
-        // Network unreachable — fall through to the offline demo path.
+        // Network unreachable — only demo mode may simulate the transfer.
+        if (!DEMO_MODE_ENABLED) {
+          fire('Transfer not sent', UNREACHABLE_MESSAGE, 'error');
+          return false;
+        }
       }
     }
 
@@ -766,7 +787,8 @@ export default function App() {
         fire('Error', err.error || 'Failed to send request.', 'error');
       }
     } catch {
-      fire('Request sent', `Payment request of ${money(amount)} sent to ${email}.`, 'success');
+      if (DEMO_MODE_ENABLED) fire('Request sent (Demo)', `Payment request of ${money(amount)} sent to ${email}.`, 'success');
+      else fire('Request not sent', UNREACHABLE_MESSAGE, 'error');
     }
   };
 
@@ -786,7 +808,14 @@ export default function App() {
           Authorization: `Bearer ${token}`
         },
         body: JSON.stringify({ amount: val, walletId: wallet.id })
-      }).then(res => {
+      }).then(async res => {
+        if (!res.ok) {
+          // Real server answer (validation, limits, …) — surface it, never fake a deposit.
+          const err = await res.json().catch(() => ({}));
+          setDepositLoading(false);
+          fire('Deposit failed', err.error || err.message || 'Could not complete the deposit.', 'warn');
+          return;
+        }
         if (res.ok) {
           const wName = wallet.name || (wallet.type === 'savings' ? 'Savings Vault' : wallet.type === 'travel' ? 'Travel Multi-Currency' : 'Everyday Checking');
           fire('Deposit added', `${money(val, wallet.currency)} deposited into your ${wName} account.`, 'success');
@@ -795,11 +824,14 @@ export default function App() {
           setDepositLoading(false);
           setDepositAmt('');
           setDepositOpen(false);
-        } else {
-          throw new Error('API error');
         }
       }).catch(() => {
-        // Fallback
+        if (!DEMO_MODE_ENABLED) {
+          setDepositLoading(false);
+          fire('Deposit failed', UNREACHABLE_MESSAGE, 'error');
+          return;
+        }
+        // Demo fallback
         setWallets(prev => prev.map(w => w.id === wallet.id ? { ...w, balance: w.balance + val } : w));
         setTransactions(prev => [{
           id: Math.random().toString(), senderWalletId: null, receiverWalletId: wallet.id,
@@ -857,7 +889,13 @@ export default function App() {
           Alert.alert('Transfer failed', err.error || err.message || 'Could not complete transfer.');
           return;
         }
-      } catch { /* fall through to local simulation */ }
+      } catch {
+        if (!DEMO_MODE_ENABLED) {
+          fire('Transfer not sent', UNREACHABLE_MESSAGE, 'error');
+          return;
+        }
+        /* demo mode: fall through to local simulation */
+      }
     }
 
     // Local demo fallback

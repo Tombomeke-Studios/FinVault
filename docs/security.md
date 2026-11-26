@@ -164,7 +164,9 @@ graph LR
 
 ## Demo Mode
 
-When the backend is unreachable, both apps fall back to a purely client-side demo session (`mock-token`) with fabricated data. Nothing in demo mode talks to a server, and the mock token is never accepted by any service.
+When the backend is unreachable, the apps can fall back to a purely client-side demo session (`mock-token`) with fabricated data. Nothing in demo mode talks to a server, and the mock token is never accepted by any service.
+
+**Mobile:** demo mode is on only in dev bundles (`__DEV__`, i.e. Expo Go / `expo start`) or when `EXPO_PUBLIC_DEMO_MODE=1` is set (`src/config.ts`). Release builds (EAS preview/production) never fake a login, balance, transfer, deposit or payment request: a network failure shows "Can't reach the FinVault server (<url>)" instead, and a `mock-token` persisted by an older build is cleared on launch. Before this, an unreachable or misconfigured backend looked like a successful login with fake money.
 
 ---
 
