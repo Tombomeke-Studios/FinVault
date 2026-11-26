@@ -46,13 +46,13 @@ Workflow rules live in [CLAUDE.md](CLAUDE.md#workflow-rules); short version:
 - [ ] Skeleton loading screens (shimmer placeholders during data fetch)
 - [ ] Search functionality in web top bar (currently non-functional input)
 
-## Active — `feature/qr-topup`
-
-- [x] Pay a NexusInfra top-up by scanning its EPC QR code (#112)
-
 ## Active — `fix/receipt-pdf`
 
 - [x] No receipt PDF can be downloaded: the gateway parses every response as JSON (#95) 🐛
+
+## Done — `feature/qr-topup` (merged into `dev` via PR #113, issue #112 auto-closed, 2026-11-26)
+
+- [x] Pay a NexusInfra top-up by scanning its EPC QR code (#112)
 
 ## Done — `feature/private-payment-events` (merged into `dev` via PR #111, issues #108/#110 auto-closed, 2026-11-26)
 
