@@ -33,9 +33,11 @@ interface Props {
   apiUrl: string;
   fire: (t: string, b: string, type?: string) => void;
   onBack: () => void;
+  /** After a request is paid: the app reloads balances, which this screen does not hold (#107). */
+  onPaid?: () => void;
 }
 
-export function ScreenInvoices({ token, apiUrl, fire, onBack }: Props) {
+export function ScreenInvoices({ token, apiUrl, fire, onBack, onPaid }: Props) {
   const [tab, setTab] = useState<'receipts' | 'requests'>('receipts');
   const [receipts, setReceipts] = useState<Receipt[]>([]);
   const [requests, setRequests] = useState<PaymentRequest[]>([]);
@@ -64,6 +66,7 @@ export function ScreenInvoices({ token, apiUrl, fire, onBack }: Props) {
       const res = await fetch(`${apiUrl}/api/invoices/payment-requests/${r.id}/${action}`, { method: 'POST', headers: { Authorization: `Bearer ${token}` } });
       const body = await res.json().catch(() => ({}));
       if (res.ok) {
+        if (action === 'pay') onPaid?.();
         fire(action === 'pay' ? 'Request paid' : 'Request declined', action === 'pay' ? `${money(r.amount, r.currency)} sent to ${r.creatorEmail}.` : `${r.creatorEmail} has been told.`, action === 'pay' ? 'success' : 'info');
       } else {
         fire(action === 'pay' ? 'Payment failed' : 'Could not decline', body.error || 'Please try again.', 'error');

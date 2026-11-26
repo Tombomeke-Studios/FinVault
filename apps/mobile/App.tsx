@@ -474,6 +474,7 @@ export default function App() {
     } catch {}
   }, [token]);
 
+
   const fetchCards = useCallback(async () => {
     if (!token || token === 'mock-token') return;
     try {
@@ -978,7 +979,7 @@ export default function App() {
       case 'fx-exchange':
         return <ScreenFxExchange token={token} apiUrl={API_URL} wallets={wallets} fire={fire} onBack={() => setRoute('overview')} onRefresh={() => { fetchWallets(); fetchTransactions(); }} />;
       case 'invoices':
-        return <ScreenInvoices token={token} apiUrl={API_URL} fire={fire} onBack={() => setRoute('settings')} />;
+        return <ScreenInvoices token={token} apiUrl={API_URL} fire={fire} onBack={() => setRoute('settings')} onPaid={() => { fetchWallets(); fetchTransactions(); }} />;
       case 'disputes':
         return <ScreenDisputes token={token} apiUrl={API_URL} transactions={transactions} fire={fire} onBack={() => setRoute('settings')} />;
       default:
