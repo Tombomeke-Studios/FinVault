@@ -3,12 +3,14 @@ import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import { PrismaClient } from '../generated/prisma/index.js';
-import { publishEvent, requireAuth, extractTokenFromRequest, computeTransactionHash, consumeRabbitQueue, SERVICE_SECRET } from 'shared';
+import { publishEvent, requireAuth, requireServiceSecret, extractTokenFromRequest, computeTransactionHash, consumeRabbitQueue, SERVICE_SECRET } from 'shared';
 import { validateSEPAXML } from './sepa-validator.js';
 import { normalizeIban, isValidIbanFormat } from './iban.js';
+import { Expo, type ExpoPushMessage } from 'expo-server-sdk';
 
 const prisma = new PrismaClient();
 const app = express();
+const expo = new Expo();
 const PORT = process.env.PORT || 8002;
 const GATEWAY_URL = process.env.GATEWAY_URL || 'http://localhost:8000';
 const ACCOUNT_SERVICE_URL = process.env.ACCOUNT_SERVICE_URL || 'http://localhost:8001';
@@ -16,6 +18,23 @@ const INVOICE_SERVICE_URL = process.env.INVOICE_SERVICE_URL || 'http://localhost
 
 // Custom DRY wrapper for Event Hub publishing inside Docker/Local env
 const publishWalletEvent = (event: any) => publishEvent('wallet-transaction-service', event, process.env.GATEWAY_URL);
+
+async function sendPushNotification(userId: string, title: string, body: string) {
+  try {
+    const res = await fetch(`${ACCOUNT_SERVICE_URL}/users/push-token/${userId}`, {
+      headers: { 'X-Service-Secret': SERVICE_SECRET }
+    }).catch(() => null);
+    if (!res || !res.ok) return;
+
+    const { pushToken } = await res.json();
+    if (!pushToken || !Expo.isExpoPushToken(pushToken)) return;
+
+    await expo.sendPushNotificationsAsync([{ to: pushToken, sound: 'default', title, body }]);
+    console.log(`[Push] Sent to ${userId}: ${title}`);
+  } catch (err: any) {
+    console.error(`[Push] Failed for ${userId}:`, err.message);
+  }
+}
 
 // =============================================
 // Security Middleware
@@ -358,7 +377,7 @@ async function createDefaultWalletsAndCardsForUser(userId: string, email: string
 // =============================================
 // Webhook listener for Gateway events (e.g. account.created)
 // =============================================
-app.post('/webhooks/events', async (req, res) => {
+app.post('/webhooks/events', requireServiceSecret, async (req, res) => {
   const { event } = req.body;
   console.log(`[Wallet Service Webhook] Received event: ${event.type}`);
 
@@ -1161,7 +1180,10 @@ app.post('/transactions/transfer', requireAuth, async (req, res) => {
         reference,
         amount,
         senderWalletId: senderWallet.id,
-        receiverWalletId: receiverWallet.id
+        receiverWalletId: receiverWallet.id,
+        // The gateway sends the event to these two users only (#108).
+        senderUserId: senderWallet.userId,
+        receiverUserId: receiverWallet.userId
       }
     });
 
@@ -1185,6 +1207,9 @@ app.post('/transactions/transfer', requireAuth, async (req, res) => {
         currency: receiverWallet.currency
       }
     });
+
+    // Push notification to receiver
+    sendPushNotification(receiverWallet.userId, 'Payment received', `You received ${amount} ${senderWallet.currency} — ${description}`);
 
     // Generate receipt asynchronously (non-blocking)
     generateReceipt({
@@ -1349,7 +1374,10 @@ app.post('/transactions/sepa-transfer', requireAuth, async (req, res) => {
         reference,
         amount,
         senderWalletId: senderWallet.id,
-        receiverWalletId: receiverWallet.id
+        receiverWalletId: receiverWallet.id,
+        // The gateway sends the event to these two users only (#108).
+        senderUserId: senderWallet.userId,
+        receiverUserId: receiverWallet.userId
       }
     });
 
@@ -1509,7 +1537,10 @@ app.post('/transactions/internal-transfer', async (req, res) => {
         reference,
         amount,
         senderWalletId: senderWallet.id,
-        receiverWalletId: receiverWallet.id
+        receiverWalletId: receiverWallet.id,
+        // The gateway sends the event to these two users only (#108).
+        senderUserId: senderWallet.userId,
+        receiverUserId: receiverWallet.userId
       }
     });
 

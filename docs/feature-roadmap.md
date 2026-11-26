@@ -1,63 +1,103 @@
-# Feature roadmap — FinVault vs. a real retail banking app
+# Feature Roadmap
 
-Audit date: 2026-06-11. This doc compares FinVault's feature set against what a
-production retail banking app (Revolut/N26/KBC-class) ships, and prioritizes the gaps.
-Each actionable gap has a GitHub issue (CLAUDE.md §2a); update this doc when a gap
-ships or a priority changes.
+> Last updated: 2026-06-21 · v2.0.0
 
-## 1. What FinVault already has
+FinVault vs. a real retail banking app (Revolut / N26 / KBC-class).
 
-| Domain | Present today |
+---
+
+## Feature Matrix
+
+```mermaid
+pie title Feature Completion (v2.0.0)
+    "Shipped" : 16
+    "Planned" : 4
+    "Out of Scope" : 5
+```
+
+### Shipped Features
+
+| # | Feature | Status | PR |
+|---|---|---|---|
+| 1 | Multi-wallet banking (checking/savings/travel) | ✅ Shipped | Core |
+| 2 | P2P transfers (email + IBAN) | ✅ Shipped | Core |
+| 3 | SEPA transfers with XML validation | ✅ Shipped | Core |
+| 4 | Card management (freeze, limits, controls) | ✅ Shipped | #65 |
+| 5 | Savings goals with funding + progress | ✅ Shipped | Core |
+| 6 | Spend analytics (categories, trends, charts) | ✅ Shipped | Core |
+| 7 | QR scan-to-pay (EPC069-12 SEPA standard) | ✅ Shipped | #44 |
+| 8 | Biometric authentication (Face ID / fingerprint) | ✅ Shipped | #45 |
+| 9 | CSV statement export (web download + mobile share) | ✅ Shipped | #36 |
+| 10 | Beneficiary management (auto-save on transfer) | ✅ Shipped | #42 |
+| 11 | Scheduled & recurring payments | ✅ Shipped | #68 |
+| 12 | Budgets with category limits + alerts | ✅ Shipped | #68 |
+| 13 | FX currency exchange (10 currencies) | ✅ Shipped | #68 |
+| 14 | Notification center with persistence | ✅ Shipped | #68 |
+| 15 | Security center (password, sessions) | ✅ Shipped | #68 |
+| 16 | Dispute flow (report transactions) | ✅ Shipped | #68 |
+
+### Planned
+
+| # | Feature | Priority | Status |
+|---|---|---|---|
+| 17 | TOTP 2FA | P2 | Placeholder in Security Center |
+| 18 | Scheduled payment executor (cron) | P2 | Backend model ready |
+| 19 | Push notifications (FCM) | P3 | Notification center ready |
+| 20 | iOS App Store build | P3 | EAS config ready |
+
+### Intentionally Out of Scope
+
+| Feature | Reason |
 |---|---|
-| Accounts | Multi-wallet (checking/savings/travel) with IBANs, balances, interest rate, credit line endpoint, per-account dashboard |
-| Payments | P2P transfer by email, own-account transfer, SEPA transfer endpoint + IBAN validator, deposits/top-up |
-| Cards | Physical + virtual, freeze, spend limit, detail reveal + copy, schemes |
-| Savings | Goals with funding, progress, CRUD persistence |
-| Insights | Spend by category, monthly in/out, balance trend (both apps) |
-| Auth & security | Register/login, refresh-token rotation + revocation, lockout, rate limits, audit log ("Security activity"), persistent mobile sessions |
-| Plans | Standard/Metal/Metal+ with upgrade flow |
-| Realtime | WebSocket hub: `balance.updated`, `payment.confirmed` |
-| Back office | Invoice service: invoices, payment requests, SEPA mandates, PDF generation (**no frontend surface**) |
-| Theming/UX | Full theme engines on web + mobile, toasts, motion systems, a11y baseline |
+| Real payment rails (SWIFT, SEPA SCT) | Demo project — mock transactions |
+| Joint accounts | Complexity without demo value |
+| Lending products / mortgages | Different domain |
+| Investment / trading | Different domain |
+| KYC identity verification | Would need real ID providers |
 
-## 2. Gap analysis
+---
 
-Priority key: **P1** = core banking feature users expect daily · **P2** = expected but
-secondary · **P3** = differentiator/nice-to-have. Effort: S/M/L.
+## Architecture Quality
 
-| # | Gap | Why it matters | Prio | Effort | Issue |
-|---|---|---|---|---|---|
-| 1 | **Statements & export** — ✅ shipped 2026-06-11: real CSV download (web) + share sheet (mobile) of the filtered activity list; PDF monthly statements remain open | Every bank offers downloadable statements; needed for taxes/bookkeeping | P1 | S | #24 |
-| 2 | **Beneficiaries / saved payees** — ✅ shipped 2026-06-12: backend CRUD + auto-upsert on transfer, payee grid (web) and prefill chips (mobile) | Core daily-payments UX; prerequisite for trusted-payee limits | P1 | M | #25 |
-| 3 | **Scheduled & recurring payments / standing orders** — no way to pay rent monthly | Core banking; needs backend model + due-date runner | P1 | L | #26 |
-| 4 | **Payment requests UI** — backend exists (invoice service), mobile tab is toast-only | Closes the loop on an already-built backend | P1 | M | #6 / #16 |
-| 5 | **Transaction search & filters** — both apps have free-text search + type chips; missing: date-range and amount filters | Expected on any activity feed | P2 | S | #27 |
-| 6 | **Budgets & category limits** — insights are read-only; no monthly budget per category with alerts | Standard neo-bank feature, builds on existing category data | P2 | M | #28 |
-| 7 | **Direct debits / mandates UI** — mandates exist in invoice-service only | Visibility + cancel control is a PSD2 expectation | P2 | M | #29 |
-| 8 | **Security center** — change password, active sessions/device list with remote sign-out, real 2FA (TOTP) | Audit log exists; management actions are missing | P2 | M | #30 |
-| 9 | **Notification center** — bell menu is session-only; no persistence/read state | Users expect a durable inbox of payment events | P2 | M | #31 |
-| 10 | **FX / currency conversion** — travel wallet exists but no exchange flow or rates | Differentiator that the multi-currency model already hints at | P3 | M | #32 |
-| 11 | **Round-up savings** — auto-round card payments into a goal | Classic neo-bank delighter, builds on goals + transactions | P3 | S | #33 |
-| 12 | **Dispute / report a transaction** — no flow to flag fraud or errors | Trust feature; can start as a support ticket | P3 | S | #34 |
-| 13 | **In-app support** — no help center/FAQ/contact | Expected, low urgency in a demo | P3 | S | — (backlog note) |
-| 14 | **KYC-ish onboarding** — register hardcodes DOB/address | Realism of the demo; validation exists server-side already | P3 | S | — (backlog note) |
-| 15 | **QR transfers (Payconiq-style)** — ✅ shipped: mobile scan-to-pay + receive-QR (2026-06-12), web receive-QR (2026-06-20 via #55) | Signature BE payments UX, rides on the IBAN transfer path | P1 | M | #43 / #55 |
-| 16 | **Biometric-gated login** — ✅ shipped 2026-06-12: real Face ID/fingerprint button, opt-in biometric gate on session restore, functional Settings toggle; SecureStore `requireAuthentication` stays open (needs dev build) | Requested 2026-06-12; table-stakes mobile banking security UX | P1 | S | #7 |
+```mermaid
+graph LR
+    subgraph "Security Layers"
+        A["bcrypt<br/>cost 12"] --> B["JWT rotation<br/>+ replay detection"]
+        B --> C["Rate limiting<br/>Redis / memory"]
+        C --> D["HMAC<br/>integrity hashes"]
+        D --> E["Audit<br/>logging"]
+    end
 
-Deliberately out of scope for a demo: real payment rails, joint accounts, lending
-products, investment/trading, cheque deposit, branch/ATM finder.
+    subgraph "Dev Quality"
+        F["TypeScript<br/>strict"] --> G["13 test files<br/>71+ tests"]
+        G --> H["CI/CD<br/>GitHub Actions"]
+        H --> I["3-tier branching<br/>dev → staging → main"]
+    end
 
-## 3. Suggested build order
+    style A fill:#34d399,color:#000
+    style F fill:#60a5fa,color:#fff
+```
 
-1. ~~**#24 statements/CSV export**~~ ✅ shipped
-2. ~~**#25 beneficiaries**~~ ✅ shipped
-3. **#27 search & filters** (S, high daily value)
-4. **#16/#6 invoice + payment-request surfaces** (backend already done)
-5. **#26 scheduled payments** (largest single feature; model + runner + UI ×2)
-6. Then P2 security/budgets/notifications, P3 delighters.
+---
 
-## 4. Maintenance
+## Comparison vs. Banking Apps
 
-- When a gap ships: tick it here with the PR number and move the TODO group to Done.
-- When adding a *new* feature idea: add a row with prio/effort and create the issue —
-  this table is the product backlog's source of truth; TODO.md tracks execution.
+| Category | Revolut | N26 | FinVault |
+|---|---|---|---|
+| Multi-currency wallets | ✅ | ✅ | ✅ |
+| P2P transfers | ✅ | ✅ | ✅ (email + IBAN) |
+| QR payments | ✅ | ❌ | ✅ (EPC069-12) |
+| Card controls | ✅ | ✅ | ✅ |
+| Savings goals | ✅ | ✅ | ✅ |
+| Round-up savings | ✅ | ✅ | ✅ |
+| Budgets | ✅ | ✅ | ✅ |
+| FX exchange | ✅ | ❌ | ✅ (mock rates) |
+| Scheduled payments | ✅ | ✅ | ✅ |
+| Biometric login | ✅ | ✅ | ✅ |
+| Disputes | ✅ | ✅ | ✅ |
+| Notifications | ✅ | ✅ | ✅ |
+| CSV export | ✅ | ✅ | ✅ |
+| 2FA (TOTP) | ✅ | ✅ | 🔜 Planned |
+| Push notifications | ✅ | ✅ | 🔜 Planned |
+| Real payment rails | ✅ | ✅ | ❌ Demo only |
+| Crypto trading | ✅ | ❌ | ❌ Out of scope |

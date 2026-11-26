@@ -154,6 +154,8 @@ eas build --platform android --profile development
 # Now npx expo start works with ALL native packages
 ```
 
+Remote push notifications are one of the features that no longer work in Expo Go on SDK 53+. Test them in a development build or standalone EAS build, and use the same production build path for Play Store delivery.
+
 ---
 
 ## 3. Backend & database self-hosting on a Linux VM
@@ -425,7 +427,8 @@ Hetzner VPS → Docker → Nginx → Public IP → api.finvault.com
 ### Mobile app
 - `EXPO_PUBLIC_API_URL` **must be HTTPS** — Play Store apps may not use plain HTTP
 - The WebSocket connection must also go over **WSS** (WebSocket Secure)
-- The app has a demo mode when the backend is unreachable
+- Release builds have **no** demo fallback: an unreachable backend shows an error (demo mode is dev-only, see docs/security.md → Demo Mode)
+- Android release builds block plain HTTP by default; `apps/mobile/app.config.js` enables cleartext only when the bundled `EXPO_PUBLIC_API_URL` is `http://`
 
 ### Database
 - SQLite is fine for a demo, but **not** for multiple concurrent users
@@ -489,11 +492,21 @@ apps/mobile
 
 ### 9.3 Setting environment variables on EAS
 
-The mobile app currently has **1 configurable env variable**:
+The mobile app reads its config in `apps/mobile/src/config.ts`:
 
-| Variable | Value today (hardcoded fallback) | Value for production |
+| Variable | Value today | Value for a public release |
 |---|---|---|
-| `EXPO_PUBLIC_API_URL` | `http://192.168.0.6:8000` (your LAN IP) | `https://api.yourdomain.com` |
+| `EXPO_PUBLIC_API_URL` | `http://192.168.0.117:8000`: the home server's gateway (Tombomeke-Studios/infra → `finvault/compose.yaml`), set in every `eas.json` profile and used as the code fallback | `https://api.yourdomain.com` |
+| `EXPO_PUBLIC_DEMO_MODE` | unset: demo fallback on in dev bundles, off in release builds | leave unset |
+
+`eas.json` `env` values are baked in at build time; an EAS environment variable with the
+same name overrides them. **Changing the URL needs a new build** (or an EAS Update), and
+switching between `http://` and `https://` needs a new *native* build because it flips
+Android's cleartext setting (`app.config.js`).
+
+> **LAN only:** `192.168.0.117` is a private address. The app reaches it only while the
+> phone is on the same Wi-Fi. Using it over mobile data or anywhere else needs a public HTTPS
+> hostname for the gateway, e.g. a Cloudflare Tunnel to `:8000` (section 4).
 
 **How to set it on expo.dev:**
 1. Go to **expo.dev → tombomekestudios → FinVault → Environment Variables**

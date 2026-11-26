@@ -72,6 +72,9 @@ services:
       - WALLET_SERVICE_URL=http://wallet-transaction-service:8002
       - ACCOUNT_SERVICE_URL=http://account-service:8001
       - FINVAULT_MESSAGE_KEY=${FINVAULT_MESSAGE_KEY}
+      - RABBITMQ_URL=amqp://guest:guest@rabbitmq:5672
+      # Set to the FinVault account that receives NexusInfra top-ups; empty = off.
+      - NEXUSINFRA_MERCHANT_EMAIL=${NEXUSINFRA_MERCHANT_EMAIL:-}
     depends_on:
       - gateway
       - wallet-transaction-service

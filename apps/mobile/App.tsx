@@ -1,9 +1,9 @@
 import React, { useState, useCallback, useEffect, Component } from 'react';
-import { View, StyleSheet, SafeAreaView, TouchableOpacity, Text, StatusBar, TextInput, Alert, Platform, BackHandler } from 'react-native';
+import { View, StyleSheet, SafeAreaView, TouchableOpacity, Text, StatusBar, TextInput, Alert, Platform, BackHandler, AppState } from 'react-native';
 import { ScreenAuth } from './src/screens/ScreenAuth';
 import { ScreenOverview } from './src/screens/ScreenOverview';
 import { ScreenTransactions } from './src/screens/ScreenTransactions';
-import { ScreenTransfer } from './src/screens/ScreenTransfer';
+import { ScreenTransfer, type ReferenceRequest } from './src/screens/ScreenTransfer';
 import { ScreenCards } from './src/screens/ScreenCards';
 import { ScreenSavings } from './src/screens/ScreenSavings';
 import { ScreenAnalytics } from './src/screens/ScreenAnalytics';
@@ -17,6 +17,7 @@ import { ScreenMandates } from './src/screens/ScreenMandates';
 import { ScreenFxExchange } from './src/screens/ScreenFxExchange';
 import { ScreenInvoices } from './src/screens/ScreenInvoices';
 import { ScreenDisputes } from './src/screens/ScreenDisputes';
+import { ScreenTransactionDetail } from './src/screens/ScreenTransactionDetail';
 import { Shell } from './src/components/Shell';
 import { money } from './src/components/UI';
 import { MobileSheet } from './src/components/MobileExtras';
@@ -25,6 +26,9 @@ import { Icon } from './src/components/Icon';
 import { saveSession, loadSession, clearSession, tryRefreshSession, revokeSession } from './src/session';
 import { isBiometricAvailable, authenticateBiometric, getBiometricPref, setBiometricPref, hasDismissedBioPrompt, setDismissedBioPrompt } from './src/biometrics';
 import { THEME, themedSheet, setAppTheme, persistThemeConfig, loadPersistedThemeConfig } from './src/theme';
+import { registerForPushNotifications, sendTokenToServer } from './src/push';
+import { API_URL, DEMO_MODE_ENABLED, UNREACHABLE_MESSAGE } from './src/config';
+import { liveAction, liveSocketUrl, reconnectDelayMs, withBalance } from './src/lib/live';
 
 // ── Global error boundary — catches render-time crashes in production ──────────
 interface EBState { error: Error | null; }
@@ -336,8 +340,10 @@ export default function App() {
   const [cards, setCards] = useState<CardItem[]>([]);
   const [goals, setGoals] = useState<Goal[]>([]);
   const [beneficiaries, setBeneficiaries] = useState<Beneficiary[]>([]);
+  const [unreadNotifications, setUnreadNotifications] = useState(0);
   const [authError, setAuthError] = useState('');
   const [authSuccess, setAuthSuccess] = useState('');
+  const [pending2FA, setPending2FA] = useState<{ tempToken: string } | null>(null);
   const [upgradeOpen, setUpgradeOpen] = useState(false);
   const [bioPromptOpen, setBioPromptOpen] = useState(false);
 
@@ -426,8 +432,7 @@ export default function App() {
     initializeGoals();
   }, [initializeCards, initializeGoals]);
 
-  // Configure via apps/mobile/.env → EXPO_PUBLIC_API_URL=http://<your-lan-ip>:8000
-  const API_URL = process.env.EXPO_PUBLIC_API_URL || 'http://192.168.0.6:8000';
+  // Backend base URL + demo-mode switch live in src/config.ts (EXPO_PUBLIC_API_URL).
 
   // Restore the persisted session once on launch (keystore-backed). When the
   // user enabled biometric sign-in, the auto-login is gated behind the system
@@ -470,6 +475,58 @@ export default function App() {
     } catch {}
   }, [token]);
 
+  // Live updates (#107): the gateway's WebSocket hub, as the web dashboard uses
+  // it. Open while signed in to the backend (never in demo mode), reconnect
+  // after a drop, and reload on returning to the foreground — events sent while
+  // the app was in the background are not replayed.
+  useEffect(() => {
+    if (!token || token === 'mock-token') return;
+    const url = liveSocketUrl(API_URL, token);
+    if (!url) return;
+    let socket: WebSocket | null = null;
+    let retry: ReturnType<typeof setTimeout> | null = null;
+    let attempt = 0;
+    let stopped = false;
+
+    const connect = () => {
+      retry = null;
+      if (stopped) return;
+      socket = new WebSocket(url);
+      socket.onopen = () => { attempt = 0; };
+      socket.onmessage = (e) => {
+        const action = liveAction(e.data);
+        if (!action) return;
+        if (action.kind === 'balance') {
+          setWallets(prev => withBalance(prev, action.walletId, action.balance));
+          fetchTransactions();
+        } else {
+          fetchWallets();
+          fetchTransactions();
+        }
+      };
+      socket.onclose = () => {
+        socket = null;
+        if (stopped || AppState.currentState !== 'active') return;
+        retry = setTimeout(connect, reconnectDelayMs(attempt++));
+      };
+    };
+
+    const appState = AppState.addEventListener('change', (state) => {
+      if (state !== 'active') return;
+      fetchWallets();
+      fetchTransactions();
+      if (!socket && !retry) { attempt = 0; connect(); }
+    });
+
+    connect();
+    return () => {
+      stopped = true;
+      appState.remove();
+      if (retry) clearTimeout(retry);
+      socket?.close();
+    };
+  }, [token, fetchWallets, fetchTransactions]);
+
   const fetchCards = useCallback(async () => {
     if (!token || token === 'mock-token') return;
     try {
@@ -500,8 +557,27 @@ export default function App() {
     } catch {}
   }, [token]);
 
+  const fetchNotificationCount = useCallback(async () => {
+    if (!token || token === 'mock-token') return;
+    try {
+      const res = await fetch(`${API_URL}/api/notifications`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (res.ok) {
+        const notifs = await res.json();
+        setUnreadNotifications(notifs.filter((n: any) => !n.read).length);
+      }
+    } catch {}
+  }, [token]);
+
   const fetchProfile = useCallback(async () => {
     if (!token || token === 'mock-token') {
+      if (token === 'mock-token' && !DEMO_MODE_ENABLED) {
+        // A demo session persisted by an older build — don't show fake data in release.
+        await clearSession();
+        setToken(null);
+        return;
+      }
       setupMockSession();
       return;
     }
@@ -517,6 +593,8 @@ export default function App() {
         fetchCards();
         fetchGoals();
         fetchBeneficiaries();
+        fetchNotificationCount();
+        registerForPushNotifications().then(pt => { if (pt && token) sendTokenToServer(API_URL, token, pt); });
       } else {
         // Access token expired/invalid — try one silent refresh before signing out.
         const refreshed = await tryRefreshSession(API_URL);
@@ -528,9 +606,12 @@ export default function App() {
         }
       }
     } catch {
-      setupMockSession();
+      // Network failure: keep the session (the server may be back shortly) but
+      // never swap in mock data outside demo mode — it would look like real money.
+      if (DEMO_MODE_ENABLED) setupMockSession();
+      else fire('Offline', UNREACHABLE_MESSAGE, 'error');
     }
-  }, [token, fetchWallets, fetchTransactions, fetchCards, fetchGoals]);
+  }, [token, fire, fetchWallets, fetchTransactions, fetchCards, fetchGoals, fetchBeneficiaries, fetchNotificationCount]);
 
   useEffect(() => {
     if (token) {
@@ -549,6 +630,11 @@ export default function App() {
       });
       if (res.ok) {
         const data = await res.json();
+        if (data.requires2FA) {
+          setPending2FA({ tempToken: data.tempToken });
+          setAuthSuccess('Enter your 2FA code');
+          return;
+        }
         await saveSession(data.accessToken, data.refreshToken);
         setToken(data.accessToken);
         setAuthSuccess('Welcome back!');
@@ -559,8 +645,11 @@ export default function App() {
         setAuthError(errorData.error || errorData.message || 'Invalid credentials.');
       }
     } catch {
-      // Offline fallback
-      if (email === 'admin@finvault.com' || email === 'tom@finvault.com') {
+      // Network failure. Demo mode (dev builds) falls back to mock data;
+      // release builds report the real problem instead of faking a login.
+      if (!DEMO_MODE_ENABLED) {
+        setAuthError(UNREACHABLE_MESSAGE);
+      } else if (email === 'admin@finvault.com' || email === 'tom@finvault.com') {
         await saveSession('mock-token');
         setToken('mock-token');
         setupMockSession();
@@ -579,6 +668,10 @@ export default function App() {
     setAuthError('');
     setAuthSuccess('');
     if (!(await isBiometricAvailable())) {
+      if (!DEMO_MODE_ENABLED) {
+        setAuthError('Biometrics are not available on this device — sign in with your password.');
+        return;
+      }
       setRawUser(null);
       saveSession('mock-token');
       setToken('mock-token');
@@ -605,6 +698,30 @@ export default function App() {
     }
   };
 
+  const handle2FAVerify = async (code: string) => {
+    if (!pending2FA) return;
+    setAuthError('');
+    try {
+      const res = await fetch(`${API_URL}/api/auth/verify-2fa`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tempToken: pending2FA.tempToken, code })
+      });
+      if (res.ok) {
+        const data = await res.json();
+        await saveSession(data.accessToken, data.refreshToken);
+        setToken(data.accessToken);
+        setPending2FA(null);
+        setAuthSuccess('Welcome back!');
+      } else {
+        const err = await res.json();
+        setAuthError(err.error || 'Invalid 2FA code');
+      }
+    } catch {
+      setAuthError('Verification failed — try again');
+    }
+  };
+
   const handleRegister = async (firstName: string, lastName: string, email: string, pw: string) => {
     try {
       const res = await fetch(`${API_URL}/api/auth/register`, {
@@ -619,7 +736,8 @@ export default function App() {
         setAuthError(err.message || 'Registration failed.');
       }
     } catch {
-      setAuthSuccess('Account created successfully (Demo mode)!');
+      if (DEMO_MODE_ENABLED) setAuthSuccess('Account created successfully (Demo mode)!');
+      else setAuthError(UNREACHABLE_MESSAGE);
     }
   };
 
@@ -690,7 +808,11 @@ export default function App() {
           return false;
         }
       } catch {
-        // Network unreachable — fall through to the offline demo path.
+        // Network unreachable — only demo mode may simulate the transfer.
+        if (!DEMO_MODE_ENABLED) {
+          fire('Transfer not sent', UNREACHABLE_MESSAGE, 'error');
+          return false;
+        }
       }
     }
 
@@ -718,7 +840,45 @@ export default function App() {
         fire('Error', err.error || 'Failed to send request.', 'error');
       }
     } catch {
-      fire('Request sent', `Payment request of ${money(amount)} sent to ${email}.`, 'success');
+      if (DEMO_MODE_ENABLED) fire('Request sent (Demo)', `Payment request of ${money(amount)} sent to ${email}.`, 'success');
+      else fire('Request not sent', UNREACHABLE_MESSAGE, 'error');
+    }
+  };
+
+  // A scanned QR whose creditor reference names an open payment request — a
+  // NexusInfra top-up — pays that request, not a plain transfer (#436). Never
+  // simulated in demo mode: a fake "paid" would be a fake balance change.
+  const lookupReference = async (reference: string): Promise<ReferenceRequest | null> => {
+    if (!token || token === 'mock-token') return null;
+    try {
+      const res = await fetch(`${API_URL}/api/invoices/payment-requests/by-reference/${encodeURIComponent(reference)}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      return res.ok ? await res.json() : null;
+    } catch {
+      return null;
+    }
+  };
+
+  const payReference = async (reference: string, amount: number): Promise<boolean> => {
+    try {
+      const res = await fetch(`${API_URL}/api/invoices/payment-requests/by-reference/${encodeURIComponent(reference)}/pay`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ amount }),
+      });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        fire('Payment failed', body.error || 'Please try again.', 'error');
+        return false;
+      }
+      fire('Request paid', `${money(amount)} paid.`, 'success');
+      fetchWallets();
+      fetchTransactions();
+      return true;
+    } catch {
+      fire('Payment not sent', UNREACHABLE_MESSAGE, 'error');
+      return false;
     }
   };
 
@@ -738,7 +898,14 @@ export default function App() {
           Authorization: `Bearer ${token}`
         },
         body: JSON.stringify({ amount: val, walletId: wallet.id })
-      }).then(res => {
+      }).then(async res => {
+        if (!res.ok) {
+          // Real server answer (validation, limits, …) — surface it, never fake a deposit.
+          const err = await res.json().catch(() => ({}));
+          setDepositLoading(false);
+          fire('Deposit failed', err.error || err.message || 'Could not complete the deposit.', 'warn');
+          return;
+        }
         if (res.ok) {
           const wName = wallet.name || (wallet.type === 'savings' ? 'Savings Vault' : wallet.type === 'travel' ? 'Travel Multi-Currency' : 'Everyday Checking');
           fire('Deposit added', `${money(val, wallet.currency)} deposited into your ${wName} account.`, 'success');
@@ -747,11 +914,14 @@ export default function App() {
           setDepositLoading(false);
           setDepositAmt('');
           setDepositOpen(false);
-        } else {
-          throw new Error('API error');
         }
       }).catch(() => {
-        // Fallback
+        if (!DEMO_MODE_ENABLED) {
+          setDepositLoading(false);
+          fire('Deposit failed', UNREACHABLE_MESSAGE, 'error');
+          return;
+        }
+        // Demo fallback
         setWallets(prev => prev.map(w => w.id === wallet.id ? { ...w, balance: w.balance + val } : w));
         setTransactions(prev => [{
           id: Math.random().toString(), senderWalletId: null, receiverWalletId: wallet.id,
@@ -809,7 +979,13 @@ export default function App() {
           Alert.alert('Transfer failed', err.error || err.message || 'Could not complete transfer.');
           return;
         }
-      } catch { /* fall through to local simulation */ }
+      } catch {
+        if (!DEMO_MODE_ENABLED) {
+          fire('Transfer not sent', UNREACHABLE_MESSAGE, 'error');
+          return;
+        }
+        /* demo mode: fall through to local simulation */
+      }
     }
 
     // Local demo fallback
@@ -836,6 +1012,22 @@ export default function App() {
   const appData   = buildMockData(firstName, lastName, email, wallets, transactions, cards, goals, rawUser?.plan || 'Metal');
 
   const renderScreen = () => {
+    // Transaction detail routing: 'tx:transactionId'
+    if (route.startsWith('tx:')) {
+      const txId = route.replace('tx:', '');
+      const tx = transactions.find(t => t.id === txId);
+      if (tx) {
+        const isIncoming = !!tx.receiverWalletId && wallets.some(w => w.id === tx.receiverWalletId);
+        return (
+          <ScreenTransactionDetail
+            transaction={tx}
+            isIncoming={isIncoming}
+            onBack={() => setRoute('transactions')}
+            onDispute={() => setRoute('disputes')}
+          />
+        );
+      }
+    }
     // Account dashboard routing: 'account:walletId'
     if (route.startsWith('account:')) {
       const walletId = route.replace('account:', '');
@@ -850,11 +1042,11 @@ export default function App() {
     }
     switch (route) {
       case 'overview':
-        return <ScreenOverview navigate={setRoute} data={appData} onTopup={() => setDepositOpen(true)} />;
+        return <ScreenOverview navigate={setRoute} data={appData} onTopup={() => setDepositOpen(true)} onRefresh={async () => { await Promise.all([fetchWallets(), fetchTransactions(), fetchCards(), fetchGoals(), fetchNotificationCount()]); }} />;
       case 'transactions':
-        return <ScreenTransactions data={appData} onExport={() => fire('Export complete', 'Your transactions CSV was shared.', 'success')} />;
+        return <ScreenTransactions data={appData} onExport={() => fire('Export complete', 'Your transactions CSV was shared.', 'success')} navigate={setRoute} />;
       case 'transfer':
-        return <ScreenTransfer data={appData} beneficiaries={beneficiaries} onTransfer={handleTransfer} onRequest={handleRequest} />;
+        return <ScreenTransfer data={appData} beneficiaries={beneficiaries} onTransfer={handleTransfer} onRequest={handleRequest} lookupReference={lookupReference} payReference={payReference} />;
       case 'cards':
         return <ScreenCards data={appData} fire={fire} cards={cards} setCards={setCards} token={token} apiUrl={API_URL} navigate={setRoute} />;
       case 'analytics':
@@ -876,11 +1068,11 @@ export default function App() {
       case 'fx-exchange':
         return <ScreenFxExchange token={token} apiUrl={API_URL} wallets={wallets} fire={fire} onBack={() => setRoute('overview')} onRefresh={() => { fetchWallets(); fetchTransactions(); }} />;
       case 'invoices':
-        return <ScreenInvoices token={token} apiUrl={API_URL} fire={fire} onBack={() => setRoute('settings')} />;
+        return <ScreenInvoices token={token} apiUrl={API_URL} fire={fire} onBack={() => setRoute('settings')} onPaid={() => { fetchWallets(); fetchTransactions(); }} />;
       case 'disputes':
         return <ScreenDisputes token={token} apiUrl={API_URL} transactions={transactions} fire={fire} onBack={() => setRoute('settings')} />;
       default:
-        return <ScreenOverview navigate={setRoute} data={appData} onTopup={() => setDepositOpen(true)} />;
+        return <ScreenOverview navigate={setRoute} data={appData} onTopup={() => setDepositOpen(true)} onRefresh={async () => { await Promise.all([fetchWallets(), fetchTransactions(), fetchCards(), fetchGoals(), fetchNotificationCount()]); }} />;
     }
   };
 
@@ -905,9 +1097,12 @@ export default function App() {
           authError={authError}
           authSuccess={authSuccess}
           onFaceIdLogin={handleFaceIdLogin}
+          pending2FA={!!pending2FA}
+          on2FAVerify={handle2FAVerify}
+          onCancel2FA={() => { setPending2FA(null); setAuthError(''); setAuthSuccess(''); }}
         />
       ) : (
-        <Shell route={route} setRoute={setRoute} user={appData.user}>
+        <Shell route={route} setRoute={setRoute} user={appData.user} unreadNotifications={unreadNotifications}>
           {renderScreen()}
         </Shell>
       )}

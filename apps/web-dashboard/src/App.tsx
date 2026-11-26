@@ -794,7 +794,7 @@ export default function App() {
       case 'fx-exchange':
         return <ScreenFxExchange compact={compact} token={token!} navigate={setRoute} wallets={wallets} fire={fire} onRefresh={() => { fetchWallets(); fetchTransactions(); }} />;
       case 'invoices':
-        return <ScreenInvoices compact={compact} token={token!} navigate={setRoute} fire={fire} />;
+        return <ScreenInvoices compact={compact} token={token!} navigate={setRoute} fire={fire} onPaid={() => { fetchWallets(); fetchTransactions(); }} />;
       case 'disputes':
         return <ScreenDisputes compact={compact} token={token!} transactions={transactions} navigate={setRoute} fire={fire} />;
       default:

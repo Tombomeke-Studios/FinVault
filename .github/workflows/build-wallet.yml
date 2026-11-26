@@ -2,7 +2,7 @@ name: Build and Push Wallet and Transaction Service
 
 on:
   push:
-    branches: [main, master]
+    branches: [main, staging]
     paths:
       - "services/wallet-transaction-service/**"
       - "shared/**"

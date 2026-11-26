@@ -25,6 +25,7 @@ interface PaymentRequest {
   description: string;
   status: string;
   createdAt: string;
+  direction?: 'incoming' | 'outgoing';
 }
 
 interface Props {
@@ -32,9 +33,11 @@ interface Props {
   apiUrl: string;
   fire: (t: string, b: string, type?: string) => void;
   onBack: () => void;
+  /** After a request is paid: the app reloads balances, which this screen does not hold (#107). */
+  onPaid?: () => void;
 }
 
-export function ScreenInvoices({ token, apiUrl, fire, onBack }: Props) {
+export function ScreenInvoices({ token, apiUrl, fire, onBack, onPaid }: Props) {
   const [tab, setTab] = useState<'receipts' | 'requests'>('receipts');
   const [receipts, setReceipts] = useState<Receipt[]>([]);
   const [requests, setRequests] = useState<PaymentRequest[]>([]);
@@ -53,9 +56,32 @@ export function ScreenInvoices({ token, apiUrl, fire, onBack }: Props) {
 
   useEffect(() => { fetchData(); }, [fetchData]);
 
+  // The request being paid or declined — its buttons are disabled meanwhile, so
+  // an impatient second tap cannot submit it again.
+  const [busyId, setBusyId] = useState<string | null>(null);
+  const settle = async (r: PaymentRequest, action: 'pay' | 'decline') => {
+    if (busyId || !token) return;
+    setBusyId(r.id);
+    try {
+      const res = await fetch(`${apiUrl}/api/invoices/payment-requests/${r.id}/${action}`, { method: 'POST', headers: { Authorization: `Bearer ${token}` } });
+      const body = await res.json().catch(() => ({}));
+      if (res.ok) {
+        if (action === 'pay') onPaid?.();
+        fire(action === 'pay' ? 'Request paid' : 'Request declined', action === 'pay' ? `${money(r.amount, r.currency)} sent to ${r.creatorEmail}.` : `${r.creatorEmail} has been told.`, action === 'pay' ? 'success' : 'info');
+      } else {
+        fire(action === 'pay' ? 'Payment failed' : 'Could not decline', body.error || 'Please try again.', 'error');
+      }
+    } catch {
+      fire('Could not reach FinVault', 'Check your connection and try again.', 'error');
+    } finally {
+      setBusyId(null);
+      fetchData();
+    }
+  };
+
   const statusColor = (s: string) => {
     if (s === 'paid') return '#34d399';
-    if (s === 'pending') return THEME.colors.accent;
+    if (s === 'pending' || s === 'processing') return THEME.colors.accent;
     if (s === 'declined' || s === 'expired') return '#fb7185';
     return THEME.colors.text3;
   };
@@ -115,13 +141,25 @@ export function ScreenInvoices({ token, apiUrl, fire, onBack }: Props) {
         ) : (
           requests.map((r, i) => (
             <FadeSlideIn key={r.id} delay={i * 50}>
-              <View style={styles.card}>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.cardTitle}>{r.description}</Text>
-                  <Text style={styles.cardSub}>From: {r.creatorEmail}</Text>
-                  <Text style={[styles.cardStatus, { color: statusColor(r.status) }]}>{r.status.toUpperCase()}</Text>
+              <View style={styles.requestCard}>
+                <View style={styles.requestRow}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.cardTitle}>{r.description}</Text>
+                    <Text style={styles.cardSub}>{r.direction === 'outgoing' ? `To: ${r.recipientEmail}` : `From: ${r.creatorEmail}`}</Text>
+                    <Text style={[styles.cardStatus, { color: statusColor(r.status) }]}>{r.status.toUpperCase()}</Text>
+                  </View>
+                  <Text style={styles.cardAmount}>{money(r.amount, r.currency)}</Text>
                 </View>
-                <Text style={styles.cardAmount}>{money(r.amount, r.currency)}</Text>
+                {r.direction === 'incoming' && r.status === 'pending' && (
+                  <View style={styles.actions}>
+                    <TouchableOpacity style={[styles.action, styles.actionGhost, busyId !== null && styles.actionDisabled]} disabled={busyId !== null} onPress={() => settle(r, 'decline')} accessibilityRole="button">
+                      <Text style={styles.actionGhostText}>Decline</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity style={[styles.action, styles.actionPrimary, busyId !== null && styles.actionDisabled]} disabled={busyId !== null} onPress={() => settle(r, 'pay')} accessibilityRole="button">
+                      <Text style={styles.actionPrimaryText}>{busyId === r.id ? 'Working…' : `Pay ${money(r.amount, r.currency)}`}</Text>
+                    </TouchableOpacity>
+                  </View>
+                )}
               </View>
             </FadeSlideIn>
           ))
@@ -132,19 +170,28 @@ export function ScreenInvoices({ token, apiUrl, fire, onBack }: Props) {
 }
 
 const styles = themedSheet(() => StyleSheet.create({
-  container: { flex: 1, backgroundColor: THEME.colors.bg, paddingHorizontal: 16, paddingTop: 12 },
-  header: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 16 },
-  title: { fontSize: 22, fontWeight: '700', color: THEME.colors.text, flex: 1 },
-  tabs: { flexDirection: 'row', backgroundColor: THEME.colors.surface, borderRadius: THEME.radius.regular, padding: 4, marginBottom: 16 },
-  tab: { flex: 1, paddingVertical: 10, alignItems: 'center', borderRadius: THEME.radius.regular - 2 },
-  tabActive: { backgroundColor: THEME.colors.accent },
-  tabText: { color: THEME.colors.text2, fontSize: 13, fontWeight: '600' },
-  tabTextActive: { color: THEME.colors.onAccent },
-  emptyCard: { backgroundColor: THEME.colors.surface, borderRadius: THEME.radius.regular, padding: 32, alignItems: 'center', gap: 12 },
+  container: { flex: 1, backgroundColor: THEME.colors.bg },
+  header: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 16, paddingHorizontal: 16, paddingTop: 12 },
+  title: { fontSize: 24, fontWeight: '700', color: THEME.colors.text, flex: 1, letterSpacing: -0.5 },
+  tabs: { flexDirection: 'row', backgroundColor: THEME.colors.surface, borderRadius: THEME.radius.lg, borderWidth: 1, borderColor: THEME.colors.line, padding: 4, marginBottom: 16, marginHorizontal: 16 },
+  tab: { flex: 1, paddingVertical: 10, alignItems: 'center', borderRadius: THEME.radius.regular },
+  tabActive: { backgroundColor: THEME.colors.accent, shadowColor: THEME.colors.accent, shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.3, shadowRadius: 4, elevation: 3 },
+  tabText: { color: THEME.colors.text3, fontSize: 13, fontWeight: '600' },
+  tabTextActive: { color: THEME.colors.onAccent, fontWeight: '700' },
+  emptyCard: { backgroundColor: THEME.colors.surface, borderRadius: THEME.radius.lg, borderWidth: 1, borderColor: THEME.colors.line, padding: 40, alignItems: 'center', gap: 14, marginHorizontal: 16, elevation: 2, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.1, shadowRadius: 3 },
   emptyText: { color: THEME.colors.text3, fontSize: 14 },
-  card: { flexDirection: 'row', backgroundColor: THEME.colors.surface, borderRadius: THEME.radius.regular, padding: 16, marginBottom: 8, alignItems: 'center' },
-  cardTitle: { color: THEME.colors.text, fontWeight: '600', fontSize: 15 },
-  cardSub: { color: THEME.colors.text2, fontSize: 12, marginTop: 2 },
-  cardStatus: { fontSize: 11, fontWeight: '700', marginTop: 4 },
-  cardAmount: { color: THEME.colors.text, fontWeight: '700', fontSize: 16 },
+  card: { flexDirection: 'row', backgroundColor: THEME.colors.surface, borderRadius: THEME.radius.lg, borderWidth: 1, borderColor: THEME.colors.line, padding: 16, marginBottom: 8, marginHorizontal: 16, alignItems: 'center', elevation: 2, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.1, shadowRadius: 3 },
+  requestCard: { backgroundColor: THEME.colors.surface, borderRadius: THEME.radius.lg, borderWidth: 1, borderColor: THEME.colors.line, padding: 16, marginBottom: 8, marginHorizontal: 16, elevation: 2, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.1, shadowRadius: 3 },
+  requestRow: { flexDirection: 'row', alignItems: 'center' },
+  actions: { flexDirection: 'row', gap: 8, marginTop: 14 },
+  action: { flex: 1, paddingVertical: 11, alignItems: 'center', borderRadius: THEME.radius.regular },
+  actionGhost: { borderWidth: 1, borderColor: THEME.colors.line },
+  actionPrimary: { backgroundColor: THEME.colors.accent },
+  actionDisabled: { opacity: 0.5 },
+  actionGhostText: { color: THEME.colors.text, fontWeight: '600', fontSize: 14 },
+  actionPrimaryText: { color: THEME.colors.onAccent, fontWeight: '700', fontSize: 14 },
+  cardTitle: { color: THEME.colors.text, fontWeight: '700', fontSize: 15, letterSpacing: -0.2 },
+  cardSub: { color: THEME.colors.text2, fontSize: 12, marginTop: 3, letterSpacing: 0.1 },
+  cardStatus: { fontSize: 10, fontWeight: '800', marginTop: 6, letterSpacing: 1 },
+  cardAmount: { color: THEME.colors.text, fontWeight: '700', fontSize: 17, letterSpacing: -0.5 },
 }));
