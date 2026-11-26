@@ -192,7 +192,7 @@ belongs in a doc. Keep docs truthful — delete claims that stopped being true.
 | Everything + mobile | `npm run dev:all` |
 | One service | `npm run dev:gateway` / `dev:account` / `dev:wallet` / `dev:invoice` |
 | Web only / Mobile only | `npm run dev:web` / `npm run dev:mobile` (Expo Go) |
-| Build all workspaces | `npm run build` (mobile has no build script — skipped) |
+| Build all workspaces | `npm run build` (`prebuild` builds `shared` first, #110; mobile has no build script — skipped) |
 | All tests | `npm test` (= `vitest run`, picks up `*.test.ts` everywhere) |
 | Targeted tests | `npx vitest run path/to/file.test.ts` |
 | Typecheck one app | `npx tsc --noEmit` inside that workspace |

@@ -48,6 +48,7 @@ Workflow rules live in [CLAUDE.md](CLAUDE.md#workflow-rules); short version:
 ## Active — `feature/private-payment-events`
 
 - [x] The gateway sends every `payment.confirmed` / `payment.failed` to all connected users, amounts and references included (#108) 🐛
+- [x] `npm run build` failed on a fresh clone: services built before `shared` (#110) 🐛
 
 ## Active — `fix/receipt-pdf`
 
