@@ -22,6 +22,7 @@ Workflow rules live in [CLAUDE.md](CLAUDE.md#workflow-rules); short version:
 - [ ] Run `eas submit --platform android` for the first Play Store upload (internal track)
 
 **Known bugs (next session)**
+- [ ] The gateway sends every `payment.confirmed` / `payment.failed` to all connected users, amounts and references included (#108) 🐛
 - [ ] QR scan-to-pay shows "That QR is not a SEPA payment code" — the EPC069-12 parser
   likely rejects the QR format or encoding; debug `parseEpcQr()` in `src/lib/epc.ts`
   and the camera output in `QrScanSheet.tsx`
@@ -44,6 +45,10 @@ Workflow rules live in [CLAUDE.md](CLAUDE.md#workflow-rules); short version:
 - [ ] Swipe-to-delete on transaction list items (swipeable row)
 - [ ] Skeleton loading screens (shimmer placeholders during data fetch)
 - [ ] Search functionality in web top bar (currently non-functional input)
+
+## Active — `feature/live-balance`
+
+- [x] Show the new balance right after paying a payment request, and live in the mobile app (#107) 🐛
 
 ## Active — `fix/receipt-pdf`
 
