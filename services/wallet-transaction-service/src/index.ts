@@ -1180,7 +1180,10 @@ app.post('/transactions/transfer', requireAuth, async (req, res) => {
         reference,
         amount,
         senderWalletId: senderWallet.id,
-        receiverWalletId: receiverWallet.id
+        receiverWalletId: receiverWallet.id,
+        // The gateway sends the event to these two users only (#108).
+        senderUserId: senderWallet.userId,
+        receiverUserId: receiverWallet.userId
       }
     });
 
@@ -1371,7 +1374,10 @@ app.post('/transactions/sepa-transfer', requireAuth, async (req, res) => {
         reference,
         amount,
         senderWalletId: senderWallet.id,
-        receiverWalletId: receiverWallet.id
+        receiverWalletId: receiverWallet.id,
+        // The gateway sends the event to these two users only (#108).
+        senderUserId: senderWallet.userId,
+        receiverUserId: receiverWallet.userId
       }
     });
 
@@ -1531,7 +1537,10 @@ app.post('/transactions/internal-transfer', async (req, res) => {
         reference,
         amount,
         senderWalletId: senderWallet.id,
-        receiverWalletId: receiverWallet.id
+        receiverWalletId: receiverWallet.id,
+        // The gateway sends the event to these two users only (#108).
+        senderUserId: senderWallet.userId,
+        receiverUserId: receiverWallet.userId
       }
     });
 

@@ -310,10 +310,12 @@ graph LR
 | `account.created` | Account | userId, email, accountType | Wallet (creates default wallets + cards) |
 | `account.frozen` | Account | userId, reason | Wallet (freezes all wallets) |
 | `balance.updated` | Wallet | walletId, userId, balance | WebSocket → that user's client |
-| `payment.confirmed` | Wallet | transaction details | WebSocket → **every** connected client today; meant for sender + receiver only (#108) |
+| `payment.confirmed` | Wallet | transaction details + `senderUserId`/`receiverUserId` | WebSocket → sender + receiver only (#108, `services/gateway/src/ws-routing.ts`) |
 | `payment.request` *(external, on `bank.payment.request`)* | NexusInfra | reference, customerEmail, amount, currency | Invoice (creates a payment request for the customer) |
 | `payment.confirmed` / `payment.failed` | Invoice | the requester's reference, amount / reason | NexusInfra (credits or fails the top-up) |
 | `invoice.generate` *(external)* | NexusInfra | reference, customerEmail, period, amount | Invoice (records a monthly hosting statement for the customer) |
+
+**The hub sends an event only to the users it names (#108).** `balance.updated`/`balance.low` go to `payload.userId`, `payment.confirmed`/`payment.failed` to `senderUserId` and `receiverUserId`; any other type, or one that names nobody, goes to nobody. Until #108 every payment — amount, reference, wallet ids — reached every connected user. A new event type reaches no client until it is added to `recipientsOf`.
 
 **Both apps listen to the WebSocket hub** (`ws(s)://<gateway>/?token=<JWT>`). On `balance.updated` they set that wallet's balance; on `payment.confirmed` they fetch wallets and transactions again. The mobile app joined in #107 (`apps/mobile/src/lib/live.ts`): it reconnects after a drop (1 s, doubling to 30 s) and reloads when it returns to the foreground, since events sent while it was in the background are not replayed. The hub is a convenience, not the source of truth: paying a payment request also reloads balances directly in both apps, so a dead socket never leaves an old balance on screen.
 
