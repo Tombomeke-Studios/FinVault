@@ -231,7 +231,7 @@ the same emails offline → client-side mock demo mode (mobile: dev bundles only
 | `src/components/BankCard.tsx` | Card visual; `CARD_SCHEMES` (metal/cyan/violet/gold/accent) |
 | `src/components/UI.tsx` | `money()` (nl-NL! use `{whole:true}`, never string-strip), `relTime`, `Ring`, `Donut`, `Sparkline`, `Bars`, `CategoryIcon`, `Delta`, `Avatar` |
 | `src/components/Shell.tsx` | Top bar (logo + avatar→settings) + bottom nav (5 tabs, Send is the filled centre tab; pads the safe-area bottom inset, #122) |
-| `src/screens/` | One file per screen: Overview, Transactions, Transfer, Cards, Savings, Analytics, Settings (incl. Security-activity sheet, biometric link toggle, switch account), Auth (saved-accounts list → biometric or password sign-in), AccountDashboard (`account:<id>` route) |
+| `src/screens/` | One file per screen: Overview, Transactions, Transfer, Cards, Savings, Analytics, Settings (incl. Security-activity sheet, biometric link toggle, switch account), SecurityCenter (password, 2FA, sessions, linked biometric phones #124), Auth (saved-accounts list → biometric or password sign-in), AccountDashboard (`account:<id>` route) |
 
 ### apps/web-dashboard (Vite + React 18 + React Router)
 | File | Contents |

@@ -419,6 +419,20 @@ function AppContent() {
   // Remounts the sign-in screen in a given starting state (switch / add account).
   const [authEntry, setAuthEntry] = useState<{ n: number; prefillEmail?: string; startWithForm?: boolean }>({ n: 0 });
   const activeAccount = findAccount(accounts, activeEmail);
+  // This phone's server-side link id for the active account (Security Center, #124).
+  const [thisDeviceId, setThisDeviceId] = useState<string | null>(null);
+  useEffect(() => {
+    if (!activeEmail) { setThisDeviceId(null); return; }
+    biometricDeviceId(activeEmail).then(setThisDeviceId);
+  }, [activeEmail, accounts]);
+
+  // The server unlinked this phone (revoked here, or every phone after a
+  // password change): drop the local credential so the UI tells the truth.
+  const forgetLocalBiometricLink = async () => {
+    if (!activeEmail) return;
+    await clearBiometricCredential(activeEmail);
+    setAccounts(await patchAccount(activeEmail, { biometric: false }));
+  };
   const [upgradeOpen, setUpgradeOpen] = useState(false);
   const [bioPromptOpen, setBioPromptOpen] = useState(false);
 
@@ -1237,7 +1251,8 @@ function AppContent() {
       case 'notifications':
         return <ScreenNotifications token={token} apiUrl={API_URL} fire={fire} onBack={() => setRoute('overview')} />;
       case 'security':
-        return <ScreenSecurityCenter token={token} apiUrl={API_URL} fire={fire} onBack={() => setRoute('settings')} onPasswordChanged={(at, rt) => { setToken(at); saveSession(at, rt); }} />;
+        return <ScreenSecurityCenter token={token} apiUrl={API_URL} fire={fire} onBack={() => setRoute('settings')} onPasswordChanged={(at, rt) => { setToken(at); saveSession(at, rt); forgetLocalBiometricLink(); }}
+          thisDeviceId={thisDeviceId} onThisDeviceRevoked={forgetLocalBiometricLink} bioLabel={bioLabel} />;
       case 'mandates':
         return <ScreenMandates token={token} apiUrl={API_URL} fire={fire} onBack={() => setRoute('settings')} />;
       case 'fx-exchange':

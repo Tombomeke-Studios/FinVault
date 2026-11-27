@@ -1,11 +1,12 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, TextInput, StyleSheet } from 'react-native';
+import { View, Text, ScrollView, TouchableOpacity, TextInput, StyleSheet, Alert } from 'react-native';
 import { Icon } from '../components/Icon';
 import { MobileSheet } from '../components/MobileExtras';
 import { FadeSlideIn } from '../components/Motion';
 import { THEME, themedSheet } from '../theme';
 
 interface Session { id: string; expiresAt: string; }
+interface LinkedDevice { id: string; name: string; createdAt: string; lastUsedAt: string | null; }
 
 interface Props {
   token: string | null;
@@ -13,10 +14,18 @@ interface Props {
   fire: (t: string, b: string, type?: string) => void;
   onBack: () => void;
   onPasswordChanged: (accessToken: string, refreshToken: string) => void;
+  /** Server id of this phone's biometric link for the signed-in account, if any (#124). */
+  thisDeviceId?: string | null;
+  /** Revoking this phone's own link also clears its local credential. */
+  onThisDeviceRevoked?: () => void;
+  bioLabel?: string;
 }
 
-export function ScreenSecurityCenter({ token, apiUrl, fire, onBack, onPasswordChanged }: Props) {
+const shortDate = (iso: string) => new Date(iso).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+
+export function ScreenSecurityCenter({ token, apiUrl, fire, onBack, onPasswordChanged, thisDeviceId, onThisDeviceRevoked, bioLabel = 'Biometric' }: Props) {
   const [sessions, setSessions] = useState<Session[]>([]);
+  const [devices, setDevices] = useState<LinkedDevice[]>([]);
   const [pwOpen, setPwOpen] = useState(false);
   const [twoFAEnabled, setTwoFAEnabled] = useState(false);
   const [twoFAOpen, setTwoFAOpen] = useState(false);
@@ -44,7 +53,40 @@ export function ScreenSecurityCenter({ token, apiUrl, fire, onBack, onPasswordCh
     } catch {}
   }, [token, apiUrl]);
 
-  useEffect(() => { fetchSessions(); fetch2FAStatus(); }, [fetchSessions, fetch2FAStatus]);
+  // Phones linked for biometric sign-in to this account (#124).
+  const fetchDevices = useCallback(async () => {
+    if (!token) return;
+    try {
+      const res = await fetch(`${apiUrl}/api/users/biometric-devices`, { headers: { Authorization: `Bearer ${token}` } });
+      if (res.ok) setDevices(await res.json());
+    } catch { /* offline */ }
+  }, [token, apiUrl]);
+
+  useEffect(() => { fetchSessions(); fetch2FAStatus(); fetchDevices(); }, [fetchSessions, fetch2FAStatus, fetchDevices]);
+
+  const revokeDevice = (d: LinkedDevice) => {
+    const isThis = d.id === thisDeviceId;
+    Alert.alert(
+      isThis ? `Unlink this phone?` : `Unlink ${d.name}?`,
+      isThis
+        ? `You will sign in to this account with your password on this phone until you link ${bioLabel.toLowerCase()} again.`
+        : `${d.name} can no longer sign in to this account with ${bioLabel.toLowerCase()}.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Unlink', style: 'destructive', onPress: async () => {
+            try {
+              const res = await fetch(`${apiUrl}/api/users/biometric-devices/${d.id}`, { method: 'DELETE', headers: { Authorization: `Bearer ${token}` } });
+              if (!res.ok && res.status !== 404) throw new Error();
+              if (isThis) onThisDeviceRevoked?.();
+              fire('Device unlinked', `${isThis ? 'This phone' : d.name} no longer signs in with ${bioLabel.toLowerCase()}.`, 'success');
+              fetchDevices();
+            } catch { fire('Device not unlinked', 'Please try again.', 'error'); }
+          },
+        },
+      ],
+    );
+  };
 
   const changePassword = async () => {
     if (!currentPw || !newPw) return;
@@ -65,6 +107,7 @@ export function ScreenSecurityCenter({ token, apiUrl, fire, onBack, onPasswordCh
         setCurrentPw(''); setNewPw(''); setConfirmPw('');
         onPasswordChanged(data.accessToken, data.refreshToken);
         fetchSessions();
+        fetchDevices(); // the server unlinks every phone on a password change
       } else {
         const err = await res.json();
         fire('Error', err.error || 'Failed to change password.', 'error');
@@ -145,6 +188,35 @@ export function ScreenSecurityCenter({ token, apiUrl, fire, onBack, onPasswordCh
             </TouchableOpacity>
           </View>
         ))}
+      </FadeSlideIn>
+
+      <FadeSlideIn delay={160}>
+        <Text style={styles.sectionTitle}>{bioLabel} sign-in ({devices.length})</Text>
+        {devices.length === 0 && (
+          <Text style={styles.sessionExpiry}>No phone is linked. Link one under Settings → Sign in with {bioLabel.toLowerCase()}.</Text>
+        )}
+        {devices.map(d => {
+          const isThis = d.id === thisDeviceId;
+          return (
+            <View key={d.id} style={styles.sessionCard}>
+              <Icon name="smartphone" size={18} color={isThis ? THEME.colors.accent : THEME.colors.text2} />
+              <View style={{ flex: 1, marginLeft: 12 }}>
+                <Text style={styles.sessionLabel}>{d.name}{isThis ? ' · this phone' : ''}</Text>
+                <Text style={styles.sessionExpiry}>
+                  Linked {shortDate(d.createdAt)}{d.lastUsedAt ? ` · last used ${shortDate(d.lastUsedAt)}` : ' · not used yet'}
+                </Text>
+              </View>
+              <TouchableOpacity
+                onPress={() => revokeDevice(d)}
+                hitSlop={{ top: 14, bottom: 14, left: 14, right: 14 }}
+                accessibilityRole="button"
+                accessibilityLabel={`Unlink ${isThis ? 'this phone' : d.name}`}
+              >
+                <Text style={{ color: THEME.colors.neg, fontSize: 13, fontWeight: '600' }}>Unlink</Text>
+              </TouchableOpacity>
+            </View>
+          );
+        })}
       </FadeSlideIn>
 
       <MobileSheet open={pwOpen} onClose={() => setPwOpen(false)} title="Change Password">

@@ -50,7 +50,7 @@ Workflow rules live in [CLAUDE.md](CLAUDE.md#workflow-rules); short version:
 - [x] Charge for subscription plans: first month on upgrade, monthly renewal (#119)
 - [x] Bind biometric sign-in to an account with a server-registered device credential (#120)
 - [x] Mobile: per-account biometric enrollment and an account switcher (#121)
-- [ ] Security Center: list and revoke biometric-linked devices (#124)
+- [x] Security Center: list and revoke biometric-linked devices (#124)
 - [x] Revolut-style motion and haptics (#125): haptics ✅, route transitions ✅, tab pill ✅, send success screen ✅, skeletons ✅
 
 ## Active — `fix/receipt-pdf`

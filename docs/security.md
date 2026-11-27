@@ -133,7 +133,10 @@ graph LR
   other: with its biometrics when linked, otherwise the password form opens with its
   email filled in. Signing out keeps the account (and its link) in the list; "Remove
   from this phone" deletes the local credential. The server entry stays until the
-  password changes or the device is revoked through the API (no device list in the app yet).
+  password changes or the phone is unlinked in **Security Center → Biometric sign-in**,
+  which lists every linked phone (name, linked, last used) and marks this one (#124).
+- A password change unlinks every phone on the server, and the app clears its own
+  local credential to match.
 - Unlinking in Settings deletes the server device and the local credential; cancelling
   the link scan withdraws the credential the server just issued.
 
