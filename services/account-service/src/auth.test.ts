@@ -1,7 +1,8 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { execSync } from 'child_process';
 import path from 'path';
-import { app, prisma, seedAccounts } from './app.js';
+import jwt from 'jsonwebtoken';
+import { app, prisma, seedAccounts, billingDeps, runRenewals, type FeeResult } from './app.js';
 import type { Server } from 'http';
 
 let server: Server;
@@ -146,5 +147,214 @@ describe('/auth/logout', () => {
       body: JSON.stringify({ refreshToken: token }),
     });
     expect(res.status).toBe(204);
+  });
+});
+
+// ── Subscription billing (#119) ─────────────────────────────────────────────
+// Tokens are signed directly: /auth/login is rate-limited to 5 per IP.
+const JWT_SECRET = process.env.JWT_SECRET || 'finvault-super-secret-key-98765';
+
+async function billingUser(data: Record<string, unknown> = {}) {
+  const email = `billing-${Math.random().toString(36).slice(2, 10)}@finvault.com`;
+  const user = await prisma.user.create({ data: { email, passwordHash: 'x', ...data } });
+  const token = jwt.sign({ userId: user.id, email, accountType: 'personal' }, JWT_SECRET, { expiresIn: '5m' });
+  return { user, token };
+}
+
+function stubCharges(result: FeeResult) {
+  const calls: { userId: string; amount: number; description: string; reference: string }[] = [];
+  billingDeps.chargeFee = async (userId, amount, description, reference) => {
+    calls.push({ userId, amount, description, reference });
+    return result;
+  };
+  return calls;
+}
+
+function putPlan(token: string, plan: string) {
+  return fetch(`${baseUrl}/users/plan`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    body: JSON.stringify({ plan }),
+  });
+}
+
+describe('subscription billing', () => {
+  it('starts new users on the free Standard plan', async () => {
+    const email = `fresh-${Math.random().toString(36).slice(2, 10)}@finvault.com`;
+    const reg = await fetch(`${baseUrl}/auth/register`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password: TEST_PASS, firstName: 'Fresh', lastName: 'User' }),
+    });
+    expect(reg.status).toBe(201);
+    const user = await prisma.user.findUnique({ where: { email } });
+    expect(user?.plan).toBe('Standard');
+    expect(user?.planRenewsAt).toBeNull();
+  });
+
+  it('lists the server-side prices', async () => {
+    const res = await fetch(`${baseUrl}/users/plans`);
+    expect(await res.json()).toEqual([
+      { name: 'Standard', price: 0, currency: 'EUR', interval: 'month' },
+      { name: 'Metal', price: 9.99, currency: 'EUR', interval: 'month' },
+      { name: 'Metal+', price: 16.99, currency: 'EUR', interval: 'month' },
+    ]);
+  });
+
+  it('charges the first month when upgrading and sets the renewal date', async () => {
+    const { user, token } = await billingUser();
+    const calls = stubCharges({ ok: true });
+    const res = await putPlan(token, 'Metal');
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.plan).toBe('Metal');
+    expect(body.charged).toBe(9.99);
+    expect(new Date(body.planRenewsAt).getTime()).toBeGreaterThan(Date.now() + 27 * 86400e3);
+    expect(calls).toHaveLength(1);
+    expect(calls[0]).toMatchObject({ userId: user.id, amount: 9.99, description: 'FinVault Metal subscription' });
+  });
+
+  it('keeps the plan when the charge is declined', async () => {
+    const { user, token } = await billingUser();
+    stubCharges({ ok: false, status: 402, error: 'Insufficient funds in your checking account' });
+    const res = await putPlan(token, 'Metal+');
+    expect(res.status).toBe(402);
+    expect((await res.json()).error).toMatch(/Insufficient funds/);
+    expect((await prisma.user.findUnique({ where: { id: user.id } }))?.plan).toBe('Standard');
+  });
+
+  it('charges only the difference for an upgrade inside the period', async () => {
+    const { token } = await billingUser({ plan: 'Metal', planRenewsAt: new Date(Date.now() + 10 * 86400e3) });
+    const calls = stubCharges({ ok: true });
+    const res = await putPlan(token, 'Metal+');
+    expect(res.status).toBe(200);
+    expect(calls[0].amount).toBe(7);
+  });
+
+  it('downgrades to Standard without charging and stops renewals', async () => {
+    const { token } = await billingUser({ plan: 'Metal', planRenewsAt: new Date(Date.now() + 10 * 86400e3) });
+    const calls = stubCharges({ ok: true });
+    const body = await (await putPlan(token, 'Standard')).json();
+    expect(body.plan).toBe('Standard');
+    expect(body.planRenewsAt).toBeNull();
+    expect(calls).toHaveLength(0);
+  });
+
+  it('rejects unknown plans', async () => {
+    const { token } = await billingUser();
+    expect((await putPlan(token, 'Gold')).status).toBe(400);
+  });
+
+  it('renews due subscriptions and moves declined ones to Standard', async () => {
+    const past = new Date(Date.now() - 3600e3);
+    const ok = await billingUser({ plan: 'Metal', planRenewsAt: past });
+    const broke = await billingUser({ plan: 'Metal+', planRenewsAt: past });
+    billingDeps.chargeFee = async (userId) =>
+      userId === broke.user.id ? { ok: false, status: 402, error: 'Insufficient funds' } : { ok: true };
+
+    await runRenewals();
+
+    const renewed = await prisma.user.findUnique({ where: { id: ok.user.id } });
+    expect(renewed?.plan).toBe('Metal');
+    expect(renewed!.planRenewsAt!.getTime()).toBeGreaterThan(Date.now() + 27 * 86400e3);
+    const lapsed = await prisma.user.findUnique({ where: { id: broke.user.id } });
+    expect(lapsed?.plan).toBe('Standard');
+    expect(lapsed?.planRenewsAt).toBeNull();
+  });
+
+  it('leaves subscriptions alone while billing is unreachable', async () => {
+    const past = new Date(Date.now() - 3600e3);
+    const { user } = await billingUser({ plan: 'Metal', planRenewsAt: past });
+    stubCharges({ ok: false, status: 503, error: 'unavailable' });
+    await runRenewals();
+    const after = await prisma.user.findUnique({ where: { id: user.id } });
+    expect(after?.plan).toBe('Metal');
+    expect(after?.planRenewsAt?.getTime()).toBe(past.getTime());
+  });
+});
+
+// ── Biometric sign-in (#120) ────────────────────────────────────────────────
+async function enroll(token: string, name = 'Pixel 9') {
+  const res = await fetch(`${baseUrl}/auth/biometric/enroll`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    body: JSON.stringify({ name }),
+  });
+  return { status: res.status, body: await res.json() };
+}
+
+function bioLogin(deviceId: string, secret: string) {
+  return fetch(`${baseUrl}/auth/biometric/login`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ deviceId, secret }),
+  });
+}
+
+describe('biometric sign-in', () => {
+  it('enrolls a device and signs in to that account with its secret', async () => {
+    const { user, token } = await billingUser();
+    const { status, body } = await enroll(token);
+    expect(status).toBe(201);
+    expect(body.secret.length).toBeGreaterThanOrEqual(40);
+
+    const stored = await prisma.biometricDevice.findUnique({ where: { id: body.deviceId } });
+    expect(stored?.secretHash).not.toBe(body.secret); // only the hash is kept
+
+    const res = await bioLogin(body.deviceId, body.secret);
+    expect(res.status).toBe(200);
+    const session = await res.json();
+    expect(session.user.id).toBe(user.id);
+    expect(session.refreshToken).toBeTruthy();
+    const decoded = jwt.verify(session.accessToken, JWT_SECRET) as any;
+    expect(decoded.userId).toBe(user.id);
+  });
+
+  it('rejects a wrong secret and an unknown device the same way', async () => {
+    const { token } = await billingUser();
+    const { body } = await enroll(token);
+    const wrong = await bioLogin(body.deviceId, 'not-the-secret');
+    const unknown = await bioLogin('00000000-0000-0000-0000-000000000000', body.secret);
+    expect(wrong.status).toBe(401);
+    expect(unknown.status).toBe(401);
+    expect((await wrong.json()).error).toBe((await unknown.json()).error);
+  });
+
+  it('refuses frozen accounts', async () => {
+    const { user, token } = await billingUser();
+    const { body } = await enroll(token);
+    await prisma.user.update({ where: { id: user.id }, data: { status: 'frozen' } });
+    expect((await bioLogin(body.deviceId, body.secret)).status).toBe(403);
+  });
+
+  it('lists and revokes only the caller\'s own devices', async () => {
+    const a = await billingUser();
+    const b = await billingUser();
+    const { body: dev } = await enroll(a.token, 'Galaxy S25');
+
+    const list = await (await fetch(`${baseUrl}/users/biometric-devices`, { headers: { Authorization: `Bearer ${a.token}` } })).json();
+    expect(list.map((d: any) => d.name)).toEqual(['Galaxy S25']);
+    expect(list[0].secretHash).toBeUndefined();
+
+    const foreign = await fetch(`${baseUrl}/users/biometric-devices/${dev.deviceId}`, { method: 'DELETE', headers: { Authorization: `Bearer ${b.token}` } });
+    expect(foreign.status).toBe(404);
+
+    const own = await fetch(`${baseUrl}/users/biometric-devices/${dev.deviceId}`, { method: 'DELETE', headers: { Authorization: `Bearer ${a.token}` } });
+    expect(own.status).toBe(204);
+    expect((await bioLogin(dev.deviceId, dev.secret)).status).toBe(401);
+  });
+
+  it('revokes every enrolled device when the password changes', async () => {
+    const bcrypt = (await import('bcryptjs')).default;
+    const { user, token } = await billingUser({ passwordHash: await bcrypt.hash('OldPass123!', 4) });
+    const { body } = await enroll(token);
+    const res = await fetch(`${baseUrl}/users/change-password`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ currentPassword: 'OldPass123!', newPassword: 'NewPass123!' }),
+    });
+    expect(res.status).toBe(200);
+    expect(await prisma.biometricDevice.count({ where: { userId: user.id } })).toBe(0);
+    expect((await bioLogin(body.deviceId, body.secret)).status).toBe(401);
   });
 });

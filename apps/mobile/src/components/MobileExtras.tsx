@@ -9,6 +9,8 @@ import { Icon } from './Icon';
 import { BankCard } from './BankCard';
 import { money } from './UI';
 import { useReducedMotion } from './Motion';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { haptic } from '../haptics';
 import { THEME, themedSheet } from '../theme';
 
 const SCREEN_H = Dimensions.get('window').height;
@@ -24,6 +26,7 @@ export function MobileSheet({ open, onClose, title, children }: {
   const progress = useRef(new Animated.Value(0)).current; // 0 = hidden, 1 = shown
   const dragY = useRef(new Animated.Value(0)).current;
   const reduced = useReducedMotion();
+  const insets = useSafeAreaInsets();
 
   useEffect(() => {
     if (open) {
@@ -66,7 +69,12 @@ export function MobileSheet({ open, onClose, title, children }: {
         pointerEvents="box-none"
       >
         <Animated.View
-          style={[styles.sheetContainer, { transform: [{ translateY: Animated.add(slideUp, dragY) }] }]}
+          style={[
+            styles.sheetContainer,
+            // Keep the sheet's last button above the Android navigation bar / iOS home indicator.
+            { paddingBottom: Math.max(insets.bottom, 12) + 16 },
+            { transform: [{ translateY: Animated.add(slideUp, dragY) }] },
+          ]}
         >
           {/* Grab area: drag handle + title row */}
           <View {...panResponder.panHandlers}>
@@ -254,7 +262,7 @@ export function LimitsSheet({ card, open, onClose, fire, onSaveLimits }: {
             </View>
             <Switch
               value={contactless}
-              onValueChange={setContactless}
+              onValueChange={v => { haptic.select(); setContactless(v); }}
               trackColor={{ false: THEME.colors.surface2, true: THEME.colors.accent }}
               thumbColor="#fff"
               accessibilityLabel="Contactless payments"
@@ -270,7 +278,7 @@ export function LimitsSheet({ card, open, onClose, fire, onSaveLimits }: {
             </View>
             <Switch
               value={foreign}
-              onValueChange={setForeign}
+              onValueChange={v => { haptic.select(); setForeign(v); }}
               trackColor={{ false: THEME.colors.surface2, true: THEME.colors.accent }}
               thumbColor="#fff"
               accessibilityLabel="Foreign transactions"
@@ -305,7 +313,6 @@ const styles = themedSheet(() => StyleSheet.create({
     borderTopLeftRadius: THEME.radius.xl,
     borderTopRightRadius: THEME.radius.xl,
     maxHeight: SCREEN_H * 0.88,
-    paddingBottom: 34, // Safe-area-like padding
   },
   dragHandleWrapper: {
     alignItems: 'center',

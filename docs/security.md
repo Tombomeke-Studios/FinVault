@@ -103,70 +103,64 @@ graph TD
 | **Mobile** | In memory (`useState`) | iOS Keychain / Android Keystore (`expo-secure-store`) | SecureStore |
 | **Web** | In memory (`useState`) | `localStorage` (`fv_refresh`) | `localStorage` (`fv_theme`) |
 
-### Mobile Biometrics
+### Mobile biometrics and saved accounts (#121)
 
 ```mermaid
 graph LR
-    LAUNCH["App Launch"] --> STORED{"Stored<br/>session?"}
-    STORED -->|No| AUTH["Auth Screen"]
-    STORED -->|Yes| BIO{"Biometrics<br/>enabled?"}
-    BIO -->|No| RESTORE["Silent refresh"]
-    BIO -->|Yes| PROMPT["Face ID /<br/>Fingerprint"]
-    PROMPT -->|Success| RESTORE
-    PROMPT -->|Fail| AUTH
-    RESTORE --> HOME["Home Screen"]
-
+    LINK["Signed in with password"] --> OFFER["Link fingerprint / Face ID?"]
+    OFFER -->|Scan to link| ENROLL["POST /auth/biometric/enroll"]
+    ENROLL --> STORE["Keystore write with requireAuthentication<br/>(Android: OS prompt here)"]
+    PICK["Sign-in screen: tap saved account"] --> PROMPT["OS biometric prompt"]
+    PROMPT -->|keystore releases secret| LOGIN["POST /auth/biometric/login"]
+    LOGIN --> HOME["Home"]
     style PROMPT fill:#34d399,color:#000
 ```
 
-- `expo-local-authentication` for Face ID / fingerprint
-- Opt-in preference stored in keystore
-- First-login prompt (#62) — dismissed state persisted so it only asks once
-- Settings toggle for enable/disable
+- **Per account, per phone.** `src/accounts.ts` keeps the saved-accounts list
+  (`finvault.accounts`: name, email, whether biometrics are linked; no secrets) and one
+  device credential per account (`finvault.bio.<email>`), stored with
+  `requireAuthentication`: the keystore key needs the OS biometric prompt for every
+  read (and, on Android, for the write, which is the "scan to link" moment).
+  Android invalidates the key when a new fingerprint is added; the app then unlinks the
+  account and asks for the password.
+- **Fallback:** where hardware binding is unavailable (Expo Go on iOS, devices
+  without strong biometrics) the secret is only keystore-encrypted and the app shows the
+  OS prompt itself before reading it. `hardwareBindingAvailable()` decides.
+- **Device PIN is not accepted** as a biometric (`disableDeviceFallback`).
+- **Launch:** a stored session for an account with biometrics linked is unlocked only
+  after the OS prompt; otherwise the app opens on the account list.
+- **Switching** signs out of the current account (refresh token revoked) and into the
+  other: with its biometrics when linked, otherwise the password form opens with its
+  email filled in. Signing out keeps the account (and its link) in the list; "Remove
+  from this phone" deletes the local credential. The server entry stays until the
+  password changes or the phone is unlinked in **Security Center → Biometric sign-in**,
+  which lists every linked phone (name, linked, last used) and marks this one (#124).
+- A password change unlinks every phone on the server, and the app clears its own
+  local credential to match.
+- Unlinking in Settings deletes the server device and the local credential; cancelling
+  the link scan withdraws the credential the server just issued.
 
----
+### Biometric device binding (server, #120)
 
-## Service-to-Service Trust
+Neither the server nor the app ever sees a fingerprint or a face: Android and iOS
+keep the biometric templates and only report "the enrolled owner passed". What can be
+bound is the **phone**:
 
-| Mechanism | Where Used |
-|---|---|
-| `X-Service-Secret` header | `/users/profile-by-email`, `/transactions/internal-transfer`, Event Hub |
-| Loud dev-fallback warnings | `shared/auth.ts` logs warnings when `JWT_SECRET` / `SERVICE_SECRET` use built-in values |
+1. Signed in with a password, the user enables biometrics. `POST /auth/biometric/enroll`
+   (access token) issues a random 256-bit device secret, once, and stores only its
+   SHA-256 in `BiometricDevice`.
+2. The app keeps `{deviceId, secret}` in the hardware keystore, unlockable only through
+   the OS biometric prompt.
+3. Signing in: biometric prompt → keystore releases the secret →
+   `POST /auth/biometric/login {deviceId, secret}` → a normal token pair.
 
----
-
-## Data Integrity
-
-```mermaid
-graph LR
-    TX["Transaction Created"] --> HASH["HMAC-SHA256<br/>sender + receiver +<br/>amount + ref + currency"]
-    HASH --> STORE["integrityHash<br/>stored on record"]
-    STORE --> VERIFY["Tamper detection<br/>on read"]
-
-    style HASH fill:#a78bfa,color:#fff
-```
-
-- Each transaction stores an HMAC integrity hash (`FINVAULT_MESSAGE_KEY`)
-- All auth events logged in `AuditLog` with IP and user agent
-- Transfers run inside Prisma `$transaction` blocks
-- SEPA IBANs are format-validated (structurally valid, not mod-97 checksummed for demo IBANs)
-
----
-
-## Transport & Headers
-
-- Every service runs `helmet()` (security headers)
-- Gateway CORS: open in local demo; set `CORS_ORIGINS` to enforce an allowlist
-- JSON bodies capped at 1 MB
-- WebSocket connections authenticate JWT before registration
-
----
-
-## Demo Mode
-
-When the backend is unreachable, the apps can fall back to a purely client-side demo session (`mock-token`) with fabricated data. Nothing in demo mode talks to a server, and the mock token is never accepted by any service.
-
-**Mobile:** demo mode is on only in dev bundles (`__DEV__`, i.e. Expo Go / `expo start`) or when `EXPO_PUBLIC_DEMO_MODE=1` is set (`src/config.ts`). Release builds (EAS preview/production) never fake a login, balance, transfer, deposit or payment request: a network failure shows "Can't reach the FinVault server (<url>)" instead, and a `mock-token` persisted by an older build is cleared on launch. Before this, an unreachable or misconfigured backend looked like a successful login with fake money.
+- Wrong secret and unknown device get the same 401 (no enumeration); 10 attempts per IP
+  per 15 min; frozen accounts are refused; every enrollment, sign-in and removal is audit-logged.
+- The device acts as the second factor, so TOTP is not asked again on biometric sign-in.
+- `GET /users/biometric-devices` lists enrolled phones (never the hash);
+  `DELETE /users/biometric-devices/:id` revokes one (own devices only).
+- Changing the password deletes every enrolled device; phones re-enroll after the next
+  password sign-in.
 
 ---
 
@@ -178,4 +172,4 @@ When the backend is unreachable, the apps can fall back to a purely client-side 
 | No TOTP 2FA | Account takeover with stolen password | Planned (#30); biometrics cover mobile |
 | Card PAN/CVV in plaintext | N/A for demo data | Never store real card data this way (PCI scope) |
 | Account freeze has no self-unfreeze | UX friction | By design — support-only unfreeze |
-| SecureStore not hardware-encrypted | Token accessible without biometric prompt | Needs dev build for `requireAuthentication` option |
+| Session refresh token not biometric-locked | The active session's refresh token is keystore-encrypted but readable without a prompt (the app-level prompt gates it on launch) | Biometric *sign-in* credentials are hardware-bound (#121); locking the session token too would prompt on every refresh |
