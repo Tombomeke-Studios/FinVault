@@ -408,3 +408,38 @@ export function useParallax(factor = 0.4) {
 
   return { onScroll, heroStyle, scrollY };
 }
+
+// ── RouteTransition — screen changes glide in (#125) ────────────────
+// Keyed on the route: the new screen fades in while sliding 28px from the
+// side it comes from (`direction`, see lib/routes.ts). useLayoutEffect resets
+// the value before the first paint, so the new screen never flashes at rest.
+export function RouteTransition({ routeKey, direction, children }: {
+  routeKey: string;
+  direction: 1 | -1 | 0;
+  children: React.ReactNode;
+}) {
+  const progress = useRef(new Animated.Value(1)).current;
+  const reduced = useReducedMotion();
+  const first = useRef(true);
+  const dir = useRef(direction);
+  dir.current = direction;
+
+  React.useLayoutEffect(() => {
+    if (first.current) { first.current = false; return; }
+    if (reduced || direction === 0) { progress.setValue(1); return; }
+    progress.setValue(0);
+    Animated.spring(progress, { toValue: 1, tension: 120, friction: 18, useNativeDriver: true }).start();
+  }, [routeKey]);
+
+  return (
+    <Animated.View
+      style={{
+        flex: 1,
+        opacity: progress.interpolate({ inputRange: [0, 1], outputRange: [0, 1] }),
+        transform: [{ translateX: progress.interpolate({ inputRange: [0, 1], outputRange: [28 * (dir.current || 1), 0] }) }],
+      }}
+    >
+      {children}
+    </Animated.View>
+  );
+}

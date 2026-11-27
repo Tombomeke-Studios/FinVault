@@ -221,12 +221,12 @@ the same emails offline → client-side mock demo mode (mobile: dev bundles only
 | `src/haptics.ts` | `haptic.tap/select/success/warning/error` (expo-haptics, #125); toasts trigger the outcome haptics, `PressableScale` the tap; see docs/design-system.md → Haptics |
 | `src/theme.ts` | Theme engine: mutable `THEME` tokens (hex), dark/light palettes × 6 accents, `setAppTheme`/`subscribeTheme`, `themedSheet` StyleSheet proxy, secure-store persistence. Tests: `theme.test.ts` |
 | `src/components/Icon.tsx` | Name → Feather glyph map + `MCI_MAPPING` (MaterialCommunityIcons fallback: `flame`, `faceId`). Unmapped → help-circle |
-| `src/components/Motion.tsx` | `PressableScale`, `FadeSlideIn`, `AnimatedProgressBar`, `CountUp`, `Shimmer`, `ScaleIn`, `SlideInFromRight`, `AnimatedCard` (glass + entrance + press), `BalanceDisplay` (CountUp + typography), `useParallax` (scroll-driven hero), `useReducedMotion` — use these, no ad-hoc Animated code |
+| `src/components/Motion.tsx` | `PressableScale`, `FadeSlideIn`, `AnimatedProgressBar`, `CountUp`, `Shimmer`, `ScaleIn`, `SlideInFromRight`, `AnimatedCard` (glass + entrance + press), `BalanceDisplay` (CountUp + typography), `useParallax` (scroll-driven hero), `RouteTransition` (direction-aware screen change, #125), `useReducedMotion` — use these, no ad-hoc Animated code |
 | `src/components/FVLogo.tsx` | SVG logo matching the web FVLogo — gradient brand mark + wordmark, theme-aware |
 | `src/components/Toast.tsx` | `useToasts()` + `<ToastHost/>`; `fire(title, body, type)` success/info/warn/error |
 | `src/components/MobileExtras.tsx` | `MobileSheet` (bottom sheet: spring, drag-dismiss, keyboard-aware), `MobileCardDetail` (reveal + clipboard copy), `LimitsSheet` |
 | `src/components/QrScanSheet.tsx` | Scan-to-pay sheet: expo-camera + permission flow, accepts EPC069-12 SEPA QR only |
-| `src/lib/` | `accounts.ts` (saved-accounts list logic, #121), `epc.ts` (EPC QR build/parse, incl. the RF creditor reference + `isValidRfReference`, #112), `validate.ts` (email/IBAN), `csv.ts` (export), `live.ts` (WebSocket hub URL, message → action, reconnect backoff, #107) — all unit-tested |
+| `src/lib/` | `accounts.ts` (saved-accounts list logic, #121), `routes.ts` (tab order + `routeDirection` for screen transitions, #125), `epc.ts` (EPC QR build/parse, incl. the RF creditor reference + `isValidRfReference`, #112), `validate.ts` (email/IBAN), `csv.ts` (export), `live.ts` (WebSocket hub URL, message → action, reconnect backoff, #107) — all unit-tested |
 | `src/components/BankCard.tsx` | Card visual; `CARD_SCHEMES` (metal/cyan/violet/gold/accent) |
 | `src/components/UI.tsx` | `money()` (nl-NL! use `{whole:true}`, never string-strip), `relTime`, `Ring`, `Donut`, `Sparkline`, `Bars`, `CategoryIcon`, `Delta`, `Avatar` |
 | `src/components/Shell.tsx` | Top bar (logo + avatar→settings) + bottom nav (5 tabs, Send is the filled centre tab; pads the safe-area bottom inset, #122) |

@@ -88,6 +88,8 @@ One rhythm everywhere — spring physics, enter slower than exit, reduced-motion
 | Entrance | `FadeSlideIn` (springs, 40–80ms stagger steps) | `.rise`/`.rise-d1…d6`, `.page-enter` |
 | Progress | `AnimatedProgressBar` (spring translateX) | CSS `transition: width .6s ease` |
 | Sheets/modals | `MobileSheet`: spring slide-up, fading scrim, drag-to-dismiss | `fvSheetUp` keyframes |
+| Screen change | `RouteTransition` in `Shell`: fade + 28px slide from the side you head to (`lib/routes.ts` `routeDirection`: tabs left/right by tab order, deeper pages from the right) | `.page-enter` |
+| Tab bar | One `accentSoft` pill springs between tabs; the newly active icon springs from 0.78 (`TabIcon`) | — |
 | Feedback | `Toast.tsx` — slide-down, auto-dismiss 3.5s | `Toast` in `UI.tsx` |
 | Reduced motion | `useReducedMotion()` (AccessibilityInfo) skips all of the above | `prefers-reduced-motion` kill-switch in `index.css` |
 
