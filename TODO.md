@@ -39,16 +39,42 @@ Workflow rules live in [CLAUDE.md](CLAUDE.md#workflow-rules); short version:
 - [x] TOTP 2FA — real working implementation: setup with QR/secret, verify, enable/disable, 2FA gate on login
 - [x] Push notifications — expo-notifications + expo-server-sdk: token registration, server-side sending on transfers
 - [ ] Scheduled payment executor — cron job that actually runs due payments
-- [ ] iOS build profile + App Store submission
+- [ ] App Store submission (the iOS build itself is in the Final Work MVP below)
 - [ ] Haptic feedback on mobile (expo-haptics) for transfers, button presses
+- [ ] iOS build profile + App Store submission
 - [ ] Parallax scroll effect on Overview hero card
 - [ ] Swipe-to-delete on transaction list items (swipeable row)
-- [ ] Skeleton loading screens (shimmer placeholders during data fetch)
 - [ ] Search functionality in web top bar (currently non-functional input)
 
 ## Active — `feature/scan-only-requests`
 
 - [x] Accept an external payment request that is paid only by scanning its QR (#117)
+## Backlog — Final Work (EhB, 2026–2027)
+
+The Final Work turns NexusInfra, FinVault and NexusWatch into one ecosystem. **The showcase in March is
+the deadline** — nothing is built after it — so the MVP group is what must work then, and the group
+below starts only once it does. For FinVault that means: observable by NexusWatch (no service has
+`/health` or `/metrics` today), reachable from the NexusInfra app, and on iOS as well as Android and web.
+iOS builds: Laila & Quinten.
+
+**MVP — observability (`feature/observability`)**
+- [ ] Add `/health` and Prometheus `/metrics` to every service (gateway, account, wallet, invoice) — follow NexusInfra's `shared/src/metrics.ts`
+- [ ] Publish service heartbeats on `monitoring.heartbeat.#` (shared `finvault.events` exchange) — NexusWatch already consumes those keys
+- [ ] Count payments and top-ups by outcome as metrics, so NexusWatch can show failed payments and top-ups per day
+
+**MVP — apps (`feature/final-work-apps`)**
+- [ ] iOS build of the mobile app from the same Expo codebase, tested on a real iPhone (Expo Go for development; installing a build needs an Apple developer account) — App Store submission stays out of scope
+- [ ] Deep link: a `finvault://` URL scheme that opens a payment request or the top-up screen — the NexusInfra app links into it
+- [ ] Check the web dashboard against the live backend for everything the MVP shows: balance, transfers, approving NexusInfra's payment requests, hosting statements
+
+**MVP — the chain**
+- [ ] Run a top-up end to end with NexusInfra's `docker-compose.finvault.yml` (NexusInfra #428): payment request in the app, approval, credit in NexusInfra
+
+**Only once the MVP is done (still before March)**
+- [ ] Correlation id on the event envelope (optional, additive) — mirrors NexusInfra's half; ship together
+- [ ] Auto top-up for NexusInfra: the customer authorises NexusInfra with a mandate and a monthly cap; a `payment.request` within the cap is paid without a manual approval, anything above still asks
+- [ ] A "Hosting" category: NexusInfra payments and monthly statements count as hosting in insights and budgets, so a budget can cap hosting spend
+- [ ] Merchant view on the web dashboard for the NexusInfra merchant account: incoming top-ups, statements filed, failed requests
 
 ## Active — `fix/receipt-pdf`
 

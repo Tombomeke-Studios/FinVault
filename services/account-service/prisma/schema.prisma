@@ -14,7 +14,8 @@ model User {
   passwordHash String
   accountType  String        @default("personal") // personal, business
   status       String        @default("active")   // active, frozen
-  plan         String        @default("Metal")    // Standard, Metal, Metal+
+  plan         String        @default("Standard") // Standard, Metal, Metal+ (prices: src/billing.ts)
+  planRenewsAt DateTime?                          // next monthly charge; null = not billed (Standard, or legacy free plan)
   totpSecret   String?
   totpEnabled  Boolean       @default(false)
   pushToken    String?
@@ -23,6 +24,19 @@ model User {
   profile      UserProfile?
   refreshTokens RefreshToken[]
   auditLogs    AuditLog[]
+  biometricDevices BiometricDevice[]
+}
+
+// A phone enrolled for biometric sign-in (#120). The phone keeps `secret` in its
+// hardware keystore behind the OS fingerprint/face prompt; we only store its hash.
+model BiometricDevice {
+  id         String    @id @default(uuid())
+  userId     String
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name       String
+  secretHash String
+  createdAt  DateTime  @default(now())
+  lastUsedAt DateTime?
 }
 
 model UserProfile {

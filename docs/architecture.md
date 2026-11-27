@@ -127,6 +127,7 @@ erDiagram
     User ||--o| UserProfile : has
     User ||--o{ RefreshToken : owns
     User ||--o{ AuditLog : generates
+    User ||--o{ BiometricDevice : enrolls
 
     User {
         string id PK
@@ -135,6 +136,7 @@ erDiagram
         string accountType
         string status
         string plan
+        datetime planRenewsAt
     }
     UserProfile {
         string userId PK
@@ -228,12 +230,17 @@ erDiagram
 | `/auth/refresh` | POST | Token rotation; replay revokes all sessions |
 | `/auth/logout` | POST | Refresh token revocation |
 | `/users/profile` | GET | Authenticated user profile |
-| `/users/plan` | PUT | Plan upgrade (Standard/Metal/Metal+) |
+| `/users/plans` | GET | Plan price list (public; prices live in `src/billing.ts`) |
+| `/users/plan` | PUT | Change plan: charges via wallet `internal-fee`, 402 when declined (#119) |
 | `/users/change-password` | POST | Password change + session revocation |
 | `/users/sessions` | GET | List active refresh tokens |
 | `/users/sessions/:id` | DELETE | Revoke a specific session |
 | `/users/audit-logs` | GET | Security activity log |
 | `/users/profile-by-email` | GET | Internal (X-Service-Secret) |
+| `/auth/biometric/enroll` | POST | Bind this phone for biometric sign-in; returns a device secret once (#120) |
+| `/auth/biometric/login` | POST | `{deviceId, secret}` → token pair; rate-limited |
+| `/users/biometric-devices` | GET | Enrolled phones |
+| `/users/biometric-devices/:id` | DELETE | Revoke one phone |
 
 ### Wallet Service `:8002`
 
@@ -259,6 +266,30 @@ erDiagram
 | `/fx/rates` | GET | Exchange rate table |
 | `/fx/exchange` | POST | Currency exchange |
 | `/beneficiaries` | CRUD | Saved payees |
+| `/transactions/internal-fee` | POST | Internal (X-Service-Secret): debit a subscription fee, idempotent on `reference`; 402 on insufficient funds |
+
+### Subscription billing (#119)
+
+Prices are server-side (`services/account-service/src/billing.ts`: Standard €0, Metal
+€9.99, Metal+ €16.99 a month); the client only sends a plan name.
+
+| Change | Charged now | Renewal date |
+|---|---|---|
+| Standard → paid plan (or a legacy free plan with no `planRenewsAt`) | full month | today + 1 month |
+| Paid → dearer paid, inside the period | the price difference | unchanged |
+| Paid → cheaper paid, inside the period | nothing (no refund) | unchanged; next renewal bills the new price |
+| Any → Standard | nothing | cleared, so no more charges |
+
+The charge goes account-service → wallet-service `POST /transactions/internal-fee`
+(X-Service-Secret), which debits the EUR checking wallet as a `payment` with no
+receiver wallet and leaves a notification. The ledger's unique `reference`
+(`chargeReference()`) makes every charge idempotent.
+
+`runRenewals()` runs hourly from `index.ts`. Every user whose `planRenewsAt` has
+passed is billed; a declined charge (no funds, no account) moves them to Standard,
+while an unreachable wallet service (503) leaves the subscription for the next run.
+New users start on Standard. Users who were on Metal before billing existed
+(`planRenewsAt` null) are never billed until they change plan.
 
 ### Invoice Service `:8003`
 

@@ -395,7 +395,7 @@ export function ScreenSavings({ data, fire, goals, setGoals, wallets, setWallets
           <Text style={styles.label}>Icon</Text>
           <View style={styles.quickChips}>
             {['plane', 'shield', 'laptop', 'car', 'heart', 'gift', 'globe', 'flame'].map(ic => (
-              <TouchableOpacity key={ic} style={[styles.iconChip, editIcon === ic && styles.iconChipActive]} onPress={() => setEditIcon(ic)}>
+              <TouchableOpacity key={ic} style={[styles.iconChip, editIcon === ic && styles.iconChipActive]} onPress={() => setEditIcon(ic)} accessibilityRole="radio" accessibilityLabel={`Icon ${ic}`} accessibilityState={{ selected: editIcon === ic }}>
                 <Icon name={ic} size={16} color={editIcon === ic ? THEME.colors.accent : THEME.colors.text2} />
               </TouchableOpacity>
             ))}
@@ -403,7 +403,7 @@ export function ScreenSavings({ data, fire, goals, setGoals, wallets, setWallets
           <Text style={styles.label}>Color</Text>
           <View style={{ flexDirection: 'row', gap: 10 }}>
             {[12, 158, 195, 230, 265, 300, 320].map(h => (
-              <TouchableOpacity key={h} onPress={() => setEditHue(h)} style={{ width: 28, height: 28, borderRadius: 14, backgroundColor: `hsl(${h}, 70%, 55%)`, borderWidth: editHue === h ? 3 : 2, borderColor: editHue === h ? THEME.colors.text : 'transparent' }} />
+              <TouchableOpacity key={h} onPress={() => setEditHue(h)} accessibilityRole="radio" accessibilityLabel={`Colour ${h}`} accessibilityState={{ selected: editHue === h }} style={{ width: 28, height: 28, borderRadius: 14, backgroundColor: `hsl(${h}, 70%, 55%)`, borderWidth: editHue === h ? 3 : 2, borderColor: editHue === h ? THEME.colors.text : 'transparent' }} />
             ))}
           </View>
           <TouchableOpacity style={[styles.submitBtn, (!editName || !parseFloat(editTarget)) && { opacity: 0.5 }]} onPress={handleEditGoal} disabled={!editName || !parseFloat(editTarget)}>
@@ -443,6 +443,9 @@ export function ScreenSavings({ data, fire, goals, setGoals, wallets, setWallets
                 key={ic}
                 style={[styles.iconChip, newIcon === ic && styles.iconChipActive]}
                 onPress={() => setNewIcon(ic)}
+                accessibilityRole="radio"
+                accessibilityLabel={`Icon ${ic}`}
+                accessibilityState={{ selected: newIcon === ic }}
               >
                 <Icon name={ic} size={16} color={newIcon === ic ? THEME.colors.accent : THEME.colors.text2} />
               </TouchableOpacity>
@@ -460,6 +463,9 @@ export function ScreenSavings({ data, fire, goals, setGoals, wallets, setWallets
                   newHue === h && styles.colorSwatchActive,
                 ]}
                 onPress={() => setNewHue(h)}
+                accessibilityRole="radio"
+                accessibilityLabel={`Colour ${h}`}
+                accessibilityState={{ selected: newHue === h }}
               />
             ))}
           </View>
