@@ -6,6 +6,7 @@ import QRCode from 'react-native-qrcode-svg';
 import { classifyRecipient, isEmail, normalizeIban } from '../lib/validate';
 import { buildEpcQr, type EpcPayment } from '../lib/epc';
 import { QrScanSheet } from '../components/QrScanSheet';
+import { SuccessOverlay } from '../components/SuccessOverlay';
 import { THEME, themedSheet } from '../theme';
 import type { AppData, Beneficiary } from '../../App';
 
@@ -91,6 +92,8 @@ export function ScreenTransfer({ data, beneficiaries, onTransfer, onRequest, loo
   };
 
   const activeWallet = data.wallets.find(w => w.id === selWallet) || data.wallets[0];
+  // The payoff screen after money actually left the account (#125).
+  const [sent, setSent] = useState<{ amount: number; currency: string; to: string } | null>(null);
 
   // Inline validation instead of blocking Alerts (#9) — Alerts stay reserved
   // for destructive confirmations.
@@ -123,6 +126,7 @@ export function ScreenTransfer({ data, beneficiaries, onTransfer, onRequest, loo
         const description = desc || (recipientName.trim() ? `To ${recipientName.trim()}` : 'Transfer');
         const ok = await onTransfer(target, val, description, selWallet);
         if (!ok) return; // keep the form so the user can correct and retry (#11)
+        setSent({ amount: val, currency: activeWallet?.currency || 'EUR', to: recipientName.trim() || target.email || target.iban || '' });
       } else {
         await onRequest(recipient, val, desc || 'Request');
       }
@@ -348,6 +352,14 @@ export function ScreenTransfer({ data, beneficiaries, onTransfer, onRequest, loo
         open={scanOpen}
         onClose={() => setScanOpen(false)}
         onScanned={p => { void onScanned(p); }}
+      />
+      <SuccessOverlay
+        open={!!sent}
+        title="Money sent"
+        amount={sent?.amount ?? 0}
+        currency={sent?.currency}
+        detail={sent?.to ? `to ${sent.to}` : undefined}
+        onDone={() => setSent(null)}
       />
     </ScrollView>
   );
