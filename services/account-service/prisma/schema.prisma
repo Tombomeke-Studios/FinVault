@@ -14,7 +14,8 @@ model User {
   passwordHash String
   accountType  String        @default("personal") // personal, business
   status       String        @default("active")   // active, frozen
-  plan         String        @default("Metal")    // Standard, Metal, Metal+
+  plan         String        @default("Standard") // Standard, Metal, Metal+ (prices: src/billing.ts)
+  planRenewsAt DateTime?                          // next monthly charge; null = not billed (Standard, or legacy free plan)
   totpSecret   String?
   totpEnabled  Boolean       @default(false)
   pushToken    String?

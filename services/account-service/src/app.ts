@@ -8,7 +8,8 @@ import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { TOTP, generateSecret, generateURI } from 'otplib';
 import QRCode from 'qrcode';
-import { publishEvent, validateBody, LoginSchema, RegisterSchema, requireServiceSecret } from 'shared';
+import { publishEvent, validateBody, LoginSchema, RegisterSchema, requireServiceSecret, getServiceSecret } from 'shared';
+import { PLAN_PRICES, addOneMonth, chargeReference, isPlanName, planChange, planPrice } from './billing.js';
 
 export const prisma = new PrismaClient();
 const totp = new TOTP();
@@ -384,48 +385,123 @@ app.get('/users/profile', authenticateToken, async (req, res) => {
       return res.status(404).json({ error: 'User not found' });
     }
 
-    res.status(200).json({
-      id: user.id,
-      email: user.email,
-      accountType: user.accountType,
-      status: user.status,
-      plan: user.plan,
-      profile: user.profile,
-      createdAt: user.createdAt
-    });
+    res.status(200).json(profileJson(user));
   } catch (error: any) {
     res.status(500).json({ error: 'Failed to retrieve profile', message: error.message });
   }
 });
 
+// =============================================
+// Subscription billing (#119)
+// =============================================
+const WALLET_SERVICE_URL = process.env.WALLET_SERVICE_URL || 'http://localhost:8002';
+
+export type FeeResult = { ok: true } | { ok: false; status: number; error: string };
+
+/** Debits a subscription fee via wallet-service. Replaceable in tests. */
+export const billingDeps = {
+  async chargeFee(userId: string, amount: number, description: string, reference: string): Promise<FeeResult> {
+    try {
+      const r = await fetch(`${WALLET_SERVICE_URL}/transactions/internal-fee`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-Service-Secret': getServiceSecret() },
+        body: JSON.stringify({ userId, amount, description, reference }),
+      });
+      if (r.ok) return { ok: true };
+      const body: any = await r.json().catch(() => ({}));
+      return { ok: false, status: r.status, error: body.error || 'The charge was declined' };
+    } catch {
+      return { ok: false, status: 503, error: 'Billing is temporarily unavailable. Try again in a moment.' };
+    }
+  },
+};
+
+function profileJson(user: any) {
+  return {
+    id: user.id,
+    email: user.email,
+    accountType: user.accountType,
+    status: user.status,
+    plan: user.plan,
+    planPrice: planPrice(user.plan),
+    planRenewsAt: user.planRenewsAt,
+    profile: user.profile,
+    createdAt: user.createdAt,
+  };
+}
+
+app.get('/users/plans', (_req, res) => {
+  res.json(Object.entries(PLAN_PRICES).map(([name, price]) => ({ name, price, currency: 'EUR', interval: 'month' })));
+});
+
 app.put('/users/plan', authenticateToken, async (req, res) => {
   const tokenUser = (req as any).user;
-  const { plan } = req.body;
+  const { plan } = req.body || {};
 
-  if (!plan || !['Standard', 'Metal', 'Metal+'].includes(plan)) {
+  if (!isPlanName(plan)) {
     return res.status(400).json({ error: 'Invalid plan selected' });
   }
 
   try {
-    const user = await prisma.user.update({
-      where: { id: tokenUser.userId },
-      data: { plan },
-      include: { profile: true }
-    });
+    const user = await prisma.user.findUnique({ where: { id: tokenUser.userId }, include: { profile: true } });
+    if (!user) return res.status(404).json({ error: 'User not found' });
+    if (user.plan === plan) return res.status(200).json({ ...profileJson(user), charged: 0 });
 
-    res.status(200).json({
-      id: user.id,
-      email: user.email,
-      accountType: user.accountType,
-      status: user.status,
-      plan: user.plan,
-      profile: user.profile,
-      createdAt: user.createdAt
+    const now = new Date();
+    const change = planChange(user.plan, plan, user.planRenewsAt, now);
+
+    if (change.charge > 0) {
+      const kind = change.renewsAt === user.planRenewsAt ? 'upgrade' : 'start';
+      const description = kind === 'upgrade'
+        ? `FinVault ${plan} upgrade (rest of this period)`
+        : `FinVault ${plan} subscription`;
+      const result = await billingDeps.chargeFee(user.id, change.charge, description, chargeReference(user.id, kind, plan, now));
+      if (!result.ok) {
+        await logAudit(user.id, `Plan change to ${plan} declined: ${result.error}`, req);
+        return res.status(result.status === 503 ? 503 : 402).json({ error: result.error, amount: change.charge });
+      }
+    }
+
+    const updated = await prisma.user.update({
+      where: { id: user.id },
+      data: { plan, planRenewsAt: change.renewsAt },
+      include: { profile: true },
     });
+    await logAudit(user.id, `Plan changed ${user.plan} → ${plan}${change.charge > 0 ? ` (charged €${change.charge.toFixed(2)})` : ''}`, req);
+
+    res.status(200).json({ ...profileJson(updated), charged: change.charge });
   } catch (error: any) {
     res.status(500).json({ error: 'Failed to update plan', message: error.message });
   }
 });
+
+/**
+ * Bills every subscription whose period ended. A declined charge (no funds, no
+ * account) moves the customer to Standard; an unreachable wallet service leaves
+ * the subscription alone so the next run retries. Started from index.ts.
+ */
+export async function runRenewals(now = new Date()): Promise<{ renewed: number; downgraded: number }> {
+  const due = await prisma.user.findMany({ where: { planRenewsAt: { lte: now }, plan: { not: 'Standard' } } });
+  let renewed = 0, downgraded = 0;
+  for (const user of due) {
+    if (!isPlanName(user.plan) || !user.planRenewsAt) continue;
+    const price = planPrice(user.plan);
+    const result = await billingDeps.chargeFee(user.id, price, `FinVault ${user.plan} subscription`,
+      chargeReference(user.id, 'renewal', user.plan, user.planRenewsAt));
+    if (result.ok) {
+      let next = addOneMonth(user.planRenewsAt);
+      if (next.getTime() <= now.getTime()) next = addOneMonth(now); // service was down for over a month
+      await prisma.user.update({ where: { id: user.id }, data: { planRenewsAt: next } });
+      await prisma.auditLog.create({ data: { userId: user.id, action: `Subscription renewed: ${user.plan} (€${price.toFixed(2)})`, ipAddress: 'system', userAgent: 'billing' } });
+      renewed++;
+    } else if (result.status !== 503) {
+      await prisma.user.update({ where: { id: user.id }, data: { plan: 'Standard', planRenewsAt: null } });
+      await prisma.auditLog.create({ data: { userId: user.id, action: `Subscription ended, moved to Standard: ${result.error}`, ipAddress: 'system', userAgent: 'billing' } });
+      downgraded++;
+    }
+  }
+  return { renewed, downgraded };
+}
 
 app.get('/users/profile-by-email', requireServiceSecret, async (req, res) => {
   const email = req.query.email as string;

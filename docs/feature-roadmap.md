@@ -35,6 +35,7 @@ pie title Feature Completion (v2.0.0)
 | 14 | Notification center with persistence | ✅ Shipped | #68 |
 | 15 | Security center (password, sessions) | ✅ Shipped | #68 |
 | 16 | Dispute flow (report transactions) | ✅ Shipped | #68 |
+| 21 | Paid plans billed monthly from the checking account | ✅ Shipped | #119 |
 
 ### Planned
 

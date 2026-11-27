@@ -130,7 +130,7 @@ graph LR
 
 | Mechanism | Where Used |
 |---|---|
-| `X-Service-Secret` header | `/users/profile-by-email`, `/transactions/internal-transfer`, Event Hub |
+| `X-Service-Secret` header | `/users/profile-by-email`, `/transactions/internal-transfer`, `/transactions/internal-fee`, Event Hub |
 | Loud dev-fallback warnings | `shared/auth.ts` logs warnings when `JWT_SECRET` / `SERVICE_SECRET` use built-in values |
 
 ---
