@@ -47,12 +47,14 @@ app.use(express.json());
 // =============================================
 const loginAttempts = new Map<string, { count: number; resetAt: number }>();
 const registerAttempts = new Map<string, { count: number; resetAt: number }>();
+const biometricAttempts = new Map<string, { count: number; resetAt: number }>();
 const failedLoginAttemptsByEmail = new Map<string, number>();
 
 setInterval(() => {
   const now = Date.now();
   for (const [k, v] of loginAttempts) if (now > v.resetAt) loginAttempts.delete(k);
   for (const [k, v] of registerAttempts) if (now > v.resetAt) registerAttempts.delete(k);
+  for (const [k, v] of biometricAttempts) if (now > v.resetAt) biometricAttempts.delete(k);
   prisma.refreshToken.deleteMany({ where: { expiresAt: { lt: new Date() } } })
     .catch(err => console.error('Refresh-token cleanup failed:', err));
 }, 15 * 60 * 1000).unref();
@@ -302,6 +304,101 @@ app.post('/auth/verify-2fa', async (req, res) => {
   } catch (error: any) {
     res.status(500).json({ error: '2FA verification failed', message: error.message });
   }
+});
+
+// =============================================
+// Biometric sign-in (#120)
+// =============================================
+// No server (or app) ever sees a fingerprint or a face: Android and iOS keep the
+// biometric templates and only tell the app "the enrolled owner passed". So the
+// account is bound to the *phone*: enrolling (while signed in) issues a random
+// device secret, the app stores it in the hardware keystore behind the OS
+// biometric prompt, and signing in presents it. We keep only its SHA-256.
+const MAX_BIOMETRIC_DEVICES = 10;
+
+function sameHash(a: string, b: string): boolean {
+  const x = Buffer.from(a, 'hex'), y = Buffer.from(b, 'hex');
+  return x.length === y.length && crypto.timingSafeEqual(x, y);
+}
+
+app.post('/auth/biometric/enroll', authenticateToken, async (req, res) => {
+  const tokenUser = (req as any).user;
+  const name = typeof req.body?.name === 'string' && req.body.name.trim() ? req.body.name.trim().slice(0, 60) : 'Phone';
+  try {
+    const count = await prisma.biometricDevice.count({ where: { userId: tokenUser.userId } });
+    if (count >= MAX_BIOMETRIC_DEVICES) {
+      return res.status(409).json({ error: `At most ${MAX_BIOMETRIC_DEVICES} devices can use biometric sign-in. Remove one first.` });
+    }
+    const secret = crypto.randomBytes(32).toString('base64url');
+    const device = await prisma.biometricDevice.create({
+      data: { userId: tokenUser.userId, name, secretHash: hashToken(secret) },
+    });
+    await logAudit(tokenUser.userId, `Biometric sign-in enabled on ${name}`, req);
+    // The secret is returned exactly once.
+    res.status(201).json({ deviceId: device.id, secret });
+  } catch (error: any) {
+    res.status(500).json({ error: 'Could not enable biometric sign-in' });
+  }
+});
+
+app.post('/auth/biometric/login', async (req, res) => {
+  const ip = req.ip || '127.0.0.1';
+  const limit = checkRateLimit(ip, biometricAttempts, 10, 15 * 60 * 1000);
+  if (!limit.allowed) {
+    return res.status(429).json({ error: 'Too many sign-in attempts. Please try again in 15 minutes.', resetAt: limit.resetAt });
+  }
+
+  const { deviceId, secret } = req.body || {};
+  if (typeof deviceId !== 'string' || typeof secret !== 'string' || !deviceId || !secret) {
+    return res.status(400).json({ error: 'deviceId and secret are required' });
+  }
+
+  try {
+    const device = await prisma.biometricDevice.findUnique({ where: { id: deviceId } });
+    // Same answer for "no such device" and "wrong secret".
+    if (!device || !sameHash(device.secretHash, hashToken(secret))) {
+      await logAudit(device?.userId ?? null, 'Failed biometric sign-in (unknown device or bad credential)', req);
+      return res.status(401).json({ error: 'Biometric sign-in is no longer set up for this account. Sign in with your password.' });
+    }
+
+    const user = await prisma.user.findUnique({ where: { id: device.userId }, include: { profile: true } });
+    if (!user) return res.status(401).json({ error: 'Biometric sign-in is no longer set up for this account. Sign in with your password.' });
+    if (user.status === 'frozen') {
+      await logAudit(user.id, 'Blocked biometric sign-in on frozen account', req);
+      return res.status(403).json({ error: 'Account has been frozen' });
+    }
+
+    await prisma.biometricDevice.update({ where: { id: device.id }, data: { lastUsedAt: new Date() } });
+    const { accessToken, refreshToken } = await issueTokenPair(user);
+    await logAudit(user.id, `Biometric sign-in on ${device.name}`, req);
+
+    res.status(200).json({
+      accessToken,
+      refreshToken,
+      user: { id: user.id, email: user.email, accountType: user.accountType, profile: user.profile || undefined },
+    });
+  } catch (error: any) {
+    console.error('Biometric login error:', error);
+    res.status(500).json({ error: 'Biometric sign-in failed' });
+  }
+});
+
+app.get('/users/biometric-devices', authenticateToken, async (req, res) => {
+  const tokenUser = (req as any).user;
+  const devices = await prisma.biometricDevice.findMany({
+    where: { userId: tokenUser.userId },
+    select: { id: true, name: true, createdAt: true, lastUsedAt: true },
+    orderBy: { createdAt: 'desc' },
+  });
+  res.json(devices);
+});
+
+app.delete('/users/biometric-devices/:id', authenticateToken, async (req, res) => {
+  const tokenUser = (req as any).user;
+  const result = await prisma.biometricDevice.deleteMany({ where: { id: req.params.id, userId: tokenUser.userId } });
+  if (result.count === 0) return res.status(404).json({ error: 'Device not found' });
+  await logAudit(tokenUser.userId, 'Biometric sign-in removed from a device', req);
+  res.status(204).end();
 });
 
 app.post('/auth/refresh', async (req, res) => {
@@ -572,7 +669,11 @@ app.post('/users/change-password', authenticateToken, async (req, res) => {
       data: { revoked: true }
     });
 
-    await logAudit(user.id, 'Password changed — all sessions revoked', req);
+    // Enrolled phones are bound to the old credentials too: they re-enroll after
+    // the next password sign-in (#120).
+    await prisma.biometricDevice.deleteMany({ where: { userId: user.id } });
+
+    await logAudit(user.id, 'Password changed — all sessions and biometric devices revoked', req);
 
     const pair = await issueTokenPair(user);
     res.status(200).json({ message: 'Password changed successfully', ...pair });

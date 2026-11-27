@@ -24,6 +24,19 @@ model User {
   profile      UserProfile?
   refreshTokens RefreshToken[]
   auditLogs    AuditLog[]
+  biometricDevices BiometricDevice[]
+}
+
+// A phone enrolled for biometric sign-in (#120). The phone keeps `secret` in its
+// hardware keystore behind the OS fingerprint/face prompt; we only store its hash.
+model BiometricDevice {
+  id         String    @id @default(uuid())
+  userId     String
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name       String
+  secretHash String
+  createdAt  DateTime  @default(now())
+  lastUsedAt DateTime?
 }
 
 model UserProfile {

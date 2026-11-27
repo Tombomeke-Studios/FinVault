@@ -168,6 +168,28 @@ When the backend is unreachable, the apps can fall back to a purely client-side 
 
 **Mobile:** demo mode is on only in dev bundles (`__DEV__`, i.e. Expo Go / `expo start`) or when `EXPO_PUBLIC_DEMO_MODE=1` is set (`src/config.ts`). Release builds (EAS preview/production) never fake a login, balance, transfer, deposit or payment request: a network failure shows "Can't reach the FinVault server (<url>)" instead, and a `mock-token` persisted by an older build is cleared on launch. Before this, an unreachable or misconfigured backend looked like a successful login with fake money.
 
+### Biometric device binding (server, #120)
+
+Neither the server nor the app ever sees a fingerprint or a face: Android and iOS
+keep the biometric templates and only report "the enrolled owner passed". What can be
+bound is the **phone**:
+
+1. Signed in with a password, the user enables biometrics. `POST /auth/biometric/enroll`
+   (access token) issues a random 256-bit device secret, once, and stores only its
+   SHA-256 in `BiometricDevice`.
+2. The app keeps `{deviceId, secret}` in the hardware keystore, unlockable only through
+   the OS biometric prompt.
+3. Signing in: biometric prompt → keystore releases the secret →
+   `POST /auth/biometric/login {deviceId, secret}` → a normal token pair.
+
+- Wrong secret and unknown device get the same 401 (no enumeration); 10 attempts per IP
+  per 15 min; frozen accounts are refused; every enrollment, sign-in and removal is audit-logged.
+- The device acts as the second factor, so TOTP is not asked again on biometric sign-in.
+- `GET /users/biometric-devices` lists enrolled phones (never the hash);
+  `DELETE /users/biometric-devices/:id` revokes one (own devices only).
+- Changing the password deletes every enrolled device; phones re-enroll after the next
+  password sign-in.
+
 ---
 
 ## Known Gaps

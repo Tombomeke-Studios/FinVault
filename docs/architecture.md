@@ -127,6 +127,7 @@ erDiagram
     User ||--o| UserProfile : has
     User ||--o{ RefreshToken : owns
     User ||--o{ AuditLog : generates
+    User ||--o{ BiometricDevice : enrolls
 
     User {
         string id PK
@@ -236,6 +237,10 @@ erDiagram
 | `/users/sessions/:id` | DELETE | Revoke a specific session |
 | `/users/audit-logs` | GET | Security activity log |
 | `/users/profile-by-email` | GET | Internal (X-Service-Secret) |
+| `/auth/biometric/enroll` | POST | Bind this phone for biometric sign-in; returns a device secret once (#120) |
+| `/auth/biometric/login` | POST | `{deviceId, secret}` → token pair; rate-limited |
+| `/users/biometric-devices` | GET | Enrolled phones |
+| `/users/biometric-devices/:id` | DELETE | Revoke one phone |
 
 ### Wallet Service `:8002`
 

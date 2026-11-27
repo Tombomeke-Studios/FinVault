@@ -272,3 +272,89 @@ describe('subscription billing', () => {
     expect(after?.planRenewsAt?.getTime()).toBe(past.getTime());
   });
 });
+
+// ── Biometric sign-in (#120) ────────────────────────────────────────────────
+async function enroll(token: string, name = 'Pixel 9') {
+  const res = await fetch(`${baseUrl}/auth/biometric/enroll`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    body: JSON.stringify({ name }),
+  });
+  return { status: res.status, body: await res.json() };
+}
+
+function bioLogin(deviceId: string, secret: string) {
+  return fetch(`${baseUrl}/auth/biometric/login`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ deviceId, secret }),
+  });
+}
+
+describe('biometric sign-in', () => {
+  it('enrolls a device and signs in to that account with its secret', async () => {
+    const { user, token } = await billingUser();
+    const { status, body } = await enroll(token);
+    expect(status).toBe(201);
+    expect(body.secret.length).toBeGreaterThanOrEqual(40);
+
+    const stored = await prisma.biometricDevice.findUnique({ where: { id: body.deviceId } });
+    expect(stored?.secretHash).not.toBe(body.secret); // only the hash is kept
+
+    const res = await bioLogin(body.deviceId, body.secret);
+    expect(res.status).toBe(200);
+    const session = await res.json();
+    expect(session.user.id).toBe(user.id);
+    expect(session.refreshToken).toBeTruthy();
+    const decoded = jwt.verify(session.accessToken, JWT_SECRET) as any;
+    expect(decoded.userId).toBe(user.id);
+  });
+
+  it('rejects a wrong secret and an unknown device the same way', async () => {
+    const { token } = await billingUser();
+    const { body } = await enroll(token);
+    const wrong = await bioLogin(body.deviceId, 'not-the-secret');
+    const unknown = await bioLogin('00000000-0000-0000-0000-000000000000', body.secret);
+    expect(wrong.status).toBe(401);
+    expect(unknown.status).toBe(401);
+    expect((await wrong.json()).error).toBe((await unknown.json()).error);
+  });
+
+  it('refuses frozen accounts', async () => {
+    const { user, token } = await billingUser();
+    const { body } = await enroll(token);
+    await prisma.user.update({ where: { id: user.id }, data: { status: 'frozen' } });
+    expect((await bioLogin(body.deviceId, body.secret)).status).toBe(403);
+  });
+
+  it('lists and revokes only the caller\'s own devices', async () => {
+    const a = await billingUser();
+    const b = await billingUser();
+    const { body: dev } = await enroll(a.token, 'Galaxy S25');
+
+    const list = await (await fetch(`${baseUrl}/users/biometric-devices`, { headers: { Authorization: `Bearer ${a.token}` } })).json();
+    expect(list.map((d: any) => d.name)).toEqual(['Galaxy S25']);
+    expect(list[0].secretHash).toBeUndefined();
+
+    const foreign = await fetch(`${baseUrl}/users/biometric-devices/${dev.deviceId}`, { method: 'DELETE', headers: { Authorization: `Bearer ${b.token}` } });
+    expect(foreign.status).toBe(404);
+
+    const own = await fetch(`${baseUrl}/users/biometric-devices/${dev.deviceId}`, { method: 'DELETE', headers: { Authorization: `Bearer ${a.token}` } });
+    expect(own.status).toBe(204);
+    expect((await bioLogin(dev.deviceId, dev.secret)).status).toBe(401);
+  });
+
+  it('revokes every enrolled device when the password changes', async () => {
+    const bcrypt = (await import('bcryptjs')).default;
+    const { user, token } = await billingUser({ passwordHash: await bcrypt.hash('OldPass123!', 4) });
+    const { body } = await enroll(token);
+    const res = await fetch(`${baseUrl}/users/change-password`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ currentPassword: 'OldPass123!', newPassword: 'NewPass123!' }),
+    });
+    expect(res.status).toBe(200);
+    expect(await prisma.biometricDevice.count({ where: { userId: user.id } })).toBe(0);
+    expect((await bioLogin(body.deviceId, body.secret)).status).toBe(401);
+  });
+});
