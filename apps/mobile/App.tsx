@@ -245,16 +245,51 @@ function buildMockData(firstName: string, lastName: string, email: string, walle
 }
 
 // ---- Plan upgrade bottom sheet ----
+// Display copy only: the server owns the prices and decides what is charged
+// (services/account-service/src/billing.ts, #119).
 const PLANS = [
   { name: 'Standard', price: '€0',     tag: 'Free',       feats: ['1 card', '€200/mo free ATM', 'P2P transfers'] },
   { name: 'Metal',    price: '€9.99',  tag: 'Popular',    feats: ['3 cards', '€2,000/mo free ATM', 'Priority support'] },
   { name: 'Metal+',   price: '€16.99', tag: 'Best value', feats: ['Unlimited cards', 'Unlimited ATM', 'Travel insurance', '3% savings APY'] },
 ];
 
-function UpgradePlanSheet({ open, onClose, currentPlan, onUpgrade }: { open: boolean; onClose: () => void; currentPlan: string; onUpgrade: (p: string) => void }) {
-  const [sel, setSel] = React.useState(currentPlan);
+const shortDate = (iso: string) => new Date(iso).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
 
-  React.useEffect(() => { if (open) setSel(currentPlan); }, [open, currentPlan]);
+function UpgradePlanSheet({ open, onClose, currentPlan, renewsAt, onUpgrade }: {
+  open: boolean;
+  onClose: () => void;
+  currentPlan: string;
+  renewsAt?: string | null;
+  onUpgrade: (p: string) => Promise<boolean>;
+}) {
+  const [sel, setSel] = React.useState(currentPlan);
+  const [busy, setBusy] = React.useState(false);
+
+  React.useEffect(() => { if (open) { setSel(currentPlan); setBusy(false); } }, [open, currentPlan]);
+
+  const selPlan = PLANS.find(p => p.name === sel);
+  const curPlan = PLANS.find(p => p.name === currentPlan);
+  const isPaid = (n: string) => n !== 'Standard';
+  let note = '';
+  if (sel === currentPlan) {
+    note = isPaid(currentPlan) && renewsAt
+      ? `Renews on ${shortDate(renewsAt)} for ${curPlan?.price}, charged to your Everyday account.`
+      : isPaid(currentPlan) ? 'You are not being billed for this plan.' : 'Free, no monthly charge.';
+  } else if (sel === 'Standard') {
+    note = 'Switches now and stops monthly charges. The rest of this month is not refunded.';
+  } else if (isPaid(currentPlan) && renewsAt && new Date(renewsAt).getTime() > Date.now()) {
+    note = `You pay only the difference until ${shortDate(renewsAt)}, then ${selPlan?.price} a month.`;
+  } else {
+    note = `${selPlan?.price} is charged today from your Everyday account, then every month. Cancel anytime by switching to Standard.`;
+  }
+
+  const confirm = async () => {
+    if (sel === currentPlan) { onClose(); return; }
+    setBusy(true);
+    const ok = await onUpgrade(sel);
+    setBusy(false);
+    if (ok) onClose();
+  };
 
   return (
     <MobileSheet open={open} onClose={onClose} title="Choose your plan">
@@ -268,7 +303,7 @@ function UpgradePlanSheet({ open, onClose, currentPlan, onUpgrade }: { open: boo
               onPress={() => setSel(p.name)}
               style={[upgStyles.planCard, active ? upgStyles.planCardActive : null]}
               activeOpacity={0.8}
-              accessibilityRole="button"
+              accessibilityRole="radio"
               accessibilityState={{ selected: active }}
               accessibilityLabel={`${p.name} plan, ${p.price} per month${isCurrent ? ', current plan' : ''}`}
             >
@@ -290,14 +325,20 @@ function UpgradePlanSheet({ open, onClose, currentPlan, onUpgrade }: { open: boo
             </TouchableOpacity>
           );
         })}
+        <View style={upgStyles.noteRow} accessibilityLiveRegion="polite">
+          <Icon name="info" size={14} color={THEME.colors.text2} />
+          <Text style={upgStyles.note}>{note}</Text>
+        </View>
         <TouchableOpacity
-          style={[upgStyles.confirmBtn, sel === currentPlan ? upgStyles.confirmBtnMuted : null]}
-          onPress={() => sel !== currentPlan ? onUpgrade(sel) : onClose()}
+          style={[upgStyles.confirmBtn, sel === currentPlan ? upgStyles.confirmBtnMuted : null, busy && { opacity: 0.6 }]}
+          onPress={confirm}
+          disabled={busy}
           activeOpacity={0.85}
           accessibilityRole="button"
+          accessibilityState={{ disabled: busy, busy }}
         >
           <Text style={[upgStyles.confirmTxt, sel === currentPlan && upgStyles.confirmTxtMuted]}>
-            {sel === currentPlan ? 'Current plan' : `Switch to ${sel}`}
+            {busy ? 'Processing…' : sel === currentPlan ? 'Keep current plan' : isPaid(sel) ? `Pay & switch to ${sel}` : 'Switch to Standard'}
           </Text>
         </TouchableOpacity>
       </View>
@@ -322,7 +363,9 @@ const upgStyles = themedSheet(() => StyleSheet.create({
   planNameActive: { color: THEME.colors.accent },
   planPrice: { fontSize: 16, fontWeight: 'bold', color: THEME.colors.text2 },
   planPer: { fontSize: 11, fontWeight: '400', color: THEME.colors.text3 },
-  feat: { fontSize: 12, color: THEME.colors.text3 },
+  feat: { fontSize: 12, color: THEME.colors.text2 },
+  noteRow: { flexDirection: 'row', gap: 8, alignItems: 'flex-start', paddingHorizontal: 2, marginTop: 2 },
+  note: { flex: 1, fontSize: 13, lineHeight: 18, color: THEME.colors.text2 },
   chip: { backgroundColor: THEME.colors.surface, borderWidth: 1, borderColor: THEME.colors.line, borderRadius: 99, paddingHorizontal: 8, paddingVertical: 2 },
   chipTxt: { fontSize: 11, color: THEME.colors.text3, fontWeight: '600' },
   confirmBtn: { backgroundColor: THEME.colors.accent, borderRadius: 12, paddingVertical: 14, alignItems: 'center', marginTop: 4 },
@@ -767,11 +810,14 @@ function AppContent() {
     setGoals([]);
   };
 
-  const handleUpgradePlan = async (newPlan: string) => {
+  // The server charges the checking account (#119): a declined charge (402)
+  // keeps the old plan and the sheet open with the reason.
+  const handleUpgradePlan = async (newPlan: string): Promise<boolean> => {
     if (!token || token === 'mock-token') {
+      if (!DEMO_MODE_ENABLED) return false;
       setRawUser((prev: any) => prev ? { ...prev, plan: newPlan } : null);
-      fire('Plan updated', `Welcome to FinVault ${newPlan}!`, 'success');
-      return;
+      fire('Plan updated (Demo)', `Welcome to FinVault ${newPlan}!`, 'success');
+      return true;
     }
     try {
       const res = await fetch(`${API_URL}/api/users/plan`, {
@@ -779,13 +825,22 @@ function AppContent() {
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({ plan: newPlan })
       });
-      if (res.ok) {
-        const updated = await res.json();
-        setRawUser(updated);
-        fire('Plan updated', `Welcome to FinVault ${newPlan}!`, 'success');
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        fire('Plan not changed', body.error || 'Your plan could not be changed.', 'warn');
+        return false;
       }
+      setRawUser((prev: any) => ({ ...prev, ...body }));
+      fire(
+        newPlan === 'Standard' ? 'Switched to Standard' : `Welcome to FinVault ${newPlan}`,
+        body.charged > 0 ? `${money(body.charged)} was charged to your Everyday account.` : 'No charge today.',
+        'success',
+      );
+      if (body.charged > 0) { fetchWallets(); fetchTransactions(); fetchNotificationCount(); }
+      return true;
     } catch {
-      fire('Plan change failed', 'Could not update your plan. Try again later.', 'warn');
+      fire('Plan not changed', UNREACHABLE_MESSAGE, 'error');
+      return false;
     }
   };
 
@@ -1024,7 +1079,7 @@ function AppContent() {
   const firstName = rawUser?.profile?.firstName || rawUser?.firstName || 'Tom';
   const lastName  = rawUser?.profile?.lastName  || rawUser?.lastName  || 'Bomeke';
   const email     = rawUser?.email || 'tom@finvault.com';
-  const appData   = buildMockData(firstName, lastName, email, wallets, transactions, cards, goals, rawUser?.plan || 'Metal');
+  const appData   = buildMockData(firstName, lastName, email, wallets, transactions, cards, goals, rawUser?.plan || 'Standard');
 
   const renderScreen = () => {
     // Transaction detail routing: 'tx:transactionId'
@@ -1126,8 +1181,9 @@ function AppContent() {
       <UpgradePlanSheet
         open={upgradeOpen}
         onClose={() => setUpgradeOpen(false)}
-        currentPlan={rawUser?.plan || 'Metal'}
-        onUpgrade={(p) => { setUpgradeOpen(false); handleUpgradePlan(p); }}
+        currentPlan={rawUser?.plan || 'Standard'}
+        renewsAt={rawUser?.planRenewsAt}
+        onUpgrade={handleUpgradePlan}
       />
 
       {/* Biometric opt-in prompt (#62) — shown once after first login */}

@@ -49,7 +49,7 @@ Workflow rules live in [CLAUDE.md](CLAUDE.md#workflow-rules); short version:
 ## Active — `claude/keen-gates-q6ydh0` (accounts, billing, a11y)
 
 - [x] Bottom nav and sheet buttons sit under the Android navigation bar; a11y labels on icon-only controls (#122) 🐛
-- [ ] Charge for subscription plans: first month on upgrade, monthly renewal (#119)
+- [x] Charge for subscription plans: first month on upgrade, monthly renewal (#119)
 - [ ] Bind biometric sign-in to an account with a server-registered device credential (#120)
 - [ ] Mobile: per-account biometric enrollment and an account switcher (#121)
 
