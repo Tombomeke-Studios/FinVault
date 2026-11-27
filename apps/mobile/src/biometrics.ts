@@ -1,16 +1,9 @@
-// Real biometric gate (#7) — expo-local-authentication wraps Face ID /
-// Touch ID / Android fingerprint. The opt-in preference lives in the
-// keystore next to the session tokens.
-//
-// Known gap (documented in docs/security.md): SecureStore's
-// `requireAuthentication` option would additionally hardware-encrypt the
-// refresh token behind biometrics, but it needs a dev build (config plugin) —
-// not available in Expo Go.
+// OS biometric prompt (expo-local-authentication): Face ID / Touch ID /
+// Android fingerprint and face unlock. This only answers "the phone's enrolled
+// owner passed"; tying that to a FinVault account is src/accounts.ts (#121).
 
+import { Platform } from 'react-native';
 import * as LocalAuthentication from 'expo-local-authentication';
-import * as SecureStore from 'expo-secure-store';
-
-const PREF_KEY = 'finvault.biometricLogin';
 
 /** Device has biometric hardware *and* the user enrolled in it. */
 export async function isBiometricAvailable(): Promise<boolean> {
@@ -28,6 +21,7 @@ export async function authenticateBiometric(promptMessage: string): Promise<bool
     const result = await LocalAuthentication.authenticateAsync({
       promptMessage,
       cancelLabel: 'Use password',
+      disableDeviceFallback: true, // a phone PIN is not a biometric
     });
     return result.success;
   } catch {
@@ -35,20 +29,15 @@ export async function authenticateBiometric(promptMessage: string): Promise<bool
   }
 }
 
-export async function getBiometricPref(): Promise<boolean> {
-  try { return (await SecureStore.getItemAsync(PREF_KEY)) === '1'; } catch { return false; }
-}
-
-export async function setBiometricPref(enabled: boolean): Promise<void> {
-  try { await SecureStore.setItemAsync(PREF_KEY, enabled ? '1' : '0'); } catch { /* best effort */ }
-}
-
-const DISMISSED_KEY = 'finvault.bioDismissed';
-
-export async function hasDismissedBioPrompt(): Promise<boolean> {
-  try { return (await SecureStore.getItemAsync(DISMISSED_KEY)) === '1'; } catch { return false; }
-}
-
-export async function setDismissedBioPrompt(dismissed: boolean): Promise<void> {
-  try { await SecureStore.setItemAsync(DISMISSED_KEY, dismissed ? '1' : '0'); } catch { /* best effort */ }
+/** What to call the sensor in copy: "Face ID", "Fingerprint", … */
+export async function biometricLabel(): Promise<string> {
+  try {
+    const types = await LocalAuthentication.supportedAuthenticationTypesAsync();
+    const face = types.includes(LocalAuthentication.AuthenticationType.FACIAL_RECOGNITION);
+    const finger = types.includes(LocalAuthentication.AuthenticationType.FINGERPRINT);
+    if (Platform.OS === 'ios') return face ? 'Face ID' : 'Touch ID';
+    if (finger) return 'Fingerprint';
+    if (face) return 'Face unlock';
+  } catch { /* fall through */ }
+  return 'Biometrics';
 }

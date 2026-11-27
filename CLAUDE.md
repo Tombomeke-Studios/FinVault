@@ -216,7 +216,8 @@ the same emails offline → client-side mock demo mode (mobile: dev bundles only
 | `app.config.js` | Dynamic layer over `app.json`: adds `expo-build-properties` with Android `usesCleartextTraffic` = true only when the bundled `EXPO_PUBLIC_API_URL` is `http://` |
 | `src/config.ts` | `API_URL` (`EXPO_PUBLIC_API_URL`, default = home server `http://192.168.0.117:8000`), `DEMO_MODE_ENABLED` (dev bundles only unless `EXPO_PUBLIC_DEMO_MODE`), `UNREACHABLE_MESSAGE`. Tests: `config.test.ts` |
 | `src/session.ts` | SecureStore token persistence: `saveSession/loadSession/clearSession/tryRefreshSession/revokeSession` |
-| `src/biometrics.ts` | Real biometric gate (expo-local-authentication): `isBiometricAvailable/authenticateBiometric` + keystore-persisted opt-in pref + `hasDismissedBioPrompt/setDismissedBioPrompt` (first-login prompt dismissal) |
+| `src/biometrics.ts` | OS biometric prompt (expo-local-authentication): `isBiometricAvailable/authenticateBiometric` (device PIN not accepted), `biometricLabel()` ("Fingerprint"/"Face ID"/…) |
+| `src/accounts.ts` | Saved accounts on this phone + one biometric device credential per account, stored with SecureStore `requireAuthentication` (`storeBiometricCredential/readBiometricCredential`, `rememberAccount/patchAccount/forgetAccount`, `hardwareBindingAvailable`). Pure list logic in `src/lib/accounts.ts` (tested). See docs/security.md → Mobile biometrics (#121) |
 | `src/theme.ts` | Theme engine: mutable `THEME` tokens (hex), dark/light palettes × 6 accents, `setAppTheme`/`subscribeTheme`, `themedSheet` StyleSheet proxy, secure-store persistence. Tests: `theme.test.ts` |
 | `src/components/Icon.tsx` | Name → Feather glyph map + `MCI_MAPPING` (MaterialCommunityIcons fallback: `flame`, `faceId`). Unmapped → help-circle |
 | `src/components/Motion.tsx` | `PressableScale`, `FadeSlideIn`, `AnimatedProgressBar`, `CountUp`, `Shimmer`, `ScaleIn`, `SlideInFromRight`, `AnimatedCard` (glass + entrance + press), `BalanceDisplay` (CountUp + typography), `useParallax` (scroll-driven hero), `useReducedMotion` — use these, no ad-hoc Animated code |
@@ -224,11 +225,11 @@ the same emails offline → client-side mock demo mode (mobile: dev bundles only
 | `src/components/Toast.tsx` | `useToasts()` + `<ToastHost/>`; `fire(title, body, type)` success/info/warn/error |
 | `src/components/MobileExtras.tsx` | `MobileSheet` (bottom sheet: spring, drag-dismiss, keyboard-aware), `MobileCardDetail` (reveal + clipboard copy), `LimitsSheet` |
 | `src/components/QrScanSheet.tsx` | Scan-to-pay sheet: expo-camera + permission flow, accepts EPC069-12 SEPA QR only |
-| `src/lib/` | `epc.ts` (EPC QR build/parse, incl. the RF creditor reference + `isValidRfReference`, #112), `validate.ts` (email/IBAN), `csv.ts` (export), `live.ts` (WebSocket hub URL, message → action, reconnect backoff, #107) — all unit-tested |
+| `src/lib/` | `accounts.ts` (saved-accounts list logic, #121), `epc.ts` (EPC QR build/parse, incl. the RF creditor reference + `isValidRfReference`, #112), `validate.ts` (email/IBAN), `csv.ts` (export), `live.ts` (WebSocket hub URL, message → action, reconnect backoff, #107) — all unit-tested |
 | `src/components/BankCard.tsx` | Card visual; `CARD_SCHEMES` (metal/cyan/violet/gold/accent) |
 | `src/components/UI.tsx` | `money()` (nl-NL! use `{whole:true}`, never string-strip), `relTime`, `Ring`, `Donut`, `Sparkline`, `Bars`, `CategoryIcon`, `Delta`, `Avatar` |
 | `src/components/Shell.tsx` | Top bar (logo + avatar→settings) + bottom nav (5 tabs, Send is the filled centre tab; pads the safe-area bottom inset, #122) |
-| `src/screens/` | One file per screen: Overview, Transactions, Transfer, Cards, Savings, Analytics, Settings (incl. Security-activity sheet), Auth, AccountDashboard (`account:<id>` route) |
+| `src/screens/` | One file per screen: Overview, Transactions, Transfer, Cards, Savings, Analytics, Settings (incl. Security-activity sheet, biometric link toggle, switch account), Auth (saved-accounts list → biometric or password sign-in), AccountDashboard (`account:<id>` route) |
 
 ### apps/web-dashboard (Vite + React 18 + React Router)
 | File | Contents |
@@ -274,6 +275,9 @@ the same emails offline → client-side mock demo mode (mobile: dev bundles only
   `applyAndSetTheme` in App.tsx (mutate first, then setState) — never call
   `setTheme` with a new palette directly.
 - Alerts (`Alert.alert`) only for destructive confirmations — all other feedback via toasts.
+- **Sign-ins go through `completeSignIn()` in App.tsx** (password, 2FA, biometric): it saves the
+  session, records the account in the saved-accounts list and offers to link biometrics.
+  One session is active at a time; switching accounts signs out first.
 - Expo SDK is **54** (`apps/mobile/AGENTS.md` mentions v56 docs — installed SDK wins).
 - **EAS monorepo crash:** `apps/mobile/metro.config.js` MUST stay in sync with the
   monorepo structure. Without `watchFolders` + `nodeModulesPaths` pointing to the repo

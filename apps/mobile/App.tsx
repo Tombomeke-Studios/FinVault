@@ -19,12 +19,17 @@ import { ScreenInvoices } from './src/screens/ScreenInvoices';
 import { ScreenDisputes } from './src/screens/ScreenDisputes';
 import { ScreenTransactionDetail } from './src/screens/ScreenTransactionDetail';
 import { Shell } from './src/components/Shell';
-import { money } from './src/components/UI';
+import { money, Avatar } from './src/components/UI';
 import { MobileSheet } from './src/components/MobileExtras';
 import { ToastHost, useToasts } from './src/components/Toast';
 import { Icon } from './src/components/Icon';
 import { saveSession, loadSession, clearSession, tryRefreshSession, revokeSession } from './src/session';
-import { isBiometricAvailable, authenticateBiometric, getBiometricPref, setBiometricPref, hasDismissedBioPrompt, setDismissedBioPrompt } from './src/biometrics';
+import { isBiometricAvailable, authenticateBiometric, biometricLabel } from './src/biometrics';
+import {
+  loadAccounts, rememberAccount, patchAccount, forgetAccount, getActiveEmail,
+  storeBiometricCredential, readBiometricCredential, biometricDeviceId, clearBiometricCredential, thisDeviceName,
+} from './src/accounts';
+import { findAccount, initialsOf, type SavedAccount } from './src/lib/accounts';
 import { THEME, themedSheet, setAppTheme, persistThemeConfig, loadPersistedThemeConfig } from './src/theme';
 import { registerForPushNotifications, sendTokenToServer } from './src/push';
 import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -401,7 +406,16 @@ function AppContent() {
   const [unreadNotifications, setUnreadNotifications] = useState(0);
   const [authError, setAuthError] = useState('');
   const [authSuccess, setAuthSuccess] = useState('');
-  const [pending2FA, setPending2FA] = useState<{ tempToken: string } | null>(null);
+  const [pending2FA, setPending2FA] = useState<{ tempToken: string; email: string } | null>(null);
+  // Saved accounts + biometric linking (#121)
+  const [accounts, setAccounts] = useState<SavedAccount[]>([]);
+  const [activeEmail, setActiveEmail] = useState<string | null>(null);
+  const [bioAvailable, setBioAvailable] = useState(false);
+  const [bioLabel, setBioLabel] = useState('Biometrics');
+  const [switcherOpen, setSwitcherOpen] = useState(false);
+  // Remounts the sign-in screen in a given starting state (switch / add account).
+  const [authEntry, setAuthEntry] = useState<{ n: number; prefillEmail?: string; startWithForm?: boolean }>({ n: 0 });
+  const activeAccount = findAccount(accounts, activeEmail);
   const [upgradeOpen, setUpgradeOpen] = useState(false);
   const [bioPromptOpen, setBioPromptOpen] = useState(false);
 
@@ -500,10 +514,14 @@ function AppContent() {
     let cancelled = false;
     (async () => {
       try {
+        const [list, active, avail, label] = await Promise.all([loadAccounts(), getActiveEmail(), isBiometricAvailable(), biometricLabel()]);
+        if (cancelled) return;
+        setAccounts(list); setActiveEmail(active); setBioAvailable(avail); setBioLabel(label);
         const { accessToken } = await loadSession();
         if (!accessToken || cancelled) return;
-        if (await getBiometricPref()) {
-          if (!(await isBiometricAvailable()) || !(await authenticateBiometric('Unlock FinVault'))) return;
+        // An account with biometrics linked is locked behind the OS prompt on launch.
+        if (findAccount(list, active)?.biometric) {
+          if (!avail || !(await authenticateBiometric(`Unlock FinVault`))) return;
         }
         if (!cancelled) setToken(accessToken);
       } finally {
@@ -677,6 +695,22 @@ function AppContent() {
     }
   }, [token, fetchProfile]);
 
+  // ── Signing in (#121) ────────────────────────────────────────────────────
+  // Every successful sign-in goes through here: persist the session, put the
+  // account on top of this phone's saved accounts, and offer to link biometrics.
+  const completeSignIn = async (data: any, email: string) => {
+    await saveSession(data.accessToken, data.refreshToken);
+    const p = data.user?.profile;
+    const name = p?.firstName ? `${p.firstName} ${p.lastName || ''}`.trim() : undefined;
+    const list = await rememberAccount({ email: data.user?.email || email, name, initials: name ? initialsOf(name, email) : undefined });
+    setAccounts(list);
+    setActiveEmail(data.user?.email || email);
+    setToken(data.accessToken);
+    setAuthSuccess('Welcome back!');
+    const acct = findAccount(list, data.user?.email || email);
+    if (bioAvailable && acct && !acct.biometric && !acct.bioDismissed) setBioPromptOpen(true);
+  };
+
   const handleLogin = async (email: string, pw: string) => {
     setAuthError('');
     setAuthSuccess('');
@@ -689,17 +723,13 @@ function AppContent() {
       if (res.ok) {
         const data = await res.json();
         if (data.requires2FA) {
-          setPending2FA({ tempToken: data.tempToken });
+          setPending2FA({ tempToken: data.tempToken, email });
           setAuthSuccess('Enter your 2FA code');
           return;
         }
-        await saveSession(data.accessToken, data.refreshToken);
-        setToken(data.accessToken);
-        setAuthSuccess('Welcome back!');
-        const [bioAvail, bioDismissed] = await Promise.all([isBiometricAvailable(), hasDismissedBioPrompt()]);
-        if (bioAvail && !bioDismissed) setBioPromptOpen(true);
+        await completeSignIn(data, email);
       } else {
-        const errorData = await res.json();
+        const errorData = await res.json().catch(() => ({}));
         setAuthError(errorData.error || errorData.message || 'Invalid credentials.');
       }
     } catch {
@@ -718,42 +748,81 @@ function AppContent() {
     }
   };
 
-  // Real biometric login (#7): authenticate, then restore the stored session
-  // (refreshing it when the access token went stale). Falls back to the demo
-  // session only when biometrics are unavailable on the device, so the demo
-  // flow keeps working in simulators.
-  const handleFaceIdLogin = async () => {
+  // Biometric sign-in for one saved account: the OS prompt unlocks that
+  // account's device credential from the keystore, the server trades it for a
+  // session. Nothing here falls back to a stored session or demo data.
+  const handleBiometricLogin = async (email: string) => {
     setAuthError('');
     setAuthSuccess('');
-    if (!(await isBiometricAvailable())) {
-      if (!DEMO_MODE_ENABLED) {
-        setAuthError('Biometrics are not available on this device — sign in with your password.');
-        return;
+    const read = await readBiometricCredential(email, `Sign in as ${email}`);
+    if (!read.ok) {
+      if (read.reason === 'missing') {
+        await clearBiometricCredential(email);
+        setAccounts(await patchAccount(email, { biometric: false }));
+        setAuthError(`${bioLabel} is no longer linked to ${email} on this phone (for example after adding a new fingerprint). Sign in with your password to link it again.`);
       }
-      setRawUser(null);
-      saveSession('mock-token');
-      setToken('mock-token');
-      setupMockSession();
-      setAuthSuccess('Biometrics unavailable — demo session started.');
-      return;
+      return; // cancelled: stay on the account list
     }
-    if (!(await authenticateBiometric('Sign in to FinVault'))) {
-      setAuthError('Biometric authentication was cancelled.');
-      return;
+    try {
+      const res = await fetch(`${API_URL}/api/auth/biometric/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(read.cred),
+      });
+      const body = await res.json().catch(() => ({}));
+      if (res.ok) { await completeSignIn(body, email); return; }
+      if (res.status === 401) {
+        // Revoked on the server (password changed, removed from another device).
+        await clearBiometricCredential(email);
+        setAccounts(await patchAccount(email, { biometric: false }));
+      }
+      setAuthError(body.error || 'Biometric sign-in failed.');
+    } catch {
+      setAuthError(UNREACHABLE_MESSAGE);
     }
-    const { accessToken } = await loadSession();
-    if (accessToken) {
-      setToken(accessToken);
-      setAuthSuccess('Welcome back!');
-      return;
+  };
+
+  // Links the signed-in account to this phone: server issues a device secret,
+  // the keystore stores it behind the OS prompt (the "scan to link" step).
+  const linkBiometric = async (): Promise<boolean> => {
+    if (!token || token === 'mock-token' || !activeEmail) return false;
+    try {
+      const res = await fetch(`${API_URL}/api/auth/biometric/enroll`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ name: thisDeviceName() }),
+      });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) { fire(`${bioLabel} not linked`, body.error || 'Please try again.', 'warn'); return false; }
+      const stored = await storeBiometricCredential(activeEmail, body, `Scan to link ${bioLabel.toLowerCase()} to ${activeEmail}`);
+      if (!stored) {
+        // Cancelled the scan: withdraw the credential the server just issued.
+        fetch(`${API_URL}/api/users/biometric-devices/${body.deviceId}`, { method: 'DELETE', headers: { Authorization: `Bearer ${token}` } }).catch(() => {});
+        fire(`${bioLabel} not linked`, 'The scan was cancelled.', 'info');
+        return false;
+      }
+      setAccounts(await patchAccount(activeEmail, { biometric: true, bioDismissed: false }));
+      fire(`${bioLabel} linked`, `Next time, sign in to ${activeEmail} with ${bioLabel.toLowerCase()}.`, 'success');
+      return true;
+    } catch {
+      fire(`${bioLabel} not linked`, UNREACHABLE_MESSAGE, 'error');
+      return false;
     }
-    const refreshed = await tryRefreshSession(API_URL);
-    if (refreshed) {
-      setToken(refreshed);
-      setAuthSuccess('Welcome back!');
-    } else {
-      setAuthError('No saved session on this device — sign in with your password first.');
+  };
+
+  const unlinkBiometric = async () => {
+    if (!activeEmail) return;
+    const deviceId = await biometricDeviceId(activeEmail);
+    if (deviceId && token && token !== 'mock-token') {
+      await fetch(`${API_URL}/api/users/biometric-devices/${deviceId}`, { method: 'DELETE', headers: { Authorization: `Bearer ${token}` } }).catch(() => {});
     }
+    await clearBiometricCredential(activeEmail);
+    setAccounts(await patchAccount(activeEmail, { biometric: false }));
+    fire(`${bioLabel} unlinked`, `${activeEmail} now signs in with its password on this phone.`, 'success');
+  };
+
+  const handleToggleBiometric = async (enable: boolean) => {
+    if (enable) await linkBiometric(); else await unlinkBiometric();
   };
 
   const handle2FAVerify = async (code: string) => {
@@ -767,10 +836,9 @@ function AppContent() {
       });
       if (res.ok) {
         const data = await res.json();
-        await saveSession(data.accessToken, data.refreshToken);
-        setToken(data.accessToken);
+        const email = pending2FA.email;
         setPending2FA(null);
-        setAuthSuccess('Welcome back!');
+        await completeSignIn(data, email);
       } else {
         const err = await res.json();
         setAuthError(err.error || 'Invalid 2FA code');
@@ -799,7 +867,9 @@ function AppContent() {
     }
   };
 
-  const handleLogout = async () => {
+  // Signing out ends the session; the account stays in this phone's list
+  // (and keeps its biometric link) so it can be picked again.
+  const handleLogout = async (entry: { prefillEmail?: string; startWithForm?: boolean } = {}) => {
     if (token && token !== 'mock-token') {
       await revokeSession(API_URL); // best-effort server-side revocation
     }
@@ -808,6 +878,31 @@ function AppContent() {
     setRawUser(null);
     setCards([]);
     setGoals([]);
+    setWallets([]);
+    setTransactions([]);
+    setRoute('overview');
+    setAuthError('');
+    setAuthSuccess('');
+    setAuthEntry(e => ({ n: e.n + 1, ...entry }));
+  };
+
+  // Account switcher (#121): one active session at a time, so switching signs
+  // out of the current account and into the other — with its own biometrics
+  // when linked, otherwise its password.
+  const switchToAccount = async (a: SavedAccount) => {
+    setSwitcherOpen(false);
+    if (a.email.toLowerCase() === activeEmail?.toLowerCase()) return;
+    await handleLogout(a.biometric ? {} : { prefillEmail: a.email });
+    if (a.biometric) await handleBiometricLogin(a.email);
+  };
+
+  const addAnotherAccount = async () => {
+    setSwitcherOpen(false);
+    await handleLogout({ startWithForm: true });
+  };
+
+  const handleForgetAccount = async (email: string) => {
+    setAccounts(await forgetAccount(email));
   };
 
   // The server charges the checking account (#119): a declined charge (402)
@@ -1124,7 +1219,11 @@ function AppContent() {
       case 'savings':
         return <ScreenSavings data={appData} fire={fire} goals={goals} setGoals={setGoals} wallets={wallets} setWallets={setWallets} setTransactions={setTransactions} token={token} apiUrl={API_URL} />;
       case 'settings':
-        return <ScreenSettings data={appData} theme={theme} setTheme={applyAndSetTheme} onLogout={handleLogout} fire={fire} openUpgrade={() => setUpgradeOpen(true)} token={token} apiUrl={API_URL} navigate={setRoute} />;
+        return <ScreenSettings data={appData} theme={theme} setTheme={applyAndSetTheme} onLogout={() => handleLogout()} fire={fire} openUpgrade={() => setUpgradeOpen(true)} token={token} apiUrl={API_URL} navigate={setRoute}
+          biometric={{ enabled: !!activeAccount?.biometric, available: bioAvailable, label: bioLabel }}
+          onToggleBiometric={handleToggleBiometric}
+          onSwitchAccount={() => setSwitcherOpen(true)}
+          savedAccountCount={accounts.length} />;
       case 'scheduled-payments':
         return <ScreenScheduledPayments token={token} apiUrl={API_URL} wallets={wallets} fire={fire} />;
       case 'budgets':
@@ -1162,11 +1261,17 @@ function AppContent() {
         </View>
       ) : !token ? (
         <ScreenAuth
+          key={authEntry.n}
           onLogin={handleLogin}
           onRegister={handleRegister}
           authError={authError}
           authSuccess={authSuccess}
-          onFaceIdLogin={handleFaceIdLogin}
+          accounts={accounts}
+          onBiometricLogin={handleBiometricLogin}
+          onForgetAccount={handleForgetAccount}
+          bioLabel={bioLabel}
+          prefillEmail={authEntry.prefillEmail}
+          startWithForm={authEntry.startWithForm}
           pending2FA={!!pending2FA}
           on2FAVerify={handle2FAVerify}
           onCancel2FA={() => { setPending2FA(null); setAuthError(''); setAuthSuccess(''); }}
@@ -1186,28 +1291,78 @@ function AppContent() {
         onUpgrade={handleUpgradePlan}
       />
 
-      {/* Biometric opt-in prompt (#62) — shown once after first login */}
-      <MobileSheet open={bioPromptOpen} onClose={async () => { await setDismissedBioPrompt(true); setBioPromptOpen(false); }} title="Enable Face ID?">
-        <View style={{ gap: 16, paddingVertical: 8 }}>
-          <Text style={{ color: THEME.colors.text2, fontSize: 14, textAlign: 'center', lineHeight: 20 }}>
-            Sign in faster next time with biometrics. You can change this later in Settings.
-          </Text>
+      {/* Link biometrics to the account that just signed in (#121) */}
+      <MobileSheet
+        open={bioPromptOpen}
+        onClose={async () => { setBioPromptOpen(false); if (activeEmail) setAccounts(await patchAccount(activeEmail, { bioDismissed: true })); }}
+        title={`Link ${bioLabel}?`}
+      >
+        <View style={{ gap: 14, paddingVertical: 4 }}>
+          <View style={{ alignItems: 'center', gap: 10 }}>
+            <View style={{ width: 56, height: 56, borderRadius: 28, backgroundColor: THEME.colors.accentSoft, alignItems: 'center', justifyContent: 'center' }}>
+              <Icon name={bioLabel.startsWith('Face') ? 'faceId' : 'fingerprint'} size={28} color={THEME.colors.accent} />
+            </View>
+            <Text style={{ color: THEME.colors.text, fontSize: 15, fontWeight: '700', textAlign: 'center' }}>{activeEmail}</Text>
+            <Text style={{ color: THEME.colors.text2, fontSize: 14, textAlign: 'center', lineHeight: 20 }}>
+              Scan once to link {bioLabel.toLowerCase()} to this account on this phone. Next time you sign in with a scan instead of your password.
+            </Text>
+            <Text style={{ color: THEME.colors.text2, fontSize: 12, textAlign: 'center', lineHeight: 17 }}>
+              Your {bioLabel.toLowerCase()} never leaves your phone. FinVault only receives a key that your phone unlocks after the scan.
+            </Text>
+          </View>
           <TouchableOpacity
-            style={{ backgroundColor: THEME.colors.accent, paddingVertical: 14, borderRadius: THEME.radius.regular, alignItems: 'center' }}
-            onPress={async () => {
-              await setBiometricPref(true);
-              await setDismissedBioPrompt(true);
-              setBioPromptOpen(false);
-              fire('Biometrics enabled', 'Face ID will be used on next sign-in.', 'success');
-            }}
+            style={{ backgroundColor: THEME.colors.accent, paddingVertical: 14, minHeight: 48, borderRadius: THEME.radius.regular, alignItems: 'center', justifyContent: 'center' }}
+            onPress={async () => { setBioPromptOpen(false); await linkBiometric(); }}
+            accessibilityRole="button"
           >
-            <Text style={{ color: THEME.colors.onAccent, fontWeight: '700', fontSize: 15 }}>Enable</Text>
+            <Text style={{ color: THEME.colors.onAccent, fontWeight: '700', fontSize: 15 }}>Scan to link</Text>
           </TouchableOpacity>
           <TouchableOpacity
-            style={{ paddingVertical: 12, alignItems: 'center' }}
-            onPress={async () => { await setDismissedBioPrompt(true); setBioPromptOpen(false); }}
+            style={{ paddingVertical: 12, minHeight: 48, alignItems: 'center', justifyContent: 'center' }}
+            onPress={async () => { setBioPromptOpen(false); if (activeEmail) setAccounts(await patchAccount(activeEmail, { bioDismissed: true })); }}
+            accessibilityRole="button"
           >
-            <Text style={{ color: THEME.colors.text3, fontSize: 14 }}>Not now</Text>
+            <Text style={{ color: THEME.colors.text2, fontSize: 14 }}>Not now</Text>
+          </TouchableOpacity>
+        </View>
+      </MobileSheet>
+
+      {/* Account switcher (#121) */}
+      <MobileSheet open={switcherOpen} onClose={() => setSwitcherOpen(false)} title="Accounts on this phone">
+        <View style={{ gap: 8 }}>
+          {accounts.map(a => {
+            const current = a.email.toLowerCase() === activeEmail?.toLowerCase();
+            return (
+              <TouchableOpacity
+                key={a.email}
+                onPress={() => switchToAccount(a)}
+                style={{ flexDirection: 'row', alignItems: 'center', gap: 12, padding: 12, minHeight: 64, borderRadius: THEME.radius.regular, borderWidth: 1, borderColor: current ? THEME.colors.accentLine : THEME.colors.line, backgroundColor: current ? THEME.colors.accentSoft : THEME.colors.surface2 }}
+                accessibilityRole="button"
+                accessibilityState={{ selected: current }}
+                accessibilityLabel={`${a.name}, ${a.email}${current ? ', signed in' : a.biometric ? `, switch with ${bioLabel}` : ', switch with password'}`}
+              >
+                <Avatar initials={a.initials} size={40} />
+                <View style={{ flex: 1 }}>
+                  <Text style={{ color: THEME.colors.text, fontSize: 15, fontWeight: '700' }} numberOfLines={1}>{a.name}</Text>
+                  <Text style={{ color: THEME.colors.text2, fontSize: 13 }} numberOfLines={1}>{a.email}</Text>
+                </View>
+                {current ? (
+                  <Text style={{ color: THEME.colors.accent, fontSize: 12, fontWeight: '700' }}>Signed in</Text>
+                ) : a.biometric ? (
+                  <Icon name={bioLabel.startsWith('Face') ? 'faceId' : 'fingerprint'} size={18} color={THEME.colors.accent} />
+                ) : (
+                  <Icon name="lock" size={16} color={THEME.colors.text2} />
+                )}
+              </TouchableOpacity>
+            );
+          })}
+          <TouchableOpacity
+            onPress={addAnotherAccount}
+            style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 14, minHeight: 48, marginTop: 4 }}
+            accessibilityRole="button"
+          >
+            <Icon name="plus" size={18} color={THEME.colors.accent} />
+            <Text style={{ color: THEME.colors.accent, fontSize: 15, fontWeight: '700' }}>Add another account</Text>
           </TouchableOpacity>
         </View>
       </MobileSheet>

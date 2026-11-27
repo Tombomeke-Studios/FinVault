@@ -24,8 +24,18 @@
       "favicon": "./assets/favicon.png"
     },
     "plugins": [
-      "expo-local-authentication",
-      "expo-secure-store",
+      [
+        "expo-local-authentication",
+        {
+          "faceIDPermission": "FinVault uses Face ID to sign you in to the accounts you linked on this phone."
+        }
+      ],
+      [
+        "expo-secure-store",
+        {
+          "faceIDPermission": "FinVault uses Face ID to sign you in to the accounts you linked on this phone."
+        }
+      ],
       [
         "expo-camera",
         {

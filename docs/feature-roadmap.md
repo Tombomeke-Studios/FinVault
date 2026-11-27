@@ -26,7 +26,8 @@ pie title Feature Completion (v2.0.0)
 | 5 | Savings goals with funding + progress | ✅ Shipped | Core |
 | 6 | Spend analytics (categories, trends, charts) | ✅ Shipped | Core |
 | 7 | QR scan-to-pay (EPC069-12 SEPA standard) | ✅ Shipped | #44 |
-| 8 | Biometric authentication (Face ID / fingerprint) | ✅ Shipped | #45 |
+| 8 | Biometric sign-in bound per account to this phone (Face ID / fingerprint) | ✅ Shipped | #45, #120, #121 |
+| 22 | Multiple accounts on one phone with a switcher | ✅ Shipped | #121 |
 | 9 | CSV statement export (web download + mobile share) | ✅ Shipped | #36 |
 | 10 | Beneficiary management (auto-save on transfer) | ✅ Shipped | #42 |
 | 11 | Scheduled & recurring payments | ✅ Shipped | #68 |
