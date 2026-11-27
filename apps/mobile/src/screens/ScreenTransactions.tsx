@@ -173,7 +173,7 @@ export function ScreenTransactions({ data, onExport, navigate }: TransactionsPro
           <Text style={{ color: THEME.colors.accent, fontSize: 13, fontWeight: '600' }}>
             Showing: {walletName(data.wallets.find(w => w.id === filterWalletId) || data.wallets[0])}
           </Text>
-          <TouchableOpacity onPress={() => setFilterWalletId(null)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+          <TouchableOpacity onPress={() => setFilterWalletId(null)} hitSlop={{ top: 14, bottom: 14, left: 14, right: 14 }} accessibilityRole="button" accessibilityLabel="Clear account filter">
             <Icon name="x" size={16} color={THEME.colors.accent} />
           </TouchableOpacity>
         </View>

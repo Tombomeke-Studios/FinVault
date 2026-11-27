@@ -192,7 +192,7 @@ belongs in a doc. Keep docs truthful — delete claims that stopped being true.
 | Everything + mobile | `npm run dev:all` |
 | One service | `npm run dev:gateway` / `dev:account` / `dev:wallet` / `dev:invoice` |
 | Web only / Mobile only | `npm run dev:web` / `npm run dev:mobile` (Expo Go) |
-| Build all workspaces | `npm run build` (mobile has no build script — skipped) |
+| Build all workspaces | `npm run build` (`prebuild` builds `shared` first, #110; mobile has no build script — skipped) |
 | All tests | `npm test` (= `vitest run`, picks up `*.test.ts` everywhere) |
 | Targeted tests | `npx vitest run path/to/file.test.ts` |
 | Typecheck one app | `npx tsc --noEmit` inside that workspace |
@@ -200,33 +200,38 @@ belongs in a doc. Keep docs truthful — delete claims that stopped being true.
 | CI mirror | `npm run build && npm test` |
 
 Demo logins: `admin@finvault.com` / `test@finvault.com` (seeded backend accounts), or
-the same emails offline → client-side mock demo mode. Mobile API base: `EXPO_PUBLIC_API_URL`.
+the same emails offline → client-side mock demo mode (mobile: dev bundles only). Mobile API base: `EXPO_PUBLIC_API_URL` (`apps/mobile/src/config.ts`, per-profile in `eas.json`).
 
 ## 7. Codebase map — where is what
 
 ### apps/mobile (Expo SDK 54, RN 0.81, themed dark/light)
 | File | Contents |
 |---|---|
-| `App.tsx` | All app state: auth/token, wallets/transactions/cards/goals, route string (`'overview'`, `'account:<walletId>'`, …), all API handlers (`handleLogin/Transfer/Deposit/OwnTransfer/UpgradePlan`), mock-data builder, deposit + plan-upgrade sheets, Android BackHandler, session restore + splash. `ErrorBoundary` class wraps the root to catch render-time crashes in production builds |
+| `App.tsx` | All app state: auth/token, wallets/transactions/cards/goals, route string (`'overview'`, `'account:<walletId>'`, …), all API handlers (`handleLogin/Transfer/Deposit/OwnTransfer/UpgradePlan`), mock-data builder, deposit + plan-upgrade sheets, Android BackHandler, session restore + splash, the live WebSocket connection to the gateway hub (#107). `ErrorBoundary` class wraps the root to catch render-time crashes in production builds |
 | `index.ts` | Entry point: `registerRootComponent` + global `ErrorUtils` handler for async crashes in standalone builds |
 | `app.json` | Expo config: `android.package` (`com.tombomekestudio.finvault`), `versionCode`, `owner` (tombomekestudios), EAS `projectId`, plugins (`expo-local-authentication` + `expo-secure-store` + `expo-camera`) — all three plugins are required; missing one = instant crash |
 | `babel.config.js` | **Required for standalone builds** — `babel-preset-expo`; Expo Go provides this implicitly but EAS-built APKs crash without it |
 | `eas.json` | EAS Build profiles: `development` (dev-client APK), `preview` (sideloadable APK), `production` (signed AAB for Play Store); all profiles set `EXPO_USE_METRO_WORKSPACE_ROOT=1` for monorepo support |
 | `metro.config.js` | **Critical for monorepo** — sets `watchFolders` to monorepo root and `nodeModulesPaths` to both workspace + root `node_modules`; without this, hoisted native packages are not compiled in and the standalone APK crashes instantly |
+| `app.config.js` | Dynamic layer over `app.json`: adds `expo-build-properties` with Android `usesCleartextTraffic` = true only when the bundled `EXPO_PUBLIC_API_URL` is `http://` |
+| `src/config.ts` | `API_URL` (`EXPO_PUBLIC_API_URL`, default = home server `http://192.168.0.117:8000`), `DEMO_MODE_ENABLED` (dev bundles only unless `EXPO_PUBLIC_DEMO_MODE`), `UNREACHABLE_MESSAGE`. Tests: `config.test.ts` |
 | `src/session.ts` | SecureStore token persistence: `saveSession/loadSession/clearSession/tryRefreshSession/revokeSession` |
-| `src/biometrics.ts` | Real biometric gate (expo-local-authentication): `isBiometricAvailable/authenticateBiometric` + keystore-persisted opt-in pref + `hasDismissedBioPrompt/setDismissedBioPrompt` (first-login prompt dismissal) |
+| `src/biometrics.ts` | OS biometric prompt (expo-local-authentication): `isBiometricAvailable/authenticateBiometric` (device PIN not accepted), `biometricLabel()` ("Fingerprint"/"Face ID"/…) |
+| `src/accounts.ts` | Saved accounts on this phone + one biometric device credential per account, stored with SecureStore `requireAuthentication` (`storeBiometricCredential/readBiometricCredential`, `rememberAccount/patchAccount/forgetAccount`, `hardwareBindingAvailable`). Pure list logic in `src/lib/accounts.ts` (tested). See docs/security.md → Mobile biometrics (#121) |
+| `src/haptics.ts` | `haptic.tap/select/success/warning/error` (expo-haptics, #125); toasts trigger the outcome haptics, `PressableScale` the tap; see docs/design-system.md → Haptics |
 | `src/theme.ts` | Theme engine: mutable `THEME` tokens (hex), dark/light palettes × 6 accents, `setAppTheme`/`subscribeTheme`, `themedSheet` StyleSheet proxy, secure-store persistence. Tests: `theme.test.ts` |
 | `src/components/Icon.tsx` | Name → Feather glyph map + `MCI_MAPPING` (MaterialCommunityIcons fallback: `flame`, `faceId`). Unmapped → help-circle |
-| `src/components/Motion.tsx` | `PressableScale`, `FadeSlideIn`, `AnimatedProgressBar`, `CountUp`, `Shimmer`, `ScaleIn`, `SlideInFromRight`, `AnimatedCard` (glass + entrance + press), `BalanceDisplay` (CountUp + typography), `useParallax` (scroll-driven hero), `useReducedMotion` — use these, no ad-hoc Animated code |
+| `src/components/Motion.tsx` | `PressableScale`, `FadeSlideIn`, `AnimatedProgressBar`, `CountUp`, `Shimmer`, `ScaleIn`, `SlideInFromRight`, `AnimatedCard` (glass + entrance + press), `BalanceDisplay` (CountUp + typography), `useParallax` (scroll-driven hero), `RouteTransition` (direction-aware screen change, #125), `useReducedMotion` — use these, no ad-hoc Animated code |
 | `src/components/FVLogo.tsx` | SVG logo matching the web FVLogo — gradient brand mark + wordmark, theme-aware |
 | `src/components/Toast.tsx` | `useToasts()` + `<ToastHost/>`; `fire(title, body, type)` success/info/warn/error |
 | `src/components/MobileExtras.tsx` | `MobileSheet` (bottom sheet: spring, drag-dismiss, keyboard-aware), `MobileCardDetail` (reveal + clipboard copy), `LimitsSheet` |
+| `src/components/SuccessOverlay.tsx` | Full-screen success moment (burst + springing check + CountUp amount + Done), shown after a send (#125); reuse it for other money movements |
 | `src/components/QrScanSheet.tsx` | Scan-to-pay sheet: expo-camera + permission flow, accepts EPC069-12 SEPA QR only |
-| `src/lib/` | `epc.ts` (EPC QR build/parse), `validate.ts` (email/IBAN), `csv.ts` (export) — all unit-tested |
+| `src/lib/` | `accounts.ts` (saved-accounts list logic, #121), `routes.ts` (tab order + `routeDirection` for screen transitions, #125), `epc.ts` (EPC QR build/parse, incl. the RF creditor reference + `isValidRfReference`, #112), `validate.ts` (email/IBAN), `csv.ts` (export), `live.ts` (WebSocket hub URL, message → action, reconnect backoff, #107) — all unit-tested |
 | `src/components/BankCard.tsx` | Card visual; `CARD_SCHEMES` (metal/cyan/violet/gold/accent) |
 | `src/components/UI.tsx` | `money()` (nl-NL! use `{whole:true}`, never string-strip), `relTime`, `Ring`, `Donut`, `Sparkline`, `Bars`, `CategoryIcon`, `Delta`, `Avatar` |
-| `src/components/Shell.tsx` | Top bar (logo + avatar→settings) + bottom nav (5 items, center Send FAB) |
-| `src/screens/` | One file per screen: Overview, Transactions, Transfer, Cards, Savings, Analytics, Settings (incl. Security-activity sheet), Auth, AccountDashboard (`account:<id>` route) |
+| `src/components/Shell.tsx` | Top bar (logo + avatar→settings) + bottom nav (5 tabs, Send is the filled centre tab; pads the safe-area bottom inset, #122) |
+| `src/screens/` | One file per screen: Overview, Transactions, Transfer, Cards, Savings, Analytics, Settings (incl. Security-activity sheet, biometric link toggle, switch account), SecurityCenter (password, 2FA, sessions, linked biometric phones #124), Auth (saved-accounts list → biometric or password sign-in), AccountDashboard (`account:<id>` route) |
 
 ### apps/web-dashboard (Vite + React 18 + React Router)
 | File | Contents |
@@ -241,10 +246,10 @@ the same emails offline → client-side mock demo mode. Mobile API base: `EXPO_P
 ### services (Express + Prisma/SQLite each, ESM)
 | Service | Key routes (src/index.ts) |
 |---|---|
-| `gateway` :8000 | `relay.ts` — `relayResponse`: JSON stays JSON, anything else (a receipt PDF, an empty 204) is passed on as its bytes; the proxy used to parse every answer as JSON and 502 on the rest (#95). Tests: `relay.test.ts`. `/api/*` proxy map, per-IP rate limit, CORS allowlist (`CORS_ORIGINS`), WebSocket hub (`?token=JWT`), Event Hub `POST /api/events/publish` (X-Service-Secret) |
-| `account-service` :8001 | `/auth/register|login|refresh|logout`, `/users/profile`, `/users/plan`, `/users/audit-logs`, internal `/users/profile-by-email` (X-Service-Secret), `issueTokenPair()` + sha256 `hashToken()`, lockout + rate limits, `seedAccounts()` |
-| `wallet-transaction-service` :8002 | `/wallets` (+deposit/history/credit-line/simulate-time), `/transactions` (+transfer/own-transfer/sepa-transfer/internal-transfer), `/cards` (+freeze/limit), `/goals` (+fund, PUT/DELETE), `walletLabel()`, webhook consumer, seed self-healing. Tests: `ledger.test.ts`, `sepa-validator.test.ts` |
-| `invoice-service` :8003 | Invoices, payment requests, mandates, `pdf-generator.ts`. `external-requests.ts` — payment requests that arrive over the bus from NexusInfra (`bank.payment.request`): pure, dependency-injected, answered with `payment.confirmed`/`payment.failed` carrying the requester's reference; off unless `NEXUSINFRA_MERCHANT_EMAIL` is set. Tests: `external-requests.test.ts`. `external-invoices.ts` — NexusInfra's monthly `invoice.generate` recorded as a hosting statement under the customer's receipts (no money moves; filed under a file-name-safe `HOST-…` reference). Tests: `external-invoices.test.ts` |
+| `gateway` :8000 | `ws-routing.ts` — `recipientsOf`: which users a hub event may reach (#108); unknown types and events naming nobody reach nobody. Tests: `ws-routing.test.ts`. `relay.ts` — `relayResponse`: JSON stays JSON, anything else (a receipt PDF, an empty 204) is passed on as its bytes; the proxy used to parse every answer as JSON and 502 on the rest (#95). Tests: `relay.test.ts`. `/api/*` proxy map, per-IP rate limit, CORS allowlist (`CORS_ORIGINS`), WebSocket hub (`?token=JWT`), Event Hub `POST /api/events/publish` (X-Service-Secret) |
+| `account-service` :8001 | `billing.ts` — plan prices + `planChange`/`chargeReference` (pure, #119); `billingDeps.chargeFee` + `runRenewals` in `app.ts` (hourly from `index.ts`). Tests: `billing.test.ts`, `auth.test.ts`. `/auth/register|login|refresh|logout`, `/users/profile`, `/users/plans`, `/users/plan`, `/auth/biometric/enroll|login` + `/users/biometric-devices` (device-bound biometric sign-in, #120), `/users/audit-logs`, internal `/users/profile-by-email` (X-Service-Secret), `issueTokenPair()` + sha256 `hashToken()`, lockout + rate limits, `seedAccounts()` |
+| `wallet-transaction-service` :8002 | `/wallets` (+deposit/history/credit-line/simulate-time), `/transactions` (+transfer/own-transfer/sepa-transfer/internal-transfer/internal-fee), `/cards` (+freeze/limit), `/goals` (+fund, PUT/DELETE), `walletLabel()`, webhook consumer, seed self-healing. Tests: `ledger.test.ts`, `sepa-validator.test.ts` |
+| `invoice-service` :8003 | Invoices, payment requests, mandates, `pdf-generator.ts`. `external-requests.ts` — payment requests that arrive over the bus from NexusInfra (`bank.payment.request`): pure, dependency-injected, answered with `payment.confirmed`/`payment.failed` carrying the requester's reference; off unless `NEXUSINFRA_MERCHANT_EMAIL` is set. Scanning a top-up's QR pays it by reference (`/payment-requests/by-reference/:reference[/pay]`, `payByReferenceProblem`, #112); both pay routes go through `settlePaymentRequest`. Tests: `external-requests.test.ts`. `external-invoices.ts` — NexusInfra's monthly `invoice.generate` recorded as a hosting statement under the customer's receipts (no money moves; filed under a file-name-safe `HOST-…` reference). Tests: `external-invoices.test.ts` |
 
 ### shared/ (rebuild after edits: `npm run build --workspace=shared`!)
 `auth.ts` (JWT_SECRET/SERVICE_SECRET + warnings, `verifyToken`, `requireAuth`,
@@ -263,12 +268,18 @@ the same emails offline → client-side mock demo mode. Mobile API base: `EXPO_P
 - Wallet model has **no `name` column**; display names derive from `type`
   (`walletLabel()` server-side, inline ternaries client-side).
 - Services run on Node ESM + tsx; Prisma clients are generated into `generated/prisma`.
-- Mobile screens need `paddingBottom: 88` in scroll content to clear the bottom nav.
+- Mobile screens use `paddingBottom: 88` in scroll content (breathing room above the bottom nav).
+- **Mobile safe areas:** Android is edge-to-edge (SDK 54); RN's `SafeAreaView` is iOS-only.
+  Use `useSafeAreaInsets()` from `react-native-safe-area-context` for anything touching a
+  screen edge; see docs/design-system.md → Safe areas.
 - **Mobile theming:** module-level StyleSheets that use THEME colors must be wrapped in
   `themedSheet(() => StyleSheet.create({...}))`; theme changes go through
   `applyAndSetTheme` in App.tsx (mutate first, then setState) — never call
   `setTheme` with a new palette directly.
 - Alerts (`Alert.alert`) only for destructive confirmations — all other feedback via toasts.
+- **Sign-ins go through `completeSignIn()` in App.tsx** (password, 2FA, biometric): it saves the
+  session, records the account in the saved-accounts list and offers to link biometrics.
+  One session is active at a time; switching accounts signs out first.
 - Expo SDK is **54** (`apps/mobile/AGENTS.md` mentions v56 docs — installed SDK wins).
 - **EAS monorepo crash:** `apps/mobile/metro.config.js` MUST stay in sync with the
   monorepo structure. Without `watchFolders` + `nodeModulesPaths` pointing to the repo
@@ -280,6 +291,13 @@ the same emails offline → client-side mock demo mode. Mobile API base: `EXPO_P
 - **EAS plugins:** every native Expo package used by the mobile app MUST appear in the
   `plugins` array in `app.json` (currently: expo-local-authentication, expo-secure-store,
   expo-camera). Adding a native package without its plugin → crash on standalone build.
+- **Mobile demo fallback is dev-only:** every network `catch` in `App.tsx` must check
+  `DEMO_MODE_ENABLED` before simulating anything; release builds show `UNREACHABLE_MESSAGE`.
+  Never fake a balance change on a failed request.
+- **Plain-HTTP backend:** Android release builds block cleartext unless `app.config.js` turns
+  it on (it does when the API URL is `http://`). Expo Go allows HTTP, so "works in Expo Go,
+  fails in the APK" means cleartext or a wrong `EXPO_PUBLIC_API_URL`. Keep `DEFAULT_API_URL`
+  in `app.config.js` and `src/config.ts` in sync.
 - **Android launcher icon ≠ `icon.png`:** Android uses `android.adaptiveIcon`
   (foreground/monochrome PNGs + `backgroundColor`), which takes precedence over
   `icon.png`. Rebrand = regenerate the `android-icon-*.png` assets too

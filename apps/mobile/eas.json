@@ -10,7 +10,8 @@
         "buildType": "apk"
       },
       "env": {
-        "EXPO_USE_METRO_WORKSPACE_ROOT": "1"
+        "EXPO_USE_METRO_WORKSPACE_ROOT": "1",
+        "EXPO_PUBLIC_API_URL": "http://192.168.0.117:8000"
       }
     },
     "preview": {
@@ -19,7 +20,8 @@
         "buildType": "apk"
       },
       "env": {
-        "EXPO_USE_METRO_WORKSPACE_ROOT": "1"
+        "EXPO_USE_METRO_WORKSPACE_ROOT": "1",
+        "EXPO_PUBLIC_API_URL": "http://192.168.0.117:8000"
       }
     },
     "production": {
@@ -28,7 +30,7 @@
       },
       "env": {
         "EXPO_USE_METRO_WORKSPACE_ROOT": "1",
-        "EXPO_PUBLIC_API_URL": "https://api.finvault.app"
+        "EXPO_PUBLIC_API_URL": "http://192.168.0.117:8000"
       }
     }
   },

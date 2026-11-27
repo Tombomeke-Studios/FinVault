@@ -3,6 +3,7 @@ import type { FinVaultEvent } from 'shared';
 import {
   createExternalRequests,
   parseExternalRequest,
+  payByReferenceProblem,
   settlementEvent,
   type ExternalRequestStore,
   type Merchant,
@@ -187,5 +188,31 @@ describe('external payment requests', () => {
   it('has nothing to say about an ordinary request between two FinVault users', () => {
     expect(settlementEvent({ id: 'x', status: 'paid', amount: 5, externalReference: null, externalSource: null, transactionRef: 'TXN-1' })).toBeNull();
     expect(settlementEvent({ id: 'x', status: 'pending', amount: 5, externalReference: 'r', externalSource: 's', transactionRef: null })).toBeNull();
+  });
+});
+
+describe('payByReferenceProblem (#436)', () => {
+  const open = { status: 'pending', amount: 10, externalReference: 'RF18539007547034' };
+
+  it('lets an open external request be paid', () => {
+    expect(payByReferenceProblem(open)).toBeNull();
+    expect(payByReferenceProblem(open, 10)).toBeNull();
+    expect(payByReferenceProblem(open, 10.001)).toBeNull(); // the same cent
+  });
+
+  it('refuses a reference that names no external request', () => {
+    expect(payByReferenceProblem(null)).toMatch(/no payment request/i);
+    // A request between two FinVault users still needs its own recipient.
+    expect(payByReferenceProblem({ ...open, externalReference: null })).toMatch(/no payment request/i);
+  });
+
+  it('refuses one that is no longer open', () => {
+    for (const status of ['paid', 'processing', 'declined']) {
+      expect(payByReferenceProblem({ ...open, status })).toMatch(/no longer pending/);
+    }
+  });
+
+  it('refuses a QR whose amount was changed', () => {
+    expect(payByReferenceProblem(open, 1)).toMatch(/does not match/);
   });
 });

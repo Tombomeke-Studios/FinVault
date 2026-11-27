@@ -4,6 +4,7 @@ import { Icon } from '../components/Icon';
 import { BankCard, CARD_SCHEMES } from '../components/BankCard';
 import { MobileCardDetail, LimitsSheet, MobileSheet } from '../components/MobileExtras';
 import { useReducedMotion } from '../components/Motion';
+import { haptic } from '../haptics';
 import { THEME, themedSheet } from '../theme';
 import { money, Ring } from '../components/UI';
 import type { AppData } from '../../App';
@@ -271,7 +272,7 @@ export function ScreenCards({ data, fire, cards, setCards, token, apiUrl, naviga
             </View>
             <Switch
               value={activeCard.frozen}
-              onValueChange={() => toggleFreeze(activeCard.id)}
+              onValueChange={() => { haptic.select(); toggleFreeze(activeCard.id); }}
               trackColor={{ false: THEME.colors.surfaceHi, true: THEME.colors.accent }}
               thumbColor="#fff"
             />
@@ -295,7 +296,7 @@ export function ScreenCards({ data, fire, cards, setCards, token, apiUrl, naviga
               </View>
               <Switch
                 value={(activeCard as any)[ctrl.field] !== false}
-                onValueChange={() => toggleControl(activeCard.id, ctrl.field)}
+                onValueChange={() => { haptic.select(); toggleControl(activeCard.id, ctrl.field); }}
                 trackColor={{ false: THEME.colors.surfaceHi, true: THEME.colors.accent }}
                 thumbColor="#fff"
               />

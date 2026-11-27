@@ -88,11 +88,28 @@ One rhythm everywhere — spring physics, enter slower than exit, reduced-motion
 | Entrance | `FadeSlideIn` (springs, 40–80ms stagger steps) | `.rise`/`.rise-d1…d6`, `.page-enter` |
 | Progress | `AnimatedProgressBar` (spring translateX) | CSS `transition: width .6s ease` |
 | Sheets/modals | `MobileSheet`: spring slide-up, fading scrim, drag-to-dismiss | `fvSheetUp` keyframes |
+| Screen change | `RouteTransition` in `Shell`: fade + 28px slide from the side you head to (`lib/routes.ts` `routeDirection`: tabs left/right by tab order, deeper pages from the right) | `.page-enter` |
+| Tab bar | One `accentSoft` pill springs between tabs; the newly active icon springs from 0.78 (`TabIcon`) | — |
+| First load | `OverviewSkeleton`: `Shimmer` shapes in the real layout until the first wallet fetch settles, so the screen never shows €0 first | `.shimmer` |
+| Money moved | `SuccessOverlay`: ring bursts out, check springs in, amount counts up, details rise, then Done (after Send) | — |
 | Feedback | `Toast.tsx` — slide-down, auto-dismiss 3.5s | `Toast` in `UI.tsx` |
 | Reduced motion | `useReducedMotion()` (AccessibilityInfo) skips all of the above | `prefers-reduced-motion` kill-switch in `index.css` |
 
 Rules of thumb: micro-interactions 150–300 ms; animate transform/opacity only;
 1–2 animated elements per view; exits ≈60% of enter duration.
+
+### Haptics (mobile, #125)
+
+`src/haptics.ts` is the only place that calls `expo-haptics`. Motion is felt as well as seen:
+
+| Moment | Haptic | Where it is wired |
+|---|---|---|
+| Any press | `tap` (light impact) | `PressableScale` on touch-down (`haptics={false}` opts out) |
+| A choice changes | `select` | Bottom tabs, plan picker, every `Switch` |
+| Outcome | `success` / `warning` / `error` | `fire()` in `Toast.tsx`, by toast type (`info` stays silent) |
+
+Because outcomes go through toasts, a new feature gets the right haptic simply by
+firing the right toast type. Don't call `expo-haptics` directly from screens.
 
 ### Web motion vocabulary (`index.css` §6)
 | Class | Use for |
@@ -143,9 +160,27 @@ The EPC builder and parser are unit-tested on both apps (7 tests each).
 
 ## Accessibility checklist
 
-- Touch targets ≥44 pt (hitSlop where the visual is smaller).
+- Touch targets ≥48 dp (hitSlop where the visual is smaller; back arrows use 13, small
+  trash/clear icons 14).
 - Every icon-only control has `accessibilityLabel`; selectable items expose
   `accessibilityState`; filters/tabs use the `tab` role.
 - Disabled states: 0.5 opacity + `accessibilityState.disabled`.
 - Progress bars expose `accessibilityValue`; toasts use polite live regions.
 - Color is never the only signal (badges pair icon/text with color).
+- Back arrows are `accessibilityLabel="Go back"`; icon/colour pickers use the `radio`
+  role with `accessibilityState.selected`.
+
+## Safe areas (mobile)
+
+Android draws edge-to-edge since Expo SDK 54, so the status bar and the system
+navigation bar (gesture pill or 3-button bar) sit *on top of* the app. React Native's
+own `SafeAreaView` only works on iOS. Use `react-native-safe-area-context`:
+
+- `App` wraps everything in `SafeAreaProvider`; the root view pads `insets.top`.
+- `Shell`'s bottom nav pads `insets.bottom` (height = 64 + inset).
+- `MobileSheet` pads `max(insets.bottom, 12) + 16`, so a sheet's last button clears the
+  navigation bar.
+- New full-screen surfaces (modals, overlays) must read `useSafeAreaInsets()` too.
+
+The bottom nav is a normal flex child, not absolutely positioned, so screen content is
+never underneath it. Send is a filled tab inside the bar, labelled like the others.

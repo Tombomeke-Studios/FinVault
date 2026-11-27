@@ -3,7 +3,7 @@ import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Switch, ActivityI
 import { Icon } from '../components/Icon';
 import { Avatar, relTime } from '../components/UI';
 import { MobileSheet } from '../components/MobileExtras';
-import { isBiometricAvailable, getBiometricPref, setBiometricPref } from '../biometrics';
+import { haptic } from '../haptics';
 import { THEME, themedSheet, ACCENTS } from '../theme';
 import type { AppData, ThemeConfig } from '../../App';
 
@@ -17,6 +17,11 @@ interface SettingsProps {
   token?: string | null;
   apiUrl?: string;
   navigate?: (route: string) => void;
+  /** Biometric sign-in for the signed-in account on this phone (#121). */
+  biometric?: { enabled: boolean; available: boolean; label: string };
+  onToggleBiometric?: (enable: boolean) => Promise<void>;
+  onSwitchAccount?: () => void;
+  savedAccountCount?: number;
 }
 
 interface AuditEntry {
@@ -56,20 +61,13 @@ const PRESETS: Record<string, ThemeConfig> = {
   Mint:     { mode: 'light', accent: 'emerald', font: 'grotesk',   radius: 'soft',  density: 'regular', card: 'elevated' },
 };
 
-export function ScreenSettings({ data, theme, setTheme, onLogout, fire, openUpgrade, token, apiUrl, navigate }: SettingsProps) {
-  const [biometric, setBiometric] = useState(false);
-
-  // The toggle reflects and persists the real biometric-gate preference (#7).
-  useEffect(() => { getBiometricPref().then(setBiometric); }, []);
+export function ScreenSettings({ data, theme, setTheme, onLogout, fire, openUpgrade, token, apiUrl, navigate, biometric, onToggleBiometric, onSwitchAccount, savedAccountCount = 0 }: SettingsProps) {
+  // Linking runs the OS prompt and a server call; the switch waits for both.
+  const [bioBusy, setBioBusy] = useState(false);
   const toggleBiometric = async (v: boolean) => {
-    if (v && !(await isBiometricAvailable())) {
-      fire('Biometrics unavailable', 'No biometric hardware or enrollment found on this device.', 'warn');
-      return;
-    }
-    setBiometric(v);
-    await setBiometricPref(v);
-    fire(v ? 'Biometrics enabled' : 'Biometrics disabled',
-      v ? 'Unlocking FinVault now requires Face ID / fingerprint.' : 'You will sign in with your password.', 'success');
+    if (!onToggleBiometric) return;
+    setBioBusy(true);
+    try { await onToggleBiometric(v); } finally { setBioBusy(false); }
   };
   const [pushNotifs, setPushNotifs] = useState(true);
   const [securityOpen, setSecurityOpen] = useState(false);
@@ -197,15 +195,27 @@ export function ScreenSettings({ data, theme, setTheme, onLogout, fire, openUpgr
         <View style={styles.optionRow}>
           <View style={styles.optionInfo}>
             <Icon name="lock" size={16} color={THEME.colors.text2} />
-            <Text style={styles.optionText}>Biometric sign-in (Face ID)</Text>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.optionText}>Sign in with {biometric?.label ?? 'biometrics'}</Text>
+              <Text style={styles.optionSub}>
+                {!biometric?.available
+                  ? 'Set up a fingerprint or face in your phone settings first.'
+                  : biometric.enabled ? `Linked to ${data.user.email} on this phone.` : `Link ${data.user.email} to this phone.`}
+              </Text>
+            </View>
           </View>
-          <Switch
-            value={biometric}
-            onValueChange={toggleBiometric}
-            trackColor={{ false: THEME.colors.surfaceHi, true: THEME.colors.accent }}
-            thumbColor="#fff"
-            accessibilityLabel="Biometric sign-in"
-          />
+          {bioBusy ? (
+            <ActivityIndicator size="small" color={THEME.colors.accent} />
+          ) : (
+            <Switch
+              value={!!biometric?.enabled}
+              onValueChange={v => { haptic.select(); toggleBiometric(v); }}
+              disabled={!biometric?.available && !biometric?.enabled}
+              trackColor={{ false: THEME.colors.surfaceHi, true: THEME.colors.accent }}
+              thumbColor="#fff"
+              accessibilityLabel={`Sign in with ${biometric?.label ?? 'biometrics'}`}
+            />
+          )}
         </View>
 
         <View style={styles.optionRow}>
@@ -294,6 +304,19 @@ export function ScreenSettings({ data, theme, setTheme, onLogout, fire, openUpgr
           )}
         </View>
       </MobileSheet>
+
+      {/* Account switcher (#121) */}
+      {onSwitchAccount && (
+        <TouchableOpacity
+          style={styles.switchBtn}
+          onPress={onSwitchAccount}
+          accessibilityRole="button"
+          accessibilityLabel={savedAccountCount > 1 ? 'Switch account' : 'Add another account'}
+        >
+          <Icon name="users" size={16} color={THEME.colors.text} />
+          <Text style={styles.switchText}>{savedAccountCount > 1 ? 'Switch account' : 'Add another account'}</Text>
+        </TouchableOpacity>
+      )}
 
       {/* Logout button */}
       <TouchableOpacity
@@ -450,6 +473,13 @@ const styles = themedSheet(() => StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
+    flex: 1,
+    paddingRight: 12,
+  },
+  optionSub: {
+    fontSize: 12,
+    color: THEME.colors.text2,
+    marginTop: 2,
   },
   optionText: {
     fontSize: 14,
@@ -497,6 +527,24 @@ const styles = themedSheet(() => StyleSheet.create({
     alignItems: 'center',
     gap: 8,
     marginTop: 8,
+  },
+  switchBtn: {
+    backgroundColor: THEME.colors.surface,
+    borderColor: THEME.colors.line,
+    borderWidth: 1,
+    borderRadius: THEME.radius.regular,
+    paddingVertical: 14,
+    minHeight: 48,
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 8,
+    marginTop: 8,
+  },
+  switchText: {
+    color: THEME.colors.text,
+    fontSize: 15,
+    fontWeight: 'bold',
   },
   logoutText: {
     color: THEME.colors.neg,

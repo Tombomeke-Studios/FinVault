@@ -75,7 +75,7 @@ export function ScreenBudgets({ token, apiUrl, fire }: Props) {
       <FadeSlideIn delay={0}>
         <View style={styles.header}>
           <Text style={styles.title}>Budgets</Text>
-          <TouchableOpacity style={styles.addBtn} onPress={() => setCreateOpen(true)}>
+          <TouchableOpacity style={styles.addBtn} onPress={() => setCreateOpen(true)} accessibilityRole="button" accessibilityLabel="Create budget">
             <Icon name="plus" size={18} color={THEME.colors.onAccent} />
           </TouchableOpacity>
         </View>
@@ -101,7 +101,7 @@ export function ScreenBudgets({ token, apiUrl, fire }: Props) {
               <View style={styles.card}>
                 <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 }}>
                   <Text style={styles.cardTitle}>{b.category}</Text>
-                  <TouchableOpacity onPress={() => remove(b.id)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                  <TouchableOpacity onPress={() => remove(b.id)} hitSlop={{ top: 14, bottom: 14, left: 14, right: 14 }} accessibilityRole="button" accessibilityLabel={`Delete ${b.category} budget`}>
                     <Icon name="trash" size={16} color={THEME.colors.text3} />
                   </TouchableOpacity>
                 </View>
