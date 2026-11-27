@@ -94,6 +94,19 @@ One rhythm everywhere — spring physics, enter slower than exit, reduced-motion
 Rules of thumb: micro-interactions 150–300 ms; animate transform/opacity only;
 1–2 animated elements per view; exits ≈60% of enter duration.
 
+### Haptics (mobile, #125)
+
+`src/haptics.ts` is the only place that calls `expo-haptics`. Motion is felt as well as seen:
+
+| Moment | Haptic | Where it is wired |
+|---|---|---|
+| Any press | `tap` (light impact) | `PressableScale` on touch-down (`haptics={false}` opts out) |
+| A choice changes | `select` | Bottom tabs, plan picker, every `Switch` |
+| Outcome | `success` / `warning` / `error` | `fire()` in `Toast.tsx`, by toast type (`info` stays silent) |
+
+Because outcomes go through toasts, a new feature gets the right haptic simply by
+firing the right toast type. Don't call `expo-haptics` directly from screens.
+
 ### Web motion vocabulary (`index.css` §6)
 | Class | Use for |
 |---|---|

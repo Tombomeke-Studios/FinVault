@@ -33,6 +33,7 @@ import { findAccount, initialsOf, type SavedAccount } from './src/lib/accounts';
 import { THEME, themedSheet, setAppTheme, persistThemeConfig, loadPersistedThemeConfig } from './src/theme';
 import { registerForPushNotifications, sendTokenToServer } from './src/push';
 import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { haptic } from './src/haptics';
 import { API_URL, DEMO_MODE_ENABLED, UNREACHABLE_MESSAGE } from './src/config';
 import { liveAction, liveSocketUrl, reconnectDelayMs, withBalance } from './src/lib/live';
 
@@ -305,7 +306,7 @@ function UpgradePlanSheet({ open, onClose, currentPlan, renewsAt, onUpgrade }: {
           return (
             <TouchableOpacity
               key={p.name}
-              onPress={() => setSel(p.name)}
+              onPress={() => { if (sel !== p.name) haptic.select(); setSel(p.name); }}
               style={[upgStyles.planCard, active ? upgStyles.planCardActive : null]}
               activeOpacity={0.8}
               accessibilityRole="radio"

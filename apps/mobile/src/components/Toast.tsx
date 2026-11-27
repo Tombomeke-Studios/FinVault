@@ -3,6 +3,7 @@ import { Animated, StyleSheet, Text, TouchableOpacity, View } from 'react-native
 import { Icon } from './Icon';
 import { THEME, themedSheet } from '../theme';
 import { useReducedMotion } from './Motion';
+import { haptic } from '../haptics';
 
 /**
  * Non-blocking toast notifications. Replaces Alert.alert for success/info
@@ -96,6 +97,10 @@ export function useToasts() {
   const fire = useCallback((title: string, body?: string, type: string = 'info') => {
     const safeType: ToastType = (['success', 'info', 'warn', 'error'].includes(type) ? type : 'info') as ToastType;
     setToasts(prev => [...prev.slice(-2), { id: ++toastSeq, title, body, type: safeType }]);
+    // Every outcome the app reports is also felt (#125).
+    if (safeType === 'success') haptic.success();
+    else if (safeType === 'warn') haptic.warning();
+    else if (safeType === 'error') haptic.error();
   }, []);
 
   return { toasts, fire, dismiss };

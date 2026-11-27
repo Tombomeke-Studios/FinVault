@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import { AccessibilityInfo, Animated, Pressable, View, Text, Easing, StyleSheet, type ViewStyle, type TextStyle, type NativeSyntheticEvent, type NativeScrollEvent } from 'react-native';
 import { THEME } from '../theme';
+import { haptic } from '../haptics';
 
 /**
  * Shared motion primitives — one source of truth for press feedback,
@@ -33,7 +34,10 @@ export function PressableScale({
   accessibilityRole = 'button',
   accessibilityState,
   hitSlop,
+  haptics = true,
 }: {
+  /** Light tick on touch-down (#125); off for surfaces that tick themselves. */
+  haptics?: boolean;
   onPress?: () => void;
   onLongPress?: () => void;
   style?: any;
@@ -59,7 +63,7 @@ export function PressableScale({
     <Pressable
       onPress={onPress}
       onLongPress={onLongPress}
-      onPressIn={() => animate(scaleTo, 4)}
+      onPressIn={() => { if (haptics && !disabled) haptic.tap(); animate(scaleTo, 4); }}
       onPressOut={() => animate(1, 6)}
       style={style}
       disabled={disabled}

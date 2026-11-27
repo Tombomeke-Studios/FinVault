@@ -10,6 +10,7 @@ import { BankCard } from './BankCard';
 import { money } from './UI';
 import { useReducedMotion } from './Motion';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { haptic } from '../haptics';
 import { THEME, themedSheet } from '../theme';
 
 const SCREEN_H = Dimensions.get('window').height;
@@ -261,7 +262,7 @@ export function LimitsSheet({ card, open, onClose, fire, onSaveLimits }: {
             </View>
             <Switch
               value={contactless}
-              onValueChange={setContactless}
+              onValueChange={v => { haptic.select(); setContactless(v); }}
               trackColor={{ false: THEME.colors.surface2, true: THEME.colors.accent }}
               thumbColor="#fff"
               accessibilityLabel="Contactless payments"
@@ -277,7 +278,7 @@ export function LimitsSheet({ card, open, onClose, fire, onSaveLimits }: {
             </View>
             <Switch
               value={foreign}
-              onValueChange={setForeign}
+              onValueChange={v => { haptic.select(); setForeign(v); }}
               trackColor={{ false: THEME.colors.surface2, true: THEME.colors.accent }}
               thumbColor="#fff"
               accessibilityLabel="Foreign transactions"

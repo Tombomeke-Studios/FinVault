@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Switch, ActivityI
 import { Icon } from '../components/Icon';
 import { Avatar, relTime } from '../components/UI';
 import { MobileSheet } from '../components/MobileExtras';
+import { haptic } from '../haptics';
 import { THEME, themedSheet, ACCENTS } from '../theme';
 import type { AppData, ThemeConfig } from '../../App';
 
@@ -208,7 +209,7 @@ export function ScreenSettings({ data, theme, setTheme, onLogout, fire, openUpgr
           ) : (
             <Switch
               value={!!biometric?.enabled}
-              onValueChange={toggleBiometric}
+              onValueChange={v => { haptic.select(); toggleBiometric(v); }}
               disabled={!biometric?.available && !biometric?.enabled}
               trackColor={{ false: THEME.colors.surfaceHi, true: THEME.colors.accent }}
               thumbColor="#fff"

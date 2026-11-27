@@ -4,6 +4,7 @@ import { Icon } from './Icon';
 import { Avatar } from './UI';
 import { FVLogo } from './FVLogo';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { haptic } from '../haptics';
 import { THEME, themedSheet } from '../theme';
 
 interface ShellProps {
@@ -75,7 +76,7 @@ export function Shell({ route, setRoute, user, children, unreadNotifications = 0
             return (
               <TouchableOpacity
                 key={nav.id}
-                onPress={() => setRoute(nav.id)}
+                onPress={() => { if (!active) haptic.select(); setRoute(nav.id); }}
                 style={styles.navItem}
                 activeOpacity={0.85}
                 accessibilityLabel="Send money"
@@ -93,7 +94,7 @@ export function Shell({ route, setRoute, user, children, unreadNotifications = 0
           return (
             <TouchableOpacity
               key={nav.id}
-              onPress={() => setRoute(nav.id)}
+              onPress={() => { if (!active) haptic.select(); setRoute(nav.id); }}
               style={styles.navItem}
               activeOpacity={0.7}
               accessibilityLabel={nav.label}
