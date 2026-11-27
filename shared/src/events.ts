@@ -12,7 +12,9 @@ export type FinVaultEvent =
   // another system is not.
   | { type: 'payment.request'; payload: { reference: string; senderWalletId: string; receiverWalletId: string; amount: number; currency: string; description: string; customerEmail?: string } }
   | { type: 'payment.processing'; payload: { transactionId: string; reference: string } }
-  | { type: 'payment.confirmed'; payload: { transactionId: string; reference: string; amount: number; senderWalletId: string; receiverWalletId: string } }
+  // senderUserId/receiverUserId: who the gateway's WebSocket hub may send it to (#108).
+  // The invoice service's answers to NexusInfra name no user, and reach nobody there.
+  | { type: 'payment.confirmed'; payload: { transactionId: string; reference: string; amount: number; senderWalletId: string; receiverWalletId: string; senderUserId?: string; receiverUserId?: string } }
   | { type: 'payment.failed'; payload: { transactionId: string; reference: string; reason: string } }
   // Published by an external requester (NexusInfra) when a billing month closes:
   // what a customer used, charged against credit they prepaid through FinVault.

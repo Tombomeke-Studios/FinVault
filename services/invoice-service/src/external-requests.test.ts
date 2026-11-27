@@ -3,6 +3,8 @@ import type { FinVaultEvent } from 'shared';
 import {
   createExternalRequests,
   parseExternalRequest,
+  payByReferenceProblem,
+  SCAN_ONLY_RECIPIENT,
   settlementEvent,
   type ExternalRequestStore,
   type Merchant,
@@ -67,10 +69,17 @@ describe('parseExternalRequest', () => {
   });
 
   it('names what is wrong, keeping the reference so the requester can be told', () => {
-    expect(parseExternalRequest(request({ customerEmail: undefined }))).toMatchObject({ ok: false, reference: 'topup-u1-abc', reason: expect.stringContaining('customer email') });
+    expect(parseExternalRequest(request({ customerEmail: 'not-an-address' }))).toMatchObject({ ok: false, reference: 'topup-u1-abc', reason: expect.stringContaining('customer email') });
+    expect(parseExternalRequest(request({ customerEmail: 42 }))).toMatchObject({ ok: false, reason: expect.stringContaining('customer email') });
     expect(parseExternalRequest(request({ amount: 0 }))).toMatchObject({ ok: false, reason: expect.stringContaining('positive') });
     expect(parseExternalRequest(request({ amount: 100_001 }))).toMatchObject({ ok: false, reason: expect.stringContaining('limit') });
     expect(parseExternalRequest(request({ currency: 'USD' }))).toMatchObject({ ok: false, reason: expect.stringContaining('USD') });
+  });
+
+  it('reads a request with no customer email as scan-only (#117)', () => {
+    for (const customerEmail of [undefined, null, '']) {
+      expect(parseExternalRequest(request({ customerEmail }))).toMatchObject({ ok: true, request: { customerEmail: null } });
+    }
   });
 
   it('has nothing to answer when there is no reference', () => {
@@ -149,6 +158,18 @@ describe('external payment requests', () => {
     expect(await svc.handle(ENVELOPE, request({ reference: 'r4' }))).toBe('created');
   });
 
+  it('creates a scan-only request addressed to nobody, outside every inbox cap (#117)', async () => {
+    for (const reference of ['s1', 's2', 's3']) {
+      expect(await svc.handle(ENVELOPE, request({ reference, customerEmail: undefined }))).toBe('created');
+    }
+    expect(mem.rows.map((r) => r.recipientEmail)).toEqual([SCAN_ONLY_RECIPIENT, SCAN_ONLY_RECIPIENT, SCAN_ONLY_RECIPIENT]);
+    // Nobody's inbox filled up: a customer can still be sent the usual two.
+    expect(await svc.handle(ENVELOPE, request({ reference: 'r1' }))).toBe('created');
+    expect(published).toEqual([]);
+    // And it is paid like any other — by its reference.
+    expect(payByReferenceProblem({ status: 'pending', amount: 20, externalReference: 's1' }, 20)).toBeNull();
+  });
+
   it('lets a failing merchant lookup throw, so the message is not silently dropped as handled', async () => {
     const failing = createExternalRequests({ store: mem.store, merchant: async () => { throw new Error('account service unreachable'); }, publish: async () => true, log: () => undefined });
     await expect(failing.handle(ENVELOPE, request())).rejects.toThrow('unreachable');
@@ -187,5 +208,31 @@ describe('external payment requests', () => {
   it('has nothing to say about an ordinary request between two FinVault users', () => {
     expect(settlementEvent({ id: 'x', status: 'paid', amount: 5, externalReference: null, externalSource: null, transactionRef: 'TXN-1' })).toBeNull();
     expect(settlementEvent({ id: 'x', status: 'pending', amount: 5, externalReference: 'r', externalSource: 's', transactionRef: null })).toBeNull();
+  });
+});
+
+describe('payByReferenceProblem (#436)', () => {
+  const open = { status: 'pending', amount: 10, externalReference: 'RF18539007547034' };
+
+  it('lets an open external request be paid', () => {
+    expect(payByReferenceProblem(open)).toBeNull();
+    expect(payByReferenceProblem(open, 10)).toBeNull();
+    expect(payByReferenceProblem(open, 10.001)).toBeNull(); // the same cent
+  });
+
+  it('refuses a reference that names no external request', () => {
+    expect(payByReferenceProblem(null)).toMatch(/no payment request/i);
+    // A request between two FinVault users still needs its own recipient.
+    expect(payByReferenceProblem({ ...open, externalReference: null })).toMatch(/no payment request/i);
+  });
+
+  it('refuses one that is no longer open', () => {
+    for (const status of ['paid', 'processing', 'declined']) {
+      expect(payByReferenceProblem({ ...open, status })).toMatch(/no longer pending/);
+    }
+  });
+
+  it('refuses a QR whose amount was changed', () => {
+    expect(payByReferenceProblem(open, 1)).toMatch(/does not match/);
   });
 });

@@ -17,7 +17,8 @@ Workflow rules live in [CLAUDE.md](CLAUDE.md#workflow-rules); short version:
 - [ ] Create a Google service-account JSON and place at `apps/mobile/google-services.json` for EAS Submit
 - [ ] Set the `EXPO_TOKEN` repository secret on GitHub for automated EAS builds
 - [ ] Deploy backend services to a hosted environment (VM, Railway, Fly.io, etc.)
-- [ ] Point `EXPO_PUBLIC_API_URL` to the live backend URL once deployed
+- [x] Point `EXPO_PUBLIC_API_URL` to the live backend (home server `http://192.168.0.117:8000`, all EAS profiles); cleartext only for `http://`; no silent demo fallback in release builds (#104)
+- [ ] Expose the gateway on a public HTTPS hostname (Cloudflare Tunnel) so the app works off-LAN / on the Play Store, then switch `EXPO_PUBLIC_API_URL` to it (#105)
 - [ ] Run `eas submit --platform android` for the first Play Store upload (internal track)
 
 **Known bugs (next session)**
@@ -37,11 +38,11 @@ Workflow rules live in [CLAUDE.md](CLAUDE.md#workflow-rules); short version:
 - [x] TOTP 2FA — real working implementation: setup with QR/secret, verify, enable/disable, 2FA gate on login
 - [x] Push notifications — expo-notifications + expo-server-sdk: token registration, server-side sending on transfers
 - [ ] Scheduled payment executor — cron job that actually runs due payments
-- [ ] iOS build profile + App Store submission
+- [ ] App Store submission (the iOS build itself is in the Final Work MVP below)
 - [ ] Haptic feedback on mobile (expo-haptics) for transfers, button presses
+- [ ] iOS build profile + App Store submission
 - [ ] Parallax scroll effect on Overview hero card
 - [ ] Swipe-to-delete on transaction list items (swipeable row)
-- [ ] Skeleton loading screens (shimmer placeholders during data fetch)
 - [ ] Search functionality in web top bar (currently non-functional input)
 
 ## Active — `fix/valid-ibans`
@@ -51,6 +52,19 @@ Workflow rules live in [CLAUDE.md](CLAUDE.md#workflow-rules); short version:
 ## Done — `fix/receipt-pdf` (merged into `dev` via PR #97, issue #95 auto-closed, 2026-10-14)
 
 - [x] No receipt PDF can be downloaded: the gateway parses every response as JSON (#95) 🐛
+
+## Done — `feature/qr-topup` (merged into `dev` via PR #113, issue #112 auto-closed, 2026-11-26)
+
+- [x] Pay a NexusInfra top-up by scanning its EPC QR code (#112)
+
+## Done — `feature/private-payment-events` (merged into `dev` via PR #111, issues #108/#110 auto-closed, 2026-11-26)
+
+- [x] The gateway sends every `payment.confirmed` / `payment.failed` to all connected users, amounts and references included (#108) 🐛
+- [x] `npm run build` failed on a fresh clone: services built before `shared` (#110) 🐛
+
+## Done — `feature/live-balance` (merged into `dev` via PR #109, issue #107 auto-closed, 2026-11-26)
+
+- [x] Show the new balance right after paying a payment request, and live in the mobile app (#107) 🐛
 
 ## Done — `feature/nexusinfra-statements` (merged into `dev` via PR #96, issue #94 auto-closed, 2026-10-14)
 

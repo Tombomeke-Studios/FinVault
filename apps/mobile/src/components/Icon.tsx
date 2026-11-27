@@ -13,6 +13,7 @@ interface IconProps {
 const MCI_MAPPING: Record<string, keyof typeof MaterialCommunityIcons.glyphMap> = {
   flame: 'fire',
   faceId: 'face-recognition',
+  fingerprint: 'fingerprint',
 };
 
 const MAPPING: Record<string, keyof typeof Feather.glyphMap> = {
@@ -60,7 +61,7 @@ const MAPPING: Record<string, keyof typeof Feather.glyphMap> = {
   gift: 'gift',
   globe: 'globe',
   user: 'user',
-  fingerprint: 'key',
+  users: 'users',
   alertTriangle: 'alert-triangle',
   info: 'info',
   calendar: 'calendar',

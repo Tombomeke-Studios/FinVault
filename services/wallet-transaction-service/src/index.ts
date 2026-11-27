@@ -1174,7 +1174,10 @@ app.post('/transactions/transfer', requireAuth, async (req, res) => {
         reference,
         amount,
         senderWalletId: senderWallet.id,
-        receiverWalletId: receiverWallet.id
+        receiverWalletId: receiverWallet.id,
+        // The gateway sends the event to these two users only (#108).
+        senderUserId: senderWallet.userId,
+        receiverUserId: receiverWallet.userId
       }
     });
 
@@ -1365,7 +1368,10 @@ app.post('/transactions/sepa-transfer', requireAuth, async (req, res) => {
         reference,
         amount,
         senderWalletId: senderWallet.id,
-        receiverWalletId: receiverWallet.id
+        receiverWalletId: receiverWallet.id,
+        // The gateway sends the event to these two users only (#108).
+        senderUserId: senderWallet.userId,
+        receiverUserId: receiverWallet.userId
       }
     });
 
@@ -1409,6 +1415,74 @@ app.post('/transactions/sepa-transfer', requireAuth, async (req, res) => {
   } catch (error: any) {
     console.error('SEPA processing failure:', error);
     res.status(500).json({ error: 'SEPA processing failed', message: error.message });
+  }
+});
+
+// Internal endpoint for account-service to bill a subscription fee (#119).
+// Money leaves the customer's EUR checking wallet as FinVault revenue (there is
+// no receiving customer wallet). Idempotent on `reference`: the same charge sent
+// twice (a retried renewal, a double-tapped upgrade) bills once.
+app.post('/transactions/internal-fee', requireServiceSecret, async (req, res) => {
+  const { userId, amount, description, reference } = req.body || {};
+  if (typeof userId !== 'string' || !userId || typeof reference !== 'string' || !reference
+      || typeof amount !== 'number' || !Number.isFinite(amount) || amount <= 0 || typeof description !== 'string') {
+    return res.status(400).json({ error: 'userId, amount (> 0), description and reference are required' });
+  }
+
+  try {
+    const already = await prisma.transaction.findUnique({ where: { reference } });
+    if (already) return res.status(200).json({ transaction: already, alreadyCharged: true });
+
+    const wallet = await prisma.wallet.findFirst({ where: { userId, type: 'checking', currency: 'EUR' } });
+    if (!wallet) return res.status(404).json({ error: 'No EUR checking account to charge' });
+    if (wallet.balance < amount) {
+      return res.status(402).json({ error: 'Insufficient funds in your checking account', balance: wallet.balance, amount });
+    }
+
+    const integrityHash = computeTransactionHash({
+      senderWalletId: wallet.id,
+      receiverWalletId: 'FINVAULT-FEES',
+      amount,
+      reference,
+      currency: wallet.currency,
+    });
+
+    const [transaction, newBalance] = await prisma.$transaction(async (prismaTx) => {
+      const debit = await debitWallet(wallet.id, amount, prismaTx);
+      const transaction = await prismaTx.transaction.create({
+        data: {
+          reference,
+          senderWalletId: wallet.id,
+          receiverWalletId: null,
+          amount,
+          currency: wallet.currency,
+          status: 'confirmed',
+          type: 'payment',
+          description,
+          integrityHash,
+        },
+      });
+      await prismaTx.balanceHistory.create({
+        data: { walletId: wallet.id, amount: -amount, balanceAfter: debit.newBalance, reason: description },
+      });
+      await prismaTx.notification.create({
+        data: { userId, title: 'Subscription charged', body: `${description}: €${amount.toFixed(2)} was charged to your checking account.` },
+      });
+      return [transaction, debit.newBalance] as const;
+    });
+
+    await publishEvent('wallet-transaction-service', {
+      type: 'balance.updated',
+      payload: { walletId: wallet.id, userId, balance: newBalance, currency: wallet.currency },
+    });
+
+    res.status(201).json({ transaction, balance: newBalance });
+  } catch (error: any) {
+    if (error?.message === 'Insufficient balance') {
+      return res.status(402).json({ error: 'Insufficient funds in your checking account' });
+    }
+    console.error('Subscription fee failed:', error);
+    res.status(500).json({ error: 'Charging the subscription failed' });
   }
 });
 
@@ -1525,7 +1599,10 @@ app.post('/transactions/internal-transfer', async (req, res) => {
         reference,
         amount,
         senderWalletId: senderWallet.id,
-        receiverWalletId: receiverWallet.id
+        receiverWalletId: receiverWallet.id,
+        // The gateway sends the event to these two users only (#108).
+        senderUserId: senderWallet.userId,
+        receiverUserId: receiverWallet.userId
       }
     });
 

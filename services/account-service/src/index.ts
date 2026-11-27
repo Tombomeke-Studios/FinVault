@@ -1,4 +1,4 @@
-import { app, seedAccounts } from './app.js';
+import { app, seedAccounts, runRenewals } from './app.js';
 
 const PORT = process.env.PORT || 8001;
 
@@ -24,4 +24,11 @@ seedAccounts().then(() => {
     process.on('SIGINT',  shutdown);
   };
   start();
+
+  // Subscription renewals (#119): check hourly, and once shortly after boot.
+  const renew = () => runRenewals()
+    .then(r => { if (r.renewed || r.downgraded) console.log(`[Billing] renewed ${r.renewed}, moved to Standard ${r.downgraded}`); })
+    .catch(err => console.error('[Billing] renewal run failed:', err));
+  setTimeout(renew, 30_000).unref();
+  setInterval(renew, 60 * 60 * 1000).unref();
 });

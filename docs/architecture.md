@@ -127,6 +127,7 @@ erDiagram
     User ||--o| UserProfile : has
     User ||--o{ RefreshToken : owns
     User ||--o{ AuditLog : generates
+    User ||--o{ BiometricDevice : enrolls
 
     User {
         string id PK
@@ -135,6 +136,7 @@ erDiagram
         string accountType
         string status
         string plan
+        datetime planRenewsAt
     }
     UserProfile {
         string userId PK
@@ -228,12 +230,17 @@ erDiagram
 | `/auth/refresh` | POST | Token rotation; replay revokes all sessions |
 | `/auth/logout` | POST | Refresh token revocation |
 | `/users/profile` | GET | Authenticated user profile |
-| `/users/plan` | PUT | Plan upgrade (Standard/Metal/Metal+) |
+| `/users/plans` | GET | Plan price list (public; prices live in `src/billing.ts`) |
+| `/users/plan` | PUT | Change plan: charges via wallet `internal-fee`, 402 when declined (#119) |
 | `/users/change-password` | POST | Password change + session revocation |
 | `/users/sessions` | GET | List active refresh tokens |
 | `/users/sessions/:id` | DELETE | Revoke a specific session |
 | `/users/audit-logs` | GET | Security activity log |
 | `/users/profile-by-email` | GET | Internal (X-Service-Secret) |
+| `/auth/biometric/enroll` | POST | Bind this phone for biometric sign-in; returns a device secret once (#120) |
+| `/auth/biometric/login` | POST | `{deviceId, secret}` → token pair; rate-limited |
+| `/users/biometric-devices` | GET | Enrolled phones |
+| `/users/biometric-devices/:id` | DELETE | Revoke one phone |
 
 ### Wallet Service `:8002`
 
@@ -259,6 +266,30 @@ erDiagram
 | `/fx/rates` | GET | Exchange rate table |
 | `/fx/exchange` | POST | Currency exchange |
 | `/beneficiaries` | CRUD | Saved payees |
+| `/transactions/internal-fee` | POST | Internal (X-Service-Secret): debit a subscription fee, idempotent on `reference`; 402 on insufficient funds |
+
+### Subscription billing (#119)
+
+Prices are server-side (`services/account-service/src/billing.ts`: Standard €0, Metal
+€9.99, Metal+ €16.99 a month); the client only sends a plan name.
+
+| Change | Charged now | Renewal date |
+|---|---|---|
+| Standard → paid plan (or a legacy free plan with no `planRenewsAt`) | full month | today + 1 month |
+| Paid → dearer paid, inside the period | the price difference | unchanged |
+| Paid → cheaper paid, inside the period | nothing (no refund) | unchanged; next renewal bills the new price |
+| Any → Standard | nothing | cleared, so no more charges |
+
+The charge goes account-service → wallet-service `POST /transactions/internal-fee`
+(X-Service-Secret), which debits the EUR checking wallet as a `payment` with no
+receiver wallet and leaves a notification. The ledger's unique `reference`
+(`chargeReference()`) makes every charge idempotent.
+
+`runRenewals()` runs hourly from `index.ts`. Every user whose `planRenewsAt` has
+passed is billed; a declined charge (no funds, no account) moves them to Standard,
+while an unreachable wallet service (503) leaves the subscription for the next run.
+New users start on Standard. Users who were on Metal before billing existed
+(`planRenewsAt` null) are never billed until they change plan.
 
 ### Invoice Service `:8003`
 
@@ -268,6 +299,8 @@ erDiagram
 | `/payment-requests` | GET/POST | Payment requests; each one says whether it is `incoming` or `outgoing` for the caller |
 | `/payment-requests/:id/pay` | POST | Pay a request |
 | `/payment-requests/:id/decline` | POST | Decline a request |
+| `/payment-requests/by-reference/:reference` | GET | What an external request's reference would pay — shown before paying a scanned QR (#112) |
+| `/payment-requests/by-reference/:reference/pay` | POST | Pay an external request by its reference, by whoever scanned it; body may carry the QR's amount, which must match (#112) |
 | `/mandates` | GET/POST | SEPA direct debit mandates |
 | `/mandates/:id/cancel` | POST | Cancel a mandate |
 
@@ -309,11 +342,15 @@ graph LR
 |---|---|---|---|
 | `account.created` | Account | userId, email, accountType | Wallet (creates default wallets + cards) |
 | `account.frozen` | Account | userId, reason | Wallet (freezes all wallets) |
-| `balance.updated` | Wallet | walletId, userId, balance | WebSocket → client |
-| `payment.confirmed` | Wallet | transaction details | WebSocket → sender + receiver |
+| `balance.updated` | Wallet | walletId, userId, balance | WebSocket → that user's client |
+| `payment.confirmed` | Wallet | transaction details + `senderUserId`/`receiverUserId` | WebSocket → sender + receiver only (#108, `services/gateway/src/ws-routing.ts`) |
 | `payment.request` *(external, on `bank.payment.request`)* | NexusInfra | reference, customerEmail, amount, currency | Invoice (creates a payment request for the customer) |
 | `payment.confirmed` / `payment.failed` | Invoice | the requester's reference, amount / reason | NexusInfra (credits or fails the top-up) |
 | `invoice.generate` *(external)* | NexusInfra | reference, customerEmail, period, amount | Invoice (records a monthly hosting statement for the customer) |
+
+**The hub sends an event only to the users it names (#108).** `balance.updated`/`balance.low` go to `payload.userId`, `payment.confirmed`/`payment.failed` to `senderUserId` and `receiverUserId`; any other type, or one that names nobody, goes to nobody. Until #108 every payment — amount, reference, wallet ids — reached every connected user. A new event type reaches no client until it is added to `recipientsOf`.
+
+**Both apps listen to the WebSocket hub** (`ws(s)://<gateway>/?token=<JWT>`). On `balance.updated` they set that wallet's balance; on `payment.confirmed` they fetch wallets and transactions again. The mobile app joined in #107 (`apps/mobile/src/lib/live.ts`): it reconnects after a drop (1 s, doubling to 30 s) and reloads when it returns to the foreground, since events sent while it was in the background are not replayed. The hub is a convenience, not the source of truth: paying a payment request also reloads balances directly in both apps, so a dead socket never leaves an old balance on screen.
 
 ### External payment requests (NexusInfra top-ups)
 
@@ -338,6 +375,18 @@ sequenceDiagram
     R->>N: credit is added
 ```
 
+- **Or scan its QR (#112).** NexusInfra also shows the top-up as an EPC QR: the merchant's name and IBAN, the
+  amount, and the request's reference as an ISO 11649 RF creditor reference in the structured-reference field.
+  Scanning it in the mobile app looks the reference up and offers "Pay €X" for that request — through the same
+  claim → transfer → paid → `payment.confirmed` path as Invoices — instead of filling in a plain transfer. Anyone
+  signed in may pay an **external** request this way, so a customer whose FinVault address differs from their
+  NexusInfra one can still pay; a request between two FinVault users still needs its recipient. A QR whose amount
+  differs from the request is refused.
+- **Scan-only requests (#117).** A `payment.request` without `customerEmail` is created addressed to nobody: it
+  is in no account's Payment Requests and is paid only by scanning its QR. NexusInfra sends one when its customer
+  chose "pay by QR", because the address NexusInfra knows may belong to nobody — or to somebody else — here. The
+  per-recipient open-request cap protects an inbox, so it does not apply; the requester caps its own open top-ups.
+  An address that is present but malformed is still refused.
 - **Off unless `NEXUSINFRA_MERCHANT_EMAIL` is set** to an existing FinVault account, and `RABBITMQ_URL`
   is configured. That account receives the money; a request never names its own payee.
 - **Who pays is an email**, because a NexusInfra user id means nothing here. FinVault does not check

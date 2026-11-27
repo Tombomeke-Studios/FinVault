@@ -98,7 +98,7 @@ export function ScreenScheduledPayments({ token, apiUrl, wallets, fire }: Props)
       <FadeSlideIn delay={0}>
         <View style={styles.header}>
           <Text style={styles.title}>Scheduled Payments</Text>
-          <TouchableOpacity style={styles.addBtn} onPress={() => setCreateOpen(true)}>
+          <TouchableOpacity style={styles.addBtn} onPress={() => setCreateOpen(true)} accessibilityRole="button" accessibilityLabel="Schedule a payment">
             <Icon name="plus" size={18} color={THEME.colors.onAccent} />
           </TouchableOpacity>
         </View>

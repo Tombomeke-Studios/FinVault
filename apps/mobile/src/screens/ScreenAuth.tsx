@@ -1,7 +1,9 @@
 import React, { useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, KeyboardAvoidingView, Platform, ScrollView, ActivityIndicator } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, KeyboardAvoidingView, Platform, ScrollView, ActivityIndicator, Alert } from 'react-native';
 import { Icon } from '../components/Icon';
+import { Avatar } from '../components/UI';
 import { FadeSlideIn } from '../components/Motion';
+import { findAccount, type SavedAccount } from '../lib/accounts';
 import { THEME, themedSheet } from '../theme';
 
 interface AuthProps {
@@ -9,15 +11,29 @@ interface AuthProps {
   onRegister: (firstName: string, lastName: string, email: string, pw: string) => Promise<void>;
   authError: string;
   authSuccess: string;
-  onFaceIdLogin?: () => void;
   pending2FA?: boolean;
   on2FAVerify?: (code: string) => Promise<void>;
   onCancel2FA?: () => void;
+  /** Accounts signed in on this phone before (#121), most recent first. */
+  accounts?: SavedAccount[];
+  onBiometricLogin?: (email: string) => Promise<void>;
+  onForgetAccount?: (email: string) => void;
+  /** "Fingerprint", "Face ID", … */
+  bioLabel?: string;
+  /** Open straight on the password form with this email (switching to an account without biometrics). */
+  prefillEmail?: string;
+  /** Open on an empty password form ("Add another account"). */
+  startWithForm?: boolean;
 }
 
-export function ScreenAuth({ onLogin, onRegister, authError, authSuccess, onFaceIdLogin, pending2FA, on2FAVerify, onCancel2FA }: AuthProps) {
+export function ScreenAuth({
+  onLogin, onRegister, authError, authSuccess, pending2FA, on2FAVerify, onCancel2FA,
+  accounts = [], onBiometricLogin, onForgetAccount, bioLabel = 'Biometrics', prefillEmail, startWithForm,
+}: AuthProps) {
   const [mode, setMode] = useState<'login' | 'register'>('login');
-  const [email, setEmail] = useState('admin@finvault.com');
+  const [view, setView] = useState<'accounts' | 'form'>(accounts.length > 0 && !prefillEmail && !startWithForm ? 'accounts' : 'form');
+  const [email, setEmail] = useState(prefillEmail ?? '');
+  const [bioBusy, setBioBusy] = useState<string | null>(null);
   const [pw, setPw] = useState('');
   const [show, setShow] = useState(false);
   const [firstName, setFirstName] = useState('');
@@ -38,11 +54,29 @@ export function ScreenAuth({ onLogin, onRegister, authError, authSuccess, onFace
     }
   };
 
-  const handleFaceIdLogin = () => {
-    if (onFaceIdLogin) {
-      onFaceIdLogin();
-    }
+  const bioSignIn = async (accountEmail: string) => {
+    if (!onBiometricLogin) return;
+    setBioBusy(accountEmail);
+    try { await onBiometricLogin(accountEmail); } finally { setBioBusy(null); }
   };
+
+  const pickAccount = (a: SavedAccount) => {
+    if (a.biometric) { bioSignIn(a.email); return; }
+    setEmail(a.email);
+    setPw('');
+    setMode('login');
+    setView('form');
+  };
+
+  const confirmForget = (a: SavedAccount) => {
+    Alert.alert(
+      'Remove from this phone?',
+      `${a.email} will no longer be listed here${a.biometric ? ` and ${bioLabel} sign-in for it is unlinked` : ''}. Your account itself is not affected.`,
+      [{ text: 'Cancel', style: 'cancel' }, { text: 'Remove', style: 'destructive', onPress: () => onForgetAccount?.(a.email) }],
+    );
+  };
+
+  const typedAccount = findAccount(accounts, email);
 
   return (
     <KeyboardAvoidingView
@@ -65,7 +99,7 @@ export function ScreenAuth({ onLogin, onRegister, authError, authSuccess, onFace
             {mode === 'login' ? 'Welcome back' : 'Open your Vault'}
           </Text>
           <Text style={styles.subheading}>
-            {mode === 'login' ? 'Sign in to your FinVault account.' : 'Your IBAN is ready in seconds.'}
+            {mode === 'register' ? 'Your IBAN is ready in seconds.' : view === 'accounts' ? 'Choose an account to sign in.' : 'Sign in to your FinVault account.'}
           </Text>
 
           {/* Messages */}
@@ -82,7 +116,55 @@ export function ScreenAuth({ onLogin, onRegister, authError, authSuccess, onFace
             </View>
           )}
 
-          {/* Fields */}
+          {view === 'accounts' && !pending2FA ? (
+            <View style={styles.form}>
+              {accounts.map(a => (
+                <View key={a.email} style={styles.accountRow}>
+                  <TouchableOpacity
+                    style={styles.accountMain}
+                    onPress={() => pickAccount(a)}
+                    disabled={!!bioBusy}
+                    accessibilityRole="button"
+                    accessibilityLabel={`${a.name}, ${a.email}. ${a.biometric ? `Sign in with ${bioLabel}` : 'Sign in with password'}`}
+                  >
+                    <Avatar initials={a.initials} size={40} />
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.accountName} numberOfLines={1}>{a.name}</Text>
+                      <Text style={styles.accountEmail} numberOfLines={1}>{a.email}</Text>
+                    </View>
+                    {bioBusy === a.email ? (
+                      <ActivityIndicator size="small" color={THEME.colors.accent} />
+                    ) : a.biometric ? (
+                      <View style={styles.bioChip}>
+                        <Icon name={bioLabel.startsWith('Face') ? 'faceId' : 'fingerprint'} size={16} color={THEME.colors.accent} />
+                      </View>
+                    ) : (
+                      <Icon name="chevRight" size={18} color={THEME.colors.text2} />
+                    )}
+                  </TouchableOpacity>
+                  {onForgetAccount && (
+                    <TouchableOpacity
+                      onPress={() => confirmForget(a)}
+                      style={styles.forgetBtn}
+                      hitSlop={{ top: 8, bottom: 8, left: 4, right: 8 }}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Remove ${a.email} from this phone`}
+                    >
+                      <Icon name="x" size={16} color={THEME.colors.text2} />
+                    </TouchableOpacity>
+                  )}
+                </View>
+              ))}
+              <TouchableOpacity
+                style={styles.faceIdBtn}
+                onPress={() => { setEmail(''); setPw(''); setView('form'); }}
+                accessibilityRole="button"
+              >
+                <Icon name="plus" size={18} color={THEME.colors.accent} />
+                <Text style={styles.faceIdText}>Use another account</Text>
+              </TouchableOpacity>
+            </View>
+          ) : (
           <View style={styles.form}>
             {mode === 'register' && (
               <View style={styles.row}>
@@ -156,14 +238,6 @@ export function ScreenAuth({ onLogin, onRegister, authError, authSuccess, onFace
               </View>
             </View>
 
-            {mode === 'login' && (
-              <View style={styles.forgotRow}>
-                <Text style={styles.keepText}>Keep me signed in</Text>
-                <TouchableOpacity>
-                  <Text style={styles.forgotBtn}>Forgot?</Text>
-                </TouchableOpacity>
-              </View>
-            )}
 
             {pending2FA ? (
               <>
@@ -226,26 +300,37 @@ export function ScreenAuth({ onLogin, onRegister, authError, authSuccess, onFace
                   )}
                 </TouchableOpacity>
 
-                {mode === 'login' && (
+                {mode === 'login' && typedAccount?.biometric && (
                   <TouchableOpacity
-                    style={[styles.faceIdBtn, loading && { opacity: 0.5 }]}
-                    onPress={handleFaceIdLogin}
-                    disabled={loading}
+                    style={[styles.faceIdBtn, (loading || !!bioBusy) && { opacity: 0.5 }]}
+                    onPress={() => bioSignIn(typedAccount.email)}
+                    disabled={loading || !!bioBusy}
                     accessibilityRole="button"
-                    accessibilityLabel="Sign in with Face ID"
                   >
-                    <Icon name="faceId" size={20} color={THEME.colors.accent} />
-                    <Text style={styles.faceIdText}>Sign in with Face ID</Text>
+                    <Icon name={bioLabel.startsWith('Face') ? 'faceId' : 'fingerprint'} size={20} color={THEME.colors.accent} />
+                    <Text style={styles.faceIdText}>Use {bioLabel} instead</Text>
+                  </TouchableOpacity>
+                )}
+
+                {mode === 'login' && accounts.length > 0 && (
+                  <TouchableOpacity
+                    style={styles.faceIdBtn}
+                    onPress={() => setView('accounts')}
+                    accessibilityRole="button"
+                  >
+                    <Icon name="arrowLeft" size={18} color={THEME.colors.text2} />
+                    <Text style={[styles.faceIdText, { color: THEME.colors.text2 }]}>Saved accounts</Text>
                   </TouchableOpacity>
                 )}
               </>
             )}
           </View>
+          )}
 
           {/* Toggle mode */}
           <Text style={styles.toggleText}>
             {mode === 'login' ? 'New to FinVault? ' : 'Already have an account? '}
-            <Text style={styles.toggleBtn} onPress={() => setMode(mode === 'login' ? 'register' : 'login')}>
+            <Text style={styles.toggleBtn} accessibilityRole="link" onPress={() => { setView('form'); setMode(mode === 'login' ? 'register' : 'login'); }}>
               {mode === 'login' ? 'Open an account' : 'Sign in'}
             </Text>
           </Text>
@@ -364,6 +449,40 @@ const styles = themedSheet(() => StyleSheet.create({
     position: 'absolute',
     right: 16,
     padding: 4,
+  },
+  accountRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: THEME.colors.line,
+    borderRadius: THEME.radius.regular,
+    backgroundColor: THEME.colors.surface2,
+  },
+  accountMain: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    padding: 12,
+    minHeight: 64,
+  },
+  accountName: { fontSize: 15, fontWeight: '700', color: THEME.colors.text },
+  accountEmail: { fontSize: 13, color: THEME.colors.text2, marginTop: 1 },
+  bioChip: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: THEME.colors.accentSoft,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  forgetBtn: {
+    width: 44,
+    alignSelf: 'stretch',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderLeftWidth: 1,
+    borderLeftColor: THEME.colors.line,
   },
   forgotRow: {
     flexDirection: 'row',
