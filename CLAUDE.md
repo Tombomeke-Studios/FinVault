@@ -227,7 +227,7 @@ the same emails offline → client-side mock demo mode (mobile: dev bundles only
 | `src/lib/` | `epc.ts` (EPC QR build/parse, incl. the RF creditor reference + `isValidRfReference`, #112), `validate.ts` (email/IBAN), `csv.ts` (export), `live.ts` (WebSocket hub URL, message → action, reconnect backoff, #107) — all unit-tested |
 | `src/components/BankCard.tsx` | Card visual; `CARD_SCHEMES` (metal/cyan/violet/gold/accent) |
 | `src/components/UI.tsx` | `money()` (nl-NL! use `{whole:true}`, never string-strip), `relTime`, `Ring`, `Donut`, `Sparkline`, `Bars`, `CategoryIcon`, `Delta`, `Avatar` |
-| `src/components/Shell.tsx` | Top bar (logo + avatar→settings) + bottom nav (5 items, center Send FAB) |
+| `src/components/Shell.tsx` | Top bar (logo + avatar→settings) + bottom nav (5 tabs, Send is the filled centre tab; pads the safe-area bottom inset, #122) |
 | `src/screens/` | One file per screen: Overview, Transactions, Transfer, Cards, Savings, Analytics, Settings (incl. Security-activity sheet), Auth, AccountDashboard (`account:<id>` route) |
 
 ### apps/web-dashboard (Vite + React 18 + React Router)
@@ -265,7 +265,10 @@ the same emails offline → client-side mock demo mode (mobile: dev bundles only
 - Wallet model has **no `name` column**; display names derive from `type`
   (`walletLabel()` server-side, inline ternaries client-side).
 - Services run on Node ESM + tsx; Prisma clients are generated into `generated/prisma`.
-- Mobile screens need `paddingBottom: 88` in scroll content to clear the bottom nav.
+- Mobile screens use `paddingBottom: 88` in scroll content (breathing room above the bottom nav).
+- **Mobile safe areas:** Android is edge-to-edge (SDK 54); RN's `SafeAreaView` is iOS-only.
+  Use `useSafeAreaInsets()` from `react-native-safe-area-context` for anything touching a
+  screen edge; see docs/design-system.md → Safe areas.
 - **Mobile theming:** module-level StyleSheets that use THEME colors must be wrapped in
   `themedSheet(() => StyleSheet.create({...}))`; theme changes go through
   `applyAndSetTheme` in App.tsx (mutate first, then setState) — never call

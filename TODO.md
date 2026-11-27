@@ -46,6 +46,13 @@ Workflow rules live in [CLAUDE.md](CLAUDE.md#workflow-rules); short version:
 - [ ] Skeleton loading screens (shimmer placeholders during data fetch)
 - [ ] Search functionality in web top bar (currently non-functional input)
 
+## Active — `claude/keen-gates-q6ydh0` (accounts, billing, a11y)
+
+- [x] Bottom nav and sheet buttons sit under the Android navigation bar; a11y labels on icon-only controls (#122) 🐛
+- [ ] Charge for subscription plans: first month on upgrade, monthly renewal (#119)
+- [ ] Bind biometric sign-in to an account with a server-registered device credential (#120)
+- [ ] Mobile: per-account biometric enrollment and an account switcher (#121)
+
 ## Active — `fix/receipt-pdf`
 
 - [x] No receipt PDF can be downloaded: the gateway parses every response as JSON (#95) 🐛

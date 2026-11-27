@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useEffect, Component } from 'react';
-import { View, StyleSheet, SafeAreaView, TouchableOpacity, Text, StatusBar, TextInput, Alert, Platform, BackHandler, AppState } from 'react-native';
+import { View, StyleSheet, TouchableOpacity, Text, StatusBar, TextInput, Alert, Platform, BackHandler, AppState } from 'react-native';
 import { ScreenAuth } from './src/screens/ScreenAuth';
 import { ScreenOverview } from './src/screens/ScreenOverview';
 import { ScreenTransactions } from './src/screens/ScreenTransactions';
@@ -27,6 +27,7 @@ import { saveSession, loadSession, clearSession, tryRefreshSession, revokeSessio
 import { isBiometricAvailable, authenticateBiometric, getBiometricPref, setBiometricPref, hasDismissedBioPrompt, setDismissedBioPrompt } from './src/biometrics';
 import { THEME, themedSheet, setAppTheme, persistThemeConfig, loadPersistedThemeConfig } from './src/theme';
 import { registerForPushNotifications, sendTokenToServer } from './src/push';
+import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { API_URL, DEMO_MODE_ENABLED, UNREACHABLE_MESSAGE } from './src/config';
 import { liveAction, liveSocketUrl, reconnectDelayMs, withBalance } from './src/lib/live';
 
@@ -330,7 +331,21 @@ const upgStyles = themedSheet(() => StyleSheet.create({
   confirmTxtMuted: { color: THEME.colors.text2 },
 }));
 
+// Root: safe-area insets (Android draws edge-to-edge since SDK 54, so the
+// status and navigation bars overlap the app unless we pad for them) and the
+// crash boundary.
 export default function App() {
+  return (
+    <SafeAreaProvider>
+      <ErrorBoundary>
+        <AppContent />
+      </ErrorBoundary>
+    </SafeAreaProvider>
+  );
+}
+
+function AppContent() {
+  const insets = useSafeAreaInsets();
   // --- Auth State ---
   const [token, setToken] = useState<string | null>(null);
   const [restoring, setRestoring] = useState(true); // true while loading the stored session
@@ -1079,7 +1094,7 @@ export default function App() {
   return (
     // Key forces a clean remount on theme switch so every component re-reads
     // the mutated THEME object (inline styles + themedSheet proxies).
-    <SafeAreaView key={`${theme.mode}-${theme.accent}`} style={styles.container}>
+    <View key={`${theme.mode}-${theme.accent}`} style={[styles.container, { paddingTop: insets.top }]}>
       <StatusBar barStyle={THEME.statusBarStyle} backgroundColor={THEME.colors.bg} />
 
       {/* Session restore splash, Auth screen, or Main application shell */}
@@ -1210,7 +1225,7 @@ export default function App() {
 
       {/* Toast notifications overlay */}
       <ToastHost toasts={toasts} onDismiss={dismiss} />
-    </SafeAreaView>
+    </View>
   );
 }
 
@@ -1218,7 +1233,6 @@ const styles = themedSheet(() => StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: THEME.colors.bg,
-    paddingTop: Platform.OS === 'android' ? (StatusBar.currentHeight || 24) : 0,
   },
   splash: {
     flex: 1,

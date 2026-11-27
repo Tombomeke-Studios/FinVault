@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { Icon } from './Icon';
 import { Avatar } from './UI';
 import { FVLogo } from './FVLogo';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { THEME, themedSheet } from '../theme';
 
 interface ShellProps {
@@ -13,6 +14,8 @@ interface ShellProps {
   unreadNotifications?: number;
 }
 
+const NAV_HEIGHT = 64;
+
 const BOTTOM_NAV = [
   { id: 'overview',     label: 'Home',     icon: 'home'       },
   { id: 'transactions', label: 'Activity', icon: 'list'       },
@@ -22,6 +25,9 @@ const BOTTOM_NAV = [
 ];
 
 export function Shell({ route, setRoute, user, children, unreadNotifications = 0 }: ShellProps) {
+  // Android draws edge-to-edge: without the bottom inset the tabs sit under the
+  // system navigation bar (gesture pill or 3-button bar).
+  const insets = useSafeAreaInsets();
   return (
     <View style={styles.container}>
       {/* Top sticky bar */}
@@ -61,7 +67,7 @@ export function Shell({ route, setRoute, user, children, unreadNotifications = 0
       </View>
 
       {/* Bottom sticky navigation row */}
-      <View style={styles.navBar}>
+      <View style={[styles.navBar, { paddingBottom: insets.bottom, height: NAV_HEIGHT + insets.bottom }]} accessibilityRole="tablist">
         {BOTTOM_NAV.map(nav => {
           const active = route === nav.id || (nav.id === 'overview' && route.startsWith('account:'));
 
@@ -70,12 +76,16 @@ export function Shell({ route, setRoute, user, children, unreadNotifications = 0
               <TouchableOpacity
                 key={nav.id}
                 onPress={() => setRoute(nav.id)}
-                style={styles.floatingBtn}
+                style={styles.navItem}
                 activeOpacity={0.85}
                 accessibilityLabel="Send money"
-                accessibilityRole="button"
+                accessibilityRole="tab"
+                accessibilityState={{ selected: active }}
               >
-                <Icon name="send" size={22} color={THEME.colors.onAccent} />
+                <View style={styles.sendBtn}>
+                  <Icon name="send" size={20} color={THEME.colors.onAccent} />
+                </View>
+                <Text style={[styles.navText, { color: active ? THEME.colors.accent : THEME.colors.text2 }]}>{nav.label}</Text>
               </TouchableOpacity>
             );
           }
@@ -94,10 +104,10 @@ export function Shell({ route, setRoute, user, children, unreadNotifications = 0
                 <Icon
                   name={nav.icon}
                   size={21}
-                  color={active ? THEME.colors.accent : THEME.colors.text3}
+                  color={active ? THEME.colors.accent : THEME.colors.text2}
                 />
               </View>
-              <Text style={[styles.navText, { color: active ? THEME.colors.accent : THEME.colors.text3 }]}>
+              <Text style={[styles.navText, { color: active ? THEME.colors.accent : THEME.colors.text2 }]}>
                 {nav.label}
               </Text>
             </TouchableOpacity>
@@ -155,15 +165,12 @@ const styles = themedSheet(() => StyleSheet.create({
     flex: 1,
   },
   navBar: {
-    height: 64,
     flexDirection: 'row',
     justifyContent: 'space-around',
-    alignItems: 'center',
+    alignItems: 'stretch',
     borderTopWidth: 1,
     borderTopColor: THEME.colors.line,
     backgroundColor: THEME.colors.surface,
-    paddingBottom: 4,
-    position: 'relative',
   },
   navItem: {
     alignItems: 'center',
@@ -171,7 +178,7 @@ const styles = themedSheet(() => StyleSheet.create({
     paddingVertical: 6,
     flex: 1,
     gap: 4,
-    minHeight: 44,
+    minHeight: 48,
   },
   navIconWrap: {
     width: 48,
@@ -188,18 +195,14 @@ const styles = themedSheet(() => StyleSheet.create({
     fontWeight: '700',
     letterSpacing: 0.2,
   },
-  floatingBtn: {
-    width: 52,
-    height: 52,
-    borderRadius: 26,
+  // Send stays the visual primary action, but inside the bar (no overlap
+  // with the content above) and with a label like the other tabs.
+  sendBtn: {
+    width: 48,
+    height: 30,
+    borderRadius: THEME.radius.xl,
     backgroundColor: THEME.colors.accent,
     justifyContent: 'center',
     alignItems: 'center',
-    shadowColor: THEME.colors.accent,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 10,
-    elevation: 8,
-    transform: [{ translateY: -14 }],
   },
 }));

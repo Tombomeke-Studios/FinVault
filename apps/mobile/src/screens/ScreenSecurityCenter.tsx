@@ -88,7 +88,7 @@ export function ScreenSecurityCenter({ token, apiUrl, fire, onBack, onPasswordCh
     <ScrollView style={styles.container} contentContainerStyle={{ paddingBottom: 88 }}>
       <FadeSlideIn delay={0}>
         <View style={styles.header}>
-          <TouchableOpacity onPress={onBack} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+          <TouchableOpacity onPress={onBack} hitSlop={{ top: 13, bottom: 13, left: 13, right: 13 }} accessibilityRole="button" accessibilityLabel="Go back">
             <Icon name="arrowLeft" size={22} color={THEME.colors.text} />
           </TouchableOpacity>
           <Text style={styles.title}>Security Center</Text>
