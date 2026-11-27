@@ -40,7 +40,6 @@ Workflow rules live in [CLAUDE.md](CLAUDE.md#workflow-rules); short version:
 - [x] Push notifications — expo-notifications + expo-server-sdk: token registration, server-side sending on transfers
 - [ ] Scheduled payment executor — cron job that actually runs due payments
 - [ ] iOS build profile + App Store submission
-- [ ] Haptic feedback on mobile (expo-haptics) for transfers, button presses
 - [ ] Parallax scroll effect on Overview hero card
 - [ ] Swipe-to-delete on transaction list items (swipeable row)
 - [ ] Skeleton loading screens (shimmer placeholders during data fetch)
@@ -52,6 +51,8 @@ Workflow rules live in [CLAUDE.md](CLAUDE.md#workflow-rules); short version:
 - [x] Charge for subscription plans: first month on upgrade, monthly renewal (#119)
 - [x] Bind biometric sign-in to an account with a server-registered device credential (#120)
 - [x] Mobile: per-account biometric enrollment and an account switcher (#121)
+- [ ] Security Center: list and revoke biometric-linked devices (#124)
+- [ ] Revolut-style motion and haptics (#125): haptics ✅, route transitions, tab pill, send success screen, skeletons
 
 ## Active — `fix/receipt-pdf`
 
