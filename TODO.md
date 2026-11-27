@@ -46,6 +46,10 @@ Workflow rules live in [CLAUDE.md](CLAUDE.md#workflow-rules); short version:
 - [ ] Skeleton loading screens (shimmer placeholders during data fetch)
 - [ ] Search functionality in web top bar (currently non-functional input)
 
+## Active — `feature/scan-only-requests`
+
+- [x] Accept an external payment request that is paid only by scanning its QR (#117)
+
 ## Active — `fix/receipt-pdf`
 
 - [x] No receipt PDF can be downloaded: the gateway parses every response as JSON (#95) 🐛

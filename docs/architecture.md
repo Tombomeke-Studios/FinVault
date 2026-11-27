@@ -351,6 +351,11 @@ sequenceDiagram
   signed in may pay an **external** request this way, so a customer whose FinVault address differs from their
   NexusInfra one can still pay; a request between two FinVault users still needs its recipient. A QR whose amount
   differs from the request is refused.
+- **Scan-only requests (#117).** A `payment.request` without `customerEmail` is created addressed to nobody: it
+  is in no account's Payment Requests and is paid only by scanning its QR. NexusInfra sends one when its customer
+  chose "pay by QR", because the address NexusInfra knows may belong to nobody — or to somebody else — here. The
+  per-recipient open-request cap protects an inbox, so it does not apply; the requester caps its own open top-ups.
+  An address that is present but malformed is still refused.
 - **Off unless `NEXUSINFRA_MERCHANT_EMAIL` is set** to an existing FinVault account, and `RABBITMQ_URL`
   is configured. That account receives the money; a request never names its own payee.
 - **Who pays is an email**, because a NexusInfra user id means nothing here. FinVault does not check

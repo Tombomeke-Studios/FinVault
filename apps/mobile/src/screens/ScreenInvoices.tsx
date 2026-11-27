@@ -145,7 +145,7 @@ export function ScreenInvoices({ token, apiUrl, fire, onBack, onPaid }: Props) {
                 <View style={styles.requestRow}>
                   <View style={{ flex: 1 }}>
                     <Text style={styles.cardTitle}>{r.description}</Text>
-                    <Text style={styles.cardSub}>{r.direction === 'outgoing' ? `To: ${r.recipientEmail}` : `From: ${r.creatorEmail}`}</Text>
+                    <Text style={styles.cardSub}>{r.direction === 'outgoing' ? (r.recipientEmail ? `To: ${r.recipientEmail}` : 'To: whoever scans its QR code') : `From: ${r.creatorEmail}`}</Text>
                     <Text style={[styles.cardStatus, { color: statusColor(r.status) }]}>{r.status.toUpperCase()}</Text>
                   </View>
                   <Text style={styles.cardAmount}>{money(r.amount, r.currency)}</Text>
