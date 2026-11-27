@@ -3,7 +3,7 @@ import { View, Text, StyleSheet, ScrollView, TouchableOpacity, RefreshControl, A
 import { Icon } from '../components/Icon';
 import { money, Sparkline, relTime, CategoryIcon, Ring, catColor, Delta } from '../components/UI';
 import { BankCard } from '../components/BankCard';
-import { PressableScale, FadeSlideIn, AnimatedProgressBar, ScaleIn, AnimatedCard, BalanceDisplay, useParallax } from '../components/Motion';
+import { PressableScale, FadeSlideIn, AnimatedProgressBar, ScaleIn, AnimatedCard, BalanceDisplay, useParallax, Shimmer } from '../components/Motion';
 import { THEME, themedSheet } from '../theme';
 import type { AppData } from '../../App';
 
@@ -12,6 +12,47 @@ interface OverviewProps {
   data: AppData;
   onTopup: () => void;
   onRefresh?: () => Promise<void>;
+  /** First load still running: show skeletons instead of zero balances (#125). */
+  loading?: boolean;
+}
+
+// Placeholder shapes in the layout of the real screen, so content settles in
+// place instead of popping in.
+function OverviewSkeleton() {
+  return (
+    <ScrollView style={styles.container} contentContainerStyle={styles.content} scrollEnabled={false}
+      accessibilityLabel="Loading your accounts" accessibilityState={{ busy: true }}>
+      <View style={{ gap: 8 }}>
+        <Shimmer width={110} height={13} />
+        <Shimmer width={160} height={24} />
+      </View>
+      <View style={skel.hero}>
+        <Shimmer width={90} height={12} />
+        <Shimmer width={200} height={38} borderRadius={10} />
+        <Shimmer width={130} height={12} />
+      </View>
+      <View style={skel.actions}>
+        {[0, 1, 2, 3].map(i => (
+          <View key={i} style={{ alignItems: 'center', gap: 8 }}>
+            <Shimmer width={52} height={52} borderRadius={26} />
+            <Shimmer width={44} height={10} />
+          </View>
+        ))}
+      </View>
+      <View style={skel.list}>
+        {[0, 1, 2, 3].map(i => (
+          <View key={i} style={skel.row}>
+            <Shimmer width={40} height={40} borderRadius={20} />
+            <View style={{ flex: 1, gap: 7 }}>
+              <Shimmer width="62%" height={13} />
+              <Shimmer width="38%" height={11} />
+            </View>
+            <Shimmer width={64} height={14} />
+          </View>
+        ))}
+      </View>
+    </ScrollView>
+  );
 }
 
 const QUICK_ACTIONS = [
@@ -26,7 +67,7 @@ const QUICK_ACTIONS = [
 const ACCOUNT_CARD_W = 222;
 const ACCOUNT_CARD_GAP = 12;
 
-export function ScreenOverview({ navigate, data, onTopup, onRefresh }: OverviewProps) {
+export function ScreenOverview({ navigate, data, onTopup, onRefresh, loading }: OverviewProps) {
   const [refreshing, setRefreshing] = useState(false);
   const handleRefresh = useCallback(async () => {
     setRefreshing(true);
@@ -49,6 +90,8 @@ export function ScreenOverview({ navigate, data, onTopup, onRefresh }: OverviewP
   const prevBal = balanceTrend.length >= 2 ? balanceTrend[balanceTrend.length - 2] : balanceTrend[0] ?? 0;
   const currBal = balanceTrend[balanceTrend.length - 1] ?? totalEUR;
   const deltaBalance = prevBal > 0 ? parseFloat(((currBal - prevBal) / prevBal * 100).toFixed(1)) : 0;
+
+  if (loading) return <OverviewSkeleton />;
 
   const hour = new Date().getHours();
   const greeting = hour < 12 ? 'Good morning' : hour < 18 ? 'Good afternoon' : 'Good evening';
@@ -391,4 +434,25 @@ const styles = themedSheet(() => StyleSheet.create({
   goalName: { fontSize: 14, fontWeight: '600', color: THEME.colors.text, letterSpacing: -0.2 },
   goalPct: { fontSize: 14, fontWeight: '700', fontVariant: ['tabular-nums'] as any },
   goalSub: { fontSize: 11, color: THEME.colors.text3, marginTop: 4, fontVariant: ['tabular-nums'] as any },
+}));
+
+const skel = themedSheet(() => StyleSheet.create({
+  hero: {
+    backgroundColor: THEME.colors.surface,
+    borderRadius: THEME.radius.lg,
+    borderWidth: 1,
+    borderColor: THEME.colors.line,
+    padding: 20,
+    gap: 12,
+  },
+  actions: { flexDirection: 'row', justifyContent: 'space-around', paddingVertical: 4 },
+  list: {
+    backgroundColor: THEME.colors.surface,
+    borderRadius: THEME.radius.lg,
+    borderWidth: 1,
+    borderColor: THEME.colors.line,
+    padding: 16,
+    gap: 16,
+  },
+  row: { flexDirection: 'row', alignItems: 'center', gap: 12 },
 }));

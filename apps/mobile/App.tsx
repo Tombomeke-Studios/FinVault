@@ -405,6 +405,8 @@ function AppContent() {
   const [goals, setGoals] = useState<Goal[]>([]);
   const [beneficiaries, setBeneficiaries] = useState<Beneficiary[]>([]);
   const [unreadNotifications, setUnreadNotifications] = useState(0);
+  // False until the first wallet fetch settles: Overview shows skeletons, not €0 (#125).
+  const [walletsLoaded, setWalletsLoaded] = useState(false);
   const [authError, setAuthError] = useState('');
   const [authSuccess, setAuthSuccess] = useState('');
   const [pending2FA, setPending2FA] = useState<{ tempToken: string; email: string } | null>(null);
@@ -539,7 +541,9 @@ function AppContent() {
         headers: { Authorization: `Bearer ${token}` }
       });
       if (res.ok) setWallets(await res.json());
-    } catch {}
+    } catch {} finally {
+      setWalletsLoaded(true);
+    }
   }, [token]);
 
   const fetchTransactions = useCallback(async () => {
@@ -881,6 +885,7 @@ function AppContent() {
     setGoals([]);
     setWallets([]);
     setTransactions([]);
+    setWalletsLoaded(false);
     setRoute('overview');
     setAuthError('');
     setAuthSuccess('');
@@ -1208,7 +1213,7 @@ function AppContent() {
     }
     switch (route) {
       case 'overview':
-        return <ScreenOverview navigate={setRoute} data={appData} onTopup={() => setDepositOpen(true)} onRefresh={async () => { await Promise.all([fetchWallets(), fetchTransactions(), fetchCards(), fetchGoals(), fetchNotificationCount()]); }} />;
+        return <ScreenOverview loading={!walletsLoaded && !!token && token !== 'mock-token'} navigate={setRoute} data={appData} onTopup={() => setDepositOpen(true)} onRefresh={async () => { await Promise.all([fetchWallets(), fetchTransactions(), fetchCards(), fetchGoals(), fetchNotificationCount()]); }} />;
       case 'transactions':
         return <ScreenTransactions data={appData} onExport={() => fire('Export complete', 'Your transactions CSV was shared.', 'success')} navigate={setRoute} />;
       case 'transfer':
@@ -1242,7 +1247,7 @@ function AppContent() {
       case 'disputes':
         return <ScreenDisputes token={token} apiUrl={API_URL} transactions={transactions} fire={fire} onBack={() => setRoute('settings')} />;
       default:
-        return <ScreenOverview navigate={setRoute} data={appData} onTopup={() => setDepositOpen(true)} onRefresh={async () => { await Promise.all([fetchWallets(), fetchTransactions(), fetchCards(), fetchGoals(), fetchNotificationCount()]); }} />;
+        return <ScreenOverview loading={!walletsLoaded && !!token && token !== 'mock-token'} navigate={setRoute} data={appData} onTopup={() => setDepositOpen(true)} onRefresh={async () => { await Promise.all([fetchWallets(), fetchTransactions(), fetchCards(), fetchGoals(), fetchNotificationCount()]); }} />;
     }
   };
 

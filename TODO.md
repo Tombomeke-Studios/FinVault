@@ -42,7 +42,6 @@ Workflow rules live in [CLAUDE.md](CLAUDE.md#workflow-rules); short version:
 - [ ] iOS build profile + App Store submission
 - [ ] Parallax scroll effect on Overview hero card
 - [ ] Swipe-to-delete on transaction list items (swipeable row)
-- [ ] Skeleton loading screens (shimmer placeholders during data fetch)
 - [ ] Search functionality in web top bar (currently non-functional input)
 
 ## Active — `claude/keen-gates-q6ydh0` (accounts, billing, a11y)
@@ -52,7 +51,7 @@ Workflow rules live in [CLAUDE.md](CLAUDE.md#workflow-rules); short version:
 - [x] Bind biometric sign-in to an account with a server-registered device credential (#120)
 - [x] Mobile: per-account biometric enrollment and an account switcher (#121)
 - [ ] Security Center: list and revoke biometric-linked devices (#124)
-- [ ] Revolut-style motion and haptics (#125): haptics ✅, route transitions ✅, tab pill ✅, send success screen, skeletons
+- [x] Revolut-style motion and haptics (#125): haptics ✅, route transitions ✅, tab pill ✅, send success screen ✅, skeletons ✅
 
 ## Active — `fix/receipt-pdf`
 

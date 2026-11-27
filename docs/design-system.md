@@ -90,6 +90,7 @@ One rhythm everywhere — spring physics, enter slower than exit, reduced-motion
 | Sheets/modals | `MobileSheet`: spring slide-up, fading scrim, drag-to-dismiss | `fvSheetUp` keyframes |
 | Screen change | `RouteTransition` in `Shell`: fade + 28px slide from the side you head to (`lib/routes.ts` `routeDirection`: tabs left/right by tab order, deeper pages from the right) | `.page-enter` |
 | Tab bar | One `accentSoft` pill springs between tabs; the newly active icon springs from 0.78 (`TabIcon`) | — |
+| First load | `OverviewSkeleton`: `Shimmer` shapes in the real layout until the first wallet fetch settles, so the screen never shows €0 first | `.shimmer` |
 | Money moved | `SuccessOverlay`: ring bursts out, check springs in, amount counts up, details rise, then Done (after Send) | — |
 | Feedback | `Toast.tsx` — slide-down, auto-dismiss 3.5s | `Toast` in `UI.tsx` |
 | Reduced motion | `useReducedMotion()` (AccessibilityInfo) skips all of the above | `prefers-reduced-motion` kill-switch in `index.css` |
