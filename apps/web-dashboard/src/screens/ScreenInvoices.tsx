@@ -142,7 +142,7 @@ export function ScreenInvoices({ compact, token, navigate, fire, onPaid }: Props
                 </div>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontWeight: 600, fontSize: '0.92rem' }}>{r.description}</div>
-                  <div style={{ color: 'var(--text-3)', fontSize: '0.78rem', marginTop: 2 }}>{r.direction === 'outgoing' ? `To: ${r.recipientEmail}` : `From: ${r.creatorEmail}`}</div>
+                  <div style={{ color: 'var(--text-3)', fontSize: '0.78rem', marginTop: 2 }}>{r.direction === 'outgoing' ? (r.recipientEmail ? `To: ${r.recipientEmail}` : 'To: whoever scans its QR code') : `From: ${r.creatorEmail}`}</div>
                   <div style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: '0.72rem', fontWeight: 700, color: meta.color, marginTop: 6, letterSpacing: '0.05em' }}>
                     <span style={{ width: 6, height: 6, borderRadius: '50%', background: meta.color }} />
                     {meta.label.toUpperCase()}

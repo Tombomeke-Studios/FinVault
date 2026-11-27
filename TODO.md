@@ -46,6 +46,9 @@ Workflow rules live in [CLAUDE.md](CLAUDE.md#workflow-rules); short version:
 - [ ] Swipe-to-delete on transaction list items (swipeable row)
 - [ ] Search functionality in web top bar (currently non-functional input)
 
+## Active — `feature/scan-only-requests`
+
+- [x] Accept an external payment request that is paid only by scanning its QR (#117)
 ## Backlog — Final Work (EhB, 2026–2027)
 
 The Final Work turns NexusInfra, FinVault and NexusWatch into one ecosystem. **The showcase in March is
