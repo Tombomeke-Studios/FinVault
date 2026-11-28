@@ -39,15 +39,26 @@ Workflow rules live in [CLAUDE.md](CLAUDE.md#workflow-rules); short version:
 - [x] Push notifications — expo-notifications + expo-server-sdk: token registration, server-side sending on transfers
 - [ ] Scheduled payment executor — cron job that actually runs due payments
 - [ ] App Store submission (the iOS build itself is in the Final Work MVP below)
-- [ ] Haptic feedback on mobile (expo-haptics) for transfers, button presses
 - [ ] iOS build profile + App Store submission
 - [ ] Parallax scroll effect on Overview hero card
-- [ ] Swipe-to-delete on transaction list items (swipeable row)
 - [ ] Search functionality in web top bar (currently non-functional input)
 
 ## Active — `fix/valid-ibans`
 
 - [x] Every generated IBAN is 22 characters, so QR payments and IBAN transfers to FinVault accounts always fail (#98) 🐛
+
+## Active — `claude/keen-gates-q6ydh0` (motion round 2)
+
+- [x] Card flip, swipeable transaction rows, rolling balance, success moments for every money movement (#127)
+
+## Done — `claude/keen-gates-q6ydh0` (merged into `dev` via PR #123, issues #119–#122/#124/#125 auto-closed, 2026-11-27)
+
+- [x] Bottom nav and sheet buttons sit under the Android navigation bar; a11y labels on icon-only controls (#122) 🐛
+- [x] Charge for subscription plans: first month on upgrade, monthly renewal (#119)
+- [x] Bind biometric sign-in to an account with a server-registered device credential (#120)
+- [x] Mobile: per-account biometric enrollment and an account switcher (#121)
+- [x] Security Center: list and revoke biometric-linked devices (#124)
+- [x] Revolut-style motion and haptics: haptics, route transitions, tab pill, send success screen, skeletons (#125)
 
 ## Done — `fix/receipt-pdf` (merged into `dev` via PR #97, issue #95 auto-closed, 2026-10-14)
 

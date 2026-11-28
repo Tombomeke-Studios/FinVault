@@ -1,6 +1,7 @@
-import React from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import React, { useEffect, useRef } from 'react';
+import { Animated, Easing, View, Text, StyleSheet } from 'react-native';
 import { Icon } from './Icon';
+import { useReducedMotion } from './Motion';
 import { THEME } from '../theme';
 
 interface CardProps {
@@ -73,7 +74,87 @@ export function BankCard({ card, revealed = false }: CardProps) {
   );
 }
 
+// Back of the card: stripe, number, expiry, CVV (#127).
+export function BankCardBack({ card }: CardProps) {
+  const sc = SCHEMES[card.scheme] || SCHEMES.metal;
+  const grouped = card.number.replace(/\s+/g, '').replace(/(.{4})/g, '$1 ').trim();
+  return (
+    <View style={[styles.card, styles.back, { backgroundColor: sc.bg, shadowColor: sc.glow }]}>
+      <View style={styles.stripe} />
+      <View style={styles.backBody}>
+        <Text style={styles.fieldLabel}>CARD NUMBER</Text>
+        <Text style={styles.backNumber} selectable>{grouped}</Text>
+        <View style={styles.backRow}>
+          <View>
+            <Text style={styles.fieldLabel}>EXPIRES</Text>
+            <Text style={styles.fieldValue}>{card.exp}</Text>
+          </View>
+          <View>
+            <Text style={styles.fieldLabel}>CVV</Text>
+            <View style={styles.cvvBox}><Text style={[styles.cvvText, { color: sc.bg }]}>{card.cvv}</Text></View>
+          </View>
+          <View style={{ alignItems: 'flex-end' }}>
+            <Text style={styles.fieldLabel}>HOLDER</Text>
+            <Text style={styles.fieldValue} numberOfLines={1}>{card.holder}</Text>
+          </View>
+        </View>
+        <Text style={styles.backHint}>Tap to hide</Text>
+      </View>
+    </View>
+  );
+}
+
+/**
+ * A card that flips in 3D between front and back (#127), Revolut-style.
+ * Both faces are stacked; each rotates half a turn on the Y axis with
+ * perspective and hides its back face. Under reduced motion it crossfades.
+ */
+export function FlipCard({ card, flipped }: CardProps & { flipped: boolean }) {
+  const p = useRef(new Animated.Value(flipped ? 1 : 0)).current;
+  const reduced = useReducedMotion();
+
+  useEffect(() => {
+    if (reduced) {
+      Animated.timing(p, { toValue: flipped ? 1 : 0, duration: 160, useNativeDriver: true }).start();
+      return;
+    }
+    Animated.spring(p, { toValue: flipped ? 1 : 0, tension: 55, friction: 9, useNativeDriver: true }).start();
+  }, [flipped, reduced]);
+
+  // Lift the card a little mid-flip, so it reads as picked up and turned.
+  const lift = p.interpolate({ inputRange: [0, 0.5, 1], outputRange: [1, 1.04, 1] });
+  const frontStyle = reduced
+    ? { opacity: p.interpolate({ inputRange: [0, 1], outputRange: [1, 0] }) }
+    : { transform: [{ perspective: 1200 }, { rotateY: p.interpolate({ inputRange: [0, 1], outputRange: ['0deg', '180deg'] }) }, { scale: lift }] };
+  const backStyle = reduced
+    ? { opacity: p }
+    : { transform: [{ perspective: 1200 }, { rotateY: p.interpolate({ inputRange: [0, 1], outputRange: ['180deg', '360deg'] }) }, { scale: lift }] };
+
+  return (
+    <View>
+      <Animated.View style={[styles.face, frontStyle]} pointerEvents={flipped ? 'none' : 'auto'}
+        accessibilityElementsHidden={flipped} importantForAccessibility={flipped ? 'no-hide-descendants' : 'auto'}>
+        <BankCard card={card} />
+      </Animated.View>
+      <Animated.View style={[styles.face, styles.faceBack, backStyle]} pointerEvents={flipped ? 'auto' : 'none'}
+        accessibilityElementsHidden={!flipped} importantForAccessibility={flipped ? 'auto' : 'no-hide-descendants'}>
+        <BankCardBack card={card} />
+      </Animated.View>
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
+  face: { backfaceVisibility: 'hidden' },
+  faceBack: { position: 'absolute', top: 0, left: 0, right: 0 },
+  back: { padding: 0, justifyContent: 'flex-start' },
+  stripe: { height: 40, backgroundColor: 'rgba(0,0,0,0.55)', marginTop: 22 },
+  backBody: { flex: 1, paddingHorizontal: 22, paddingTop: 14, paddingBottom: 14, justifyContent: 'space-between' },
+  backNumber: { color: '#fff', fontSize: 19, fontWeight: '700', letterSpacing: 1.5, fontVariant: ['tabular-nums'] },
+  backRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end', gap: 12 },
+  cvvBox: { backgroundColor: '#f5f5f0', borderRadius: 4, paddingHorizontal: 8, paddingVertical: 2, marginTop: 2 },
+  cvvText: { fontSize: 14, fontWeight: '800', fontStyle: 'italic', letterSpacing: 1 },
+  backHint: { color: 'rgba(255,255,255,0.5)', fontSize: 11, textAlign: 'center' },
   card: {
     width: '100%',
     aspectRatio: 1.586,

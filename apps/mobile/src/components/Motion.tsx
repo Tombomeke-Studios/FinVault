@@ -1,7 +1,9 @@
 import React, { useEffect, useRef, useState, useCallback, useMemo } from 'react';
-import { AccessibilityInfo, Animated, Pressable, View, Text, Easing, StyleSheet, type ViewStyle, type TextStyle, type NativeSyntheticEvent, type NativeScrollEvent } from 'react-native';
+import { AccessibilityInfo, Animated, PanResponder, Pressable, View, Text, Easing, StyleSheet, type ViewStyle, type TextStyle, type NativeSyntheticEvent, type NativeScrollEvent } from 'react-native';
 import { THEME } from '../theme';
 import { haptic } from '../haptics';
+import { Icon } from './Icon';
+import { odometerCells } from '../lib/odometer';
 
 /**
  * Shared motion primitives — one source of truth for press feedback,
@@ -371,7 +373,45 @@ export function BalanceDisplay({
     ...style,
   }), [size, color, style]);
 
-  return <CountUp value={value} duration={900} formatter={formatter} style={textStyle} />;
+  return <RollingNumber value={value} formatter={formatter} style={textStyle} />;
+}
+
+// ── RollingNumber — odometer digits (#127) ──────────────────────────
+// Each digit is a 0–9 column that springs to its value, right to left with a
+// small stagger, like a mechanical counter. Separators and the currency sign
+// stay still (lib/odometer.ts). Screen readers get the plain text once.
+function DigitColumn({ digit, lineHeight, delay, textStyle }: { digit: number; lineHeight: number; delay: number; textStyle: TextStyle }) {
+  const y = useRef(new Animated.Value(0)).current;
+  const reduced = useReducedMotion();
+  useEffect(() => {
+    const to = -digit * lineHeight;
+    if (reduced) { y.setValue(to); return; }
+    Animated.spring(y, { toValue: to, tension: 90, friction: 14, delay, useNativeDriver: true }).start();
+  }, [digit, lineHeight, reduced]);
+  return (
+    <View style={{ height: lineHeight, overflow: 'hidden' }}>
+      {/* Sizes the column to the digit's width; the rolling strip sits on top. */}
+      <Text style={[textStyle, { lineHeight, opacity: 0 }]}>{digit}</Text>
+      <Animated.View style={{ position: 'absolute', top: 0, left: 0, right: 0, transform: [{ translateY: y }] }}>
+        {[0, 1, 2, 3, 4, 5, 6, 7, 8, 9].map(n => (
+          <Text key={n} style={[textStyle, { lineHeight, textAlign: 'center' }]}>{n}</Text>
+        ))}
+      </Animated.View>
+    </View>
+  );
+}
+
+export function RollingNumber({ value, formatter, style }: { value: number; formatter: (v: number) => string; style: TextStyle }) {
+  const text = formatter(value);
+  const cells = odometerCells(text);
+  const lineHeight = Math.round(((style.fontSize as number) || 16) * 1.2);
+  return (
+    <View style={{ flexDirection: 'row', alignItems: 'flex-end' }} accessible accessibilityRole="text" accessibilityLabel={text}>
+      {cells.map((c, i) => c.digit === null
+        ? <Text key={c.key} style={[style, { lineHeight }]} importantForAccessibility="no">{c.char}</Text>
+        : <DigitColumn key={c.key} digit={c.digit} lineHeight={lineHeight} delay={(cells.length - 1 - i) * 28} textStyle={style} />)}
+    </View>
+  );
 }
 
 // ── useParallax — scroll-driven parallax for hero cards ────────────
@@ -441,5 +481,86 @@ export function RouteTransition({ routeKey, direction, children }: {
     >
       {children}
     </Animated.View>
+  );
+}
+
+// ── SwipeRow — swipe a list row left to reveal actions (#127) ───────
+// Built on PanResponder (no gesture library needed). Only a clearly
+// horizontal drag is claimed, so vertical list scrolling keeps working.
+// `open`/`onOpenChange` are controlled by the list so one row is open at a
+// time. Screen readers get the same actions through accessibilityActions.
+export interface SwipeAction { key: string; label: string; icon: string; color: string; onPress: () => void }
+
+export function SwipeRow({ actions, open, onOpenChange, children, style }: {
+  actions: SwipeAction[];
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  children: React.ReactNode;
+  style?: any;
+}) {
+  const ACTION_W = 76;
+  const width = actions.length * ACTION_W;
+  const tx = useRef(new Animated.Value(0)).current;
+  const base = useRef(0);
+  const armed = useRef(false);
+  const reduced = useReducedMotion();
+  const openRef = useRef(open);
+  openRef.current = open;
+
+  const settle = useCallback((toOpen: boolean) => {
+    const to = toOpen ? -width : 0;
+    base.current = to;
+    if (reduced) tx.setValue(to);
+    else Animated.spring(tx, { toValue: to, tension: 140, friction: 18, useNativeDriver: true }).start();
+  }, [width, reduced]);
+
+  useEffect(() => { settle(open); }, [open, settle]);
+
+  const pan = useMemo(() => PanResponder.create({
+    onMoveShouldSetPanResponder: (_, g) => Math.abs(g.dx) > 8 && Math.abs(g.dx) > Math.abs(g.dy) * 1.6,
+    onPanResponderTerminationRequest: () => false,
+    onPanResponderGrant: () => { armed.current = openRef.current; },
+    onPanResponderMove: (_, g) => {
+      let x = base.current + g.dx;
+      if (x > 0) x = x * 0.25;                          // rubber band past closed
+      if (x < -width) x = -width + (x + width) * 0.25;  // and past fully open
+      tx.setValue(x);
+      const past = x < -width / 2;
+      if (past !== armed.current) { armed.current = past; haptic.select(); }
+    },
+    onPanResponderRelease: (_, g) => {
+      const x = base.current + g.dx;
+      const shouldOpen = g.vx < -0.4 || (g.vx <= 0.4 && x < -width / 2);
+      settle(shouldOpen);
+      if (shouldOpen !== openRef.current) onOpenChange(shouldOpen);
+    },
+    onPanResponderTerminate: () => settle(openRef.current),
+  }), [width, settle, onOpenChange]);
+
+  return (
+    <View
+      style={[{ position: 'relative' }, style]}
+      accessibilityActions={actions.map(a => ({ name: a.key, label: a.label }))}
+      onAccessibilityAction={e => actions.find(a => a.key === e.nativeEvent.actionName)?.onPress()}
+    >
+      <View style={[StyleSheet.absoluteFill, { flexDirection: 'row', justifyContent: 'flex-end', borderRadius: THEME.radius.regular, overflow: 'hidden' }]}>
+        {actions.map(a => (
+          <Pressable
+            key={a.key}
+            onPress={() => { onOpenChange(false); a.onPress(); }}
+            style={{ width: ACTION_W, backgroundColor: a.color, alignItems: 'center', justifyContent: 'center', gap: 4 }}
+            accessibilityRole="button"
+            accessibilityLabel={a.label}
+            importantForAccessibility={open ? 'auto' : 'no-hide-descendants'}
+          >
+            <Icon name={a.icon} size={18} color="#fff" />
+            <Text style={{ color: '#fff', fontSize: 12, fontWeight: '700' }}>{a.label}</Text>
+          </Pressable>
+        ))}
+      </View>
+      <Animated.View style={{ transform: [{ translateX: tx }] }} {...pan.panHandlers}>
+        {children}
+      </Animated.View>
+    </View>
   );
 }
