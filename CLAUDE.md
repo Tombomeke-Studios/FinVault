@@ -228,7 +228,7 @@ the same emails offline → client-side mock demo mode (mobile: dev bundles only
 | `src/components/SuccessOverlay.tsx` | Full-screen success moment (burst + springing check + CountUp amount + Done), shown after a send (#125); reuse it for other money movements |
 | `src/components/QrScanSheet.tsx` | Scan-to-pay sheet: expo-camera + permission flow, accepts EPC069-12 SEPA QR only |
 | `src/lib/` | `accounts.ts` (saved-accounts list logic, #121), `routes.ts` (tab order + `routeDirection` for screen transitions, #125), `epc.ts` (EPC QR build/parse, incl. the RF creditor reference + `isValidRfReference`, #112), `validate.ts` (email/IBAN), `csv.ts` (export), `live.ts` (WebSocket hub URL, message → action, reconnect backoff, #107) — all unit-tested |
-| `src/components/BankCard.tsx` | Card visual; `CARD_SCHEMES` (metal/cyan/violet/gold/accent) |
+| `src/components/BankCard.tsx` | Card visual; `CARD_SCHEMES` (metal/cyan/violet/gold/accent); `BankCardBack` + `FlipCard` (3D flip to number/expiry/CVV, #127) |
 | `src/components/UI.tsx` | `money()` (nl-NL! use `{whole:true}`, never string-strip), `relTime`, `Ring`, `Donut`, `Sparkline`, `Bars`, `CategoryIcon`, `Delta`, `Avatar` |
 | `src/components/Shell.tsx` | Top bar (logo + avatar→settings) + bottom nav (5 tabs, Send is the filled centre tab; pads the safe-area bottom inset, #122) |
 | `src/screens/` | One file per screen: Overview, Transactions, Transfer, Cards, Savings, Analytics, Settings (incl. Security-activity sheet, biometric link toggle, switch account), SecurityCenter (password, 2FA, sessions, linked biometric phones #124), Auth (saved-accounts list → biometric or password sign-in), AccountDashboard (`account:<id>` route) |

@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Switch, TextInput, Animated, Pressable } from 'react-native';
 import { Icon } from '../components/Icon';
-import { BankCard, CARD_SCHEMES } from '../components/BankCard';
+import { BankCard, FlipCard, CARD_SCHEMES } from '../components/BankCard';
 import { MobileCardDetail, LimitsSheet, MobileSheet } from '../components/MobileExtras';
 import { useReducedMotion } from '../components/Motion';
 import { haptic } from '../haptics';
@@ -53,6 +53,14 @@ interface CardsProps {
 
 export function ScreenCards({ data, fire, cards, setCards, token, apiUrl, navigate }: CardsProps) {
   const [selCardIdx, setSelCardIdx] = useState(0);
+  // Tapping the selected card flips it to its details (#127); they turn back
+  // after 20 s, on switching card, or when the screen goes away.
+  const [flippedId, setFlippedId] = useState<string | null>(null);
+  useEffect(() => {
+    if (!flippedId) return;
+    const t = setTimeout(() => setFlippedId(null), 20000);
+    return () => clearTimeout(t);
+  }, [flippedId]);
   const [detailsOpen, setDetailsOpen] = useState(false);
   const [limitsOpen, setLimitsOpen] = useState(false);
   const [newCardOpen, setNewCardOpen] = useState(false);
@@ -236,10 +244,16 @@ export function ScreenCards({ data, fire, cards, setCards, token, apiUrl, naviga
             <CardStackItem
               key={c.id}
               active={i === selCardIdx}
-              onPress={() => setSelCardIdx(i)}
-              label={`${c.name} card ending in ${c.last4}`}
+              onPress={() => {
+                haptic.heavy();
+                if (i === selCardIdx) setFlippedId(f => (f === c.id ? null : c.id));
+                else { setFlippedId(null); setSelCardIdx(i); }
+              }}
+              label={i === selCardIdx
+                ? `${c.name} card ending in ${c.last4}. ${flippedId === c.id ? 'Showing card details, tap to hide' : 'Tap to show card details'}`
+                : `${c.name} card ending in ${c.last4}`}
             >
-              <BankCard card={c} />
+              <FlipCard card={c} flipped={flippedId === c.id} />
             </CardStackItem>
           ))}
         </View>
