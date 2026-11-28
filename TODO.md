@@ -45,6 +45,13 @@ Workflow rules live in [CLAUDE.md](CLAUDE.md#workflow-rules); short version:
 - [ ] Swipe-to-delete on transaction list items (swipeable row)
 - [ ] Search functionality in web top bar (currently non-functional input)
 
+## Active — `fix/fresh-clone-startup` (PR #103)
+
+- [x] A fresh clone cannot start the backend: every service needs a .env and pushed tables (#101) 🐛
+- [x] The mobile app only reaches the backend on one home network (#102) 🐛 — resolved by `src/config.ts`
+  (#106): `EXPO_PUBLIC_API_URL` wins, the default is the home server; a local backend is one line in
+  `apps/mobile/.env`. This branch's `apiUrl.ts` (dev-server host) was dropped in the merge with `dev`
+
 ## Active — `fix/valid-ibans`
 
 - [x] Every generated IBAN is 22 characters, so QR payments and IBAN transfers to FinVault accounts always fail (#98) 🐛
