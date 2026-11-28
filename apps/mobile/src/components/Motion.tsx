@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import { AccessibilityInfo, Animated, Pressable, View, Text, Easing, StyleSheet, type ViewStyle, type TextStyle, type NativeSyntheticEvent, type NativeScrollEvent } from 'react-native';
 import { THEME } from '../theme';
+import { haptic } from '../haptics';
 
 /**
  * Shared motion primitives — one source of truth for press feedback,
@@ -33,7 +34,10 @@ export function PressableScale({
   accessibilityRole = 'button',
   accessibilityState,
   hitSlop,
+  haptics = true,
 }: {
+  /** Light tick on touch-down (#125); off for surfaces that tick themselves. */
+  haptics?: boolean;
   onPress?: () => void;
   onLongPress?: () => void;
   style?: any;
@@ -59,7 +63,7 @@ export function PressableScale({
     <Pressable
       onPress={onPress}
       onLongPress={onLongPress}
-      onPressIn={() => animate(scaleTo, 4)}
+      onPressIn={() => { if (haptics && !disabled) haptic.tap(); animate(scaleTo, 4); }}
       onPressOut={() => animate(1, 6)}
       style={style}
       disabled={disabled}
@@ -403,4 +407,39 @@ export function useParallax(factor = 0.4) {
   }, [reduced, factor]);
 
   return { onScroll, heroStyle, scrollY };
+}
+
+// ── RouteTransition — screen changes glide in (#125) ────────────────
+// Keyed on the route: the new screen fades in while sliding 28px from the
+// side it comes from (`direction`, see lib/routes.ts). useLayoutEffect resets
+// the value before the first paint, so the new screen never flashes at rest.
+export function RouteTransition({ routeKey, direction, children }: {
+  routeKey: string;
+  direction: 1 | -1 | 0;
+  children: React.ReactNode;
+}) {
+  const progress = useRef(new Animated.Value(1)).current;
+  const reduced = useReducedMotion();
+  const first = useRef(true);
+  const dir = useRef(direction);
+  dir.current = direction;
+
+  React.useLayoutEffect(() => {
+    if (first.current) { first.current = false; return; }
+    if (reduced || direction === 0) { progress.setValue(1); return; }
+    progress.setValue(0);
+    Animated.spring(progress, { toValue: 1, tension: 120, friction: 18, useNativeDriver: true }).start();
+  }, [routeKey]);
+
+  return (
+    <Animated.View
+      style={{
+        flex: 1,
+        opacity: progress.interpolate({ inputRange: [0, 1], outputRange: [0, 1] }),
+        transform: [{ translateX: progress.interpolate({ inputRange: [0, 1], outputRange: [28 * (dir.current || 1), 0] }) }],
+      }}
+    >
+      {children}
+    </Animated.View>
+  );
 }

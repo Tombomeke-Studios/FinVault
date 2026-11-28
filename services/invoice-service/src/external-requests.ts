@@ -25,7 +25,13 @@ export const MAX_EXTERNAL_AMOUNT = 100_000;
 
 export interface ExternalRequest {
   reference: string;
-  customerEmail: string;
+  /**
+   * Who should pay, or null for a scan-only request (#117): addressed to nobody,
+   * so it is in nobody's Payment Requests, and paid only by its reference — the
+   * QR the requester shows. NexusInfra sends one when its customer chose to pay
+   * by QR, because the address it knows may not be theirs in FinVault.
+   */
+  customerEmail: string | null;
   amount: number;
   currency: string;
   description: string;
@@ -48,8 +54,10 @@ export function parseExternalRequest(payload: unknown): ParseResult {
 
   if (!reference) return refuse('the request carries no reference');
   if (reference.length > 200) return { ok: false, reference: null, reason: 'the reference is too long' };
-  if (typeof p.customerEmail !== 'string' || !EMAIL.test(p.customerEmail.trim())) {
-    return refuse('the request does not say who should pay (no customer email)');
+  // Absent means scan-only; present but malformed is a requester bug worth naming.
+  const scanOnly = p.customerEmail === undefined || p.customerEmail === null || p.customerEmail === '';
+  if (!scanOnly && (typeof p.customerEmail !== 'string' || !EMAIL.test(p.customerEmail.trim()))) {
+    return refuse('the customer email is not a valid address');
   }
   if (typeof p.amount !== 'number' || !Number.isFinite(p.amount) || p.amount <= 0) return refuse('the amount must be positive');
   if (p.amount > MAX_EXTERNAL_AMOUNT) return refuse(`the amount is above the €${MAX_EXTERNAL_AMOUNT.toLocaleString('en-US')} limit`);
@@ -59,7 +67,7 @@ export function parseExternalRequest(payload: unknown): ParseResult {
   const description = typeof p.description === 'string' && p.description.trim() ? p.description.trim().slice(0, 200) : 'Payment request';
   return {
     ok: true,
-    request: { reference, customerEmail: normalizeEmail(p.customerEmail), amount: Math.round(p.amount * 100) / 100, currency, description },
+    request: { reference, customerEmail: scanOnly ? null : normalizeEmail(p.customerEmail as string), amount: Math.round(p.amount * 100) / 100, currency, description },
   };
 }
 
@@ -78,6 +86,9 @@ export interface StoredExternalRequest {
   externalSource: string | null;
   transactionRef: string | null;
 }
+
+/** The stored recipient of a scan-only request: an address nobody signs in with. */
+export const SCAN_ONLY_RECIPIENT = '';
 
 export interface ExternalRequestStore {
   findByExternalReference(reference: string): Promise<StoredExternalRequest | null>;
@@ -194,24 +205,61 @@ export function createExternalRequests(deps: ExternalRequestDeps) {
 
       const merchant = await deps.merchant();
       if (!merchant) return refuse('FinVault has no merchant account configured to receive this payment');
-      if (normalizeEmail(merchant.email) === request.customerEmail) return refuse('the merchant account cannot pay itself');
-      if ((await store.countPending(request.customerEmail, envelope.source)) >= maxPending) {
-        return refuse(`there are already ${maxPending} open requests for this customer — pay or decline one in FinVault first`);
+      if (request.customerEmail !== null) {
+        if (normalizeEmail(merchant.email) === request.customerEmail) return refuse('the merchant account cannot pay itself');
+        // The cap protects an inbox. A scan-only request lands in none, and the
+        // requester caps its own open top-ups per account.
+        if ((await store.countPending(request.customerEmail, envelope.source)) >= maxPending) {
+          return refuse(`there are already ${maxPending} open requests for this customer — pay or decline one in FinVault first`);
+        }
       }
 
       const created = await store.create({
         merchant,
-        recipientEmail: request.customerEmail,
+        recipientEmail: request.customerEmail ?? SCAN_ONLY_RECIPIENT,
         amount: request.amount,
         currency: request.currency,
         description: request.description,
         externalReference: request.reference,
         externalSource: envelope.source,
       });
-      log(`payment request ${created.id} created for ${request.reference} (${envelope.source})`);
+      log(`payment request ${created.id} created for ${request.reference} (${envelope.source}${request.customerEmail === null ? ', scan-only' : ''})`);
       return 'created';
     },
   };
 }
 
 export type ExternalRequests = ReturnType<typeof createExternalRequests>;
+
+// ── Paying by reference: a scanned QR (#436) ─────────────────────────────────
+//
+// An external request is addressed to the customer's email, and only that
+// FinVault account can pay it from Invoices. NexusInfra also shows the request
+// as an EPC QR carrying its reference, so whoever scans it pays it — the person
+// whose FinVault address differs from their NexusInfra one included. Paying
+// someone else's top-up is a gift, not a theft: the money goes to the merchant
+// and the credit to the account that asked for it. Only external requests can be
+// paid this way; a request between two FinVault users still needs its recipient.
+
+/** What a payer is shown before paying a request by reference. */
+export interface ReferenceView {
+  reference: string;
+  amount: number;
+  currency: string;
+  description: string;
+  payee: string;
+  status: string;
+}
+
+/** Why this request cannot be paid by reference — or null when it can. */
+export function payByReferenceProblem(
+  request: { status: string; amount: number; externalReference: string | null } | null,
+  scannedAmount?: number,
+): string | null {
+  if (!request || !request.externalReference) return 'No payment request has this reference';
+  if (request.status !== 'pending') return 'This payment request is no longer pending';
+  if (scannedAmount !== undefined && Math.round(scannedAmount * 100) !== Math.round(request.amount * 100)) {
+    return 'The amount in the QR code does not match the payment request';
+  }
+  return null;
+}

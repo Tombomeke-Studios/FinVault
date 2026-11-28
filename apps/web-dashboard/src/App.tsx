@@ -723,13 +723,17 @@ export default function App() {
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({ plan: newPlan })
       });
-      if (res.ok) {
-        const updatedUser = await res.json();
-        setRawUser(updatedUser);
-        fire('Success', `Welcome to FinVault ${newPlan}! Your new perks are live.`, 'success');
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        // The server charges the checking account (#119); 402 = declined.
+        fire('Plan not changed', body.error || 'Your plan could not be changed.', 'warn');
+        return;
       }
+      setRawUser((prev: any) => ({ ...prev, ...body }));
+      fire(`Welcome to FinVault ${newPlan}`, body.charged > 0 ? `${money(body.charged)} was charged to your checking account.` : 'No charge today.', 'success');
+      if (body.charged > 0) { fetchWallets(); fetchTransactions(); }
     } catch (e: any) {
-      fire('Error', 'Failed to upgrade plan: ' + e.message, 'error');
+      fire('Error', 'Failed to change plan: ' + e.message, 'error');
     }
   };
 
@@ -737,7 +741,7 @@ export default function App() {
   const firstName = rawUser?.profile?.firstName || rawUser?.firstName || 'Tom';
   const lastName  = rawUser?.profile?.lastName  || rawUser?.lastName  || 'Bomeke';
   const email     = rawUser?.email || 'tom@finvault.com';
-  const appData   = buildMockData(firstName, lastName, email, wallets, transactions, cards, goals, rawUser?.plan || 'Metal');
+  const appData   = buildMockData(firstName, lastName, email, wallets, transactions, cards, goals, rawUser?.plan || 'Standard');
 
   // --- Route → Screen ---
   const renderScreen = () => {
@@ -794,7 +798,7 @@ export default function App() {
       case 'fx-exchange':
         return <ScreenFxExchange compact={compact} token={token!} navigate={setRoute} wallets={wallets} fire={fire} onRefresh={() => { fetchWallets(); fetchTransactions(); }} />;
       case 'invoices':
-        return <ScreenInvoices compact={compact} token={token!} navigate={setRoute} fire={fire} />;
+        return <ScreenInvoices compact={compact} token={token!} navigate={setRoute} fire={fire} onPaid={() => { fetchWallets(); fetchTransactions(); }} />;
       case 'disputes':
         return <ScreenDisputes compact={compact} token={token!} transactions={transactions} navigate={setRoute} fire={fire} />;
       default:
@@ -907,7 +911,7 @@ export default function App() {
       upgradeOpen={upgradeOpen}
       openUpgrade={() => setUpgradeOpen(true)}
       closeUpgrade={() => setUpgradeOpen(false)}
-      user={{ firstName, lastName, initials: `${firstName[0]}${lastName[0]}`.toUpperCase(), plan: `FinVault ${rawUser?.plan || 'Metal'}` }}
+      user={{ firstName, lastName, initials: `${firstName[0]}${lastName[0]}`.toUpperCase(), plan: `FinVault ${rawUser?.plan || 'Standard'}` }}
       notifications={notifications as any}
       embedded={isMobileMode}
       onUpgrade={handleUpgradePlan}

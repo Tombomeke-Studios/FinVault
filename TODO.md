@@ -17,13 +17,14 @@ Workflow rules live in [CLAUDE.md](CLAUDE.md#workflow-rules); short version:
 - [ ] Create a Google service-account JSON and place at `apps/mobile/google-services.json` for EAS Submit
 - [ ] Set the `EXPO_TOKEN` repository secret on GitHub for automated EAS builds
 - [ ] Deploy backend services to a hosted environment (VM, Railway, Fly.io, etc.)
-- [ ] Point `EXPO_PUBLIC_API_URL` to the live backend URL once deployed
+- [x] Point `EXPO_PUBLIC_API_URL` to the live backend (home server `http://192.168.0.117:8000`, all EAS profiles); cleartext only for `http://`; no silent demo fallback in release builds (#104)
+- [ ] Expose the gateway on a public HTTPS hostname (Cloudflare Tunnel) so the app works off-LAN / on the Play Store, then switch `EXPO_PUBLIC_API_URL` to it (#105)
 - [ ] Run `eas submit --platform android` for the first Play Store upload (internal track)
 
 **Known bugs (next session)**
-- [ ] QR scan-to-pay shows "That QR is not a SEPA payment code" — the EPC069-12 parser
-  likely rejects the QR format or encoding; debug `parseEpcQr()` in `src/lib/epc.ts`
-  and the camera output in `QrScanSheet.tsx`
+- [x] QR scan-to-pay shows "That QR is not a SEPA payment code" — the parser was right: every
+  wallet was issued a 22-character IBAN, which is not a Belgian one (#98). Scanning with a
+  camera has not been re-tested on a device; the payload now parses (see `epc.test.ts`)
 - [ ] Face ID / fingerprint not working in Expo Go — check `isBiometricAvailable()`
   return value, verify `expo-local-authentication` plugin in `app.json`, test with
   `authenticateBiometric()` debug logging; may need a dev build (Expo Go has limited
@@ -37,21 +38,40 @@ Workflow rules live in [CLAUDE.md](CLAUDE.md#workflow-rules); short version:
 - [x] TOTP 2FA — real working implementation: setup with QR/secret, verify, enable/disable, 2FA gate on login
 - [x] Push notifications — expo-notifications + expo-server-sdk: token registration, server-side sending on transfers
 - [ ] Scheduled payment executor — cron job that actually runs due payments
-- [ ] iOS build profile + App Store submission
+- [ ] App Store submission (the iOS build itself is in the Final Work MVP below)
 - [ ] Haptic feedback on mobile (expo-haptics) for transfers, button presses
+- [ ] iOS build profile + App Store submission
 - [ ] Parallax scroll effect on Overview hero card
 - [ ] Swipe-to-delete on transaction list items (swipeable row)
-- [ ] Skeleton loading screens (shimmer placeholders during data fetch)
 - [ ] Search functionality in web top bar (currently non-functional input)
 
-## Done — `fix/fresh-clone-startup` (PR pending)
+## Active — `fix/fresh-clone-startup` (PR #103)
 
 - [x] A fresh clone cannot start the backend: every service needs a .env and pushed tables (#101) 🐛
-- [x] The mobile app only reaches the backend on one home network (#102) 🐛
+- [x] The mobile app only reaches the backend on one home network (#102) 🐛 — resolved by `src/config.ts`
+  (#106): `EXPO_PUBLIC_API_URL` wins, the default is the home server; a local backend is one line in
+  `apps/mobile/.env`. This branch's `apiUrl.ts` (dev-server host) was dropped in the merge with `dev`
 
-## Active — `fix/receipt-pdf`
+## Active — `fix/valid-ibans`
+
+- [x] Every generated IBAN is 22 characters, so QR payments and IBAN transfers to FinVault accounts always fail (#98) 🐛
+
+## Done — `fix/receipt-pdf` (merged into `dev` via PR #97, issue #95 auto-closed, 2026-10-14)
 
 - [x] No receipt PDF can be downloaded: the gateway parses every response as JSON (#95) 🐛
+
+## Done — `feature/qr-topup` (merged into `dev` via PR #113, issue #112 auto-closed, 2026-11-26)
+
+- [x] Pay a NexusInfra top-up by scanning its EPC QR code (#112)
+
+## Done — `feature/private-payment-events` (merged into `dev` via PR #111, issues #108/#110 auto-closed, 2026-11-26)
+
+- [x] The gateway sends every `payment.confirmed` / `payment.failed` to all connected users, amounts and references included (#108) 🐛
+- [x] `npm run build` failed on a fresh clone: services built before `shared` (#110) 🐛
+
+## Done — `feature/live-balance` (merged into `dev` via PR #109, issue #107 auto-closed, 2026-11-26)
+
+- [x] Show the new balance right after paying a payment request, and live in the mobile app (#107) 🐛
 
 ## Done — `feature/nexusinfra-statements` (merged into `dev` via PR #96, issue #94 auto-closed, 2026-10-14)
 
