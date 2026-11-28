@@ -47,6 +47,10 @@ Workflow rules live in [CLAUDE.md](CLAUDE.md#workflow-rules); short version:
 
 - [x] Every generated IBAN is 22 characters, so QR payments and IBAN transfers to FinVault accounts always fail (#98) 🐛
 
+## Active — `claude/keen-gates-q6ydh0` (motion round 2)
+
+- [x] Card flip, swipeable transaction rows, rolling balance, success moments for every money movement (#127)
+
 ## Done — `claude/keen-gates-q6ydh0` (merged into `dev` via PR #123, issues #119–#122/#124/#125 auto-closed, 2026-11-27)
 
 - [x] Bottom nav and sheet buttons sit under the Android navigation bar; a11y labels on icon-only controls (#122) 🐛

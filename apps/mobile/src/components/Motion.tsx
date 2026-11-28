@@ -3,6 +3,7 @@ import { AccessibilityInfo, Animated, PanResponder, Pressable, View, Text, Easin
 import { THEME } from '../theme';
 import { haptic } from '../haptics';
 import { Icon } from './Icon';
+import { odometerCells } from '../lib/odometer';
 
 /**
  * Shared motion primitives — one source of truth for press feedback,
@@ -372,7 +373,45 @@ export function BalanceDisplay({
     ...style,
   }), [size, color, style]);
 
-  return <CountUp value={value} duration={900} formatter={formatter} style={textStyle} />;
+  return <RollingNumber value={value} formatter={formatter} style={textStyle} />;
+}
+
+// ── RollingNumber — odometer digits (#127) ──────────────────────────
+// Each digit is a 0–9 column that springs to its value, right to left with a
+// small stagger, like a mechanical counter. Separators and the currency sign
+// stay still (lib/odometer.ts). Screen readers get the plain text once.
+function DigitColumn({ digit, lineHeight, delay, textStyle }: { digit: number; lineHeight: number; delay: number; textStyle: TextStyle }) {
+  const y = useRef(new Animated.Value(0)).current;
+  const reduced = useReducedMotion();
+  useEffect(() => {
+    const to = -digit * lineHeight;
+    if (reduced) { y.setValue(to); return; }
+    Animated.spring(y, { toValue: to, tension: 90, friction: 14, delay, useNativeDriver: true }).start();
+  }, [digit, lineHeight, reduced]);
+  return (
+    <View style={{ height: lineHeight, overflow: 'hidden' }}>
+      {/* Sizes the column to the digit's width; the rolling strip sits on top. */}
+      <Text style={[textStyle, { lineHeight, opacity: 0 }]}>{digit}</Text>
+      <Animated.View style={{ position: 'absolute', top: 0, left: 0, right: 0, transform: [{ translateY: y }] }}>
+        {[0, 1, 2, 3, 4, 5, 6, 7, 8, 9].map(n => (
+          <Text key={n} style={[textStyle, { lineHeight, textAlign: 'center' }]}>{n}</Text>
+        ))}
+      </Animated.View>
+    </View>
+  );
+}
+
+export function RollingNumber({ value, formatter, style }: { value: number; formatter: (v: number) => string; style: TextStyle }) {
+  const text = formatter(value);
+  const cells = odometerCells(text);
+  const lineHeight = Math.round(((style.fontSize as number) || 16) * 1.2);
+  return (
+    <View style={{ flexDirection: 'row', alignItems: 'flex-end' }} accessible accessibilityRole="text" accessibilityLabel={text}>
+      {cells.map((c, i) => c.digit === null
+        ? <Text key={c.key} style={[style, { lineHeight }]} importantForAccessibility="no">{c.char}</Text>
+        : <DigitColumn key={c.key} digit={c.digit} lineHeight={lineHeight} delay={(cells.length - 1 - i) * 28} textStyle={style} />)}
+    </View>
+  );
 }
 
 // ── useParallax — scroll-driven parallax for hero cards ────────────

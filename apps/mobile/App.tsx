@@ -34,6 +34,7 @@ import { THEME, themedSheet, setAppTheme, persistThemeConfig, loadPersistedTheme
 import { registerForPushNotifications, sendTokenToServer } from './src/push';
 import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { haptic } from './src/haptics';
+import { SuccessOverlay } from './src/components/SuccessOverlay';
 import { API_URL, DEMO_MODE_ENABLED, UNREACHABLE_MESSAGE } from './src/config';
 import { liveAction, liveSocketUrl, reconnectDelayMs, withBalance } from './src/lib/live';
 
@@ -416,6 +417,8 @@ function AppContent() {
   const [bioAvailable, setBioAvailable] = useState(false);
   const [bioLabel, setBioLabel] = useState('Biometrics');
   const [switcherOpen, setSwitcherOpen] = useState(false);
+  // Full-screen success moment for money moved from App-level flows (#127).
+  const [success, setSuccess] = useState<{ title: string; amount: number; currency: string; detail?: string } | null>(null);
   // Remounts the sign-in screen in a given starting state (switch / add account).
   const [authEntry, setAuthEntry] = useState<{ n: number; prefillEmail?: string; startWithForm?: boolean }>({ n: 0 });
   const activeAccount = findAccount(accounts, activeEmail);
@@ -1094,6 +1097,8 @@ function AppContent() {
         if (res.ok) {
           const wName = wallet.name || (wallet.type === 'savings' ? 'Savings Vault' : wallet.type === 'travel' ? 'Travel Multi-Currency' : 'Everyday Checking');
           fire('Deposit added', `${money(val, wallet.currency)} deposited into your ${wName} account.`, 'success');
+          // After the sheet has closed: iOS drops a modal opened while another is dismissing.
+          setTimeout(() => setSuccess({ title: 'Money added', amount: val, currency: wallet.currency || 'EUR', detail: `to ${wName}` }), 320);
           fetchWallets();
           fetchTransactions();
           setDepositLoading(false);
@@ -1158,6 +1163,7 @@ function AppContent() {
           }));
           setTransactions(prev => [result.transaction, ...prev]);
           fire('Transfer complete', `${money(amount)} moved to ${toWallet.name || toWallet.type}.`, 'success');
+          setTimeout(() => setSuccess({ title: 'Money moved', amount, currency: fromWallet.currency || 'EUR', detail: `to ${toWallet.name || (toWallet.type === 'savings' ? 'Savings Vault' : toWallet.type === 'travel' ? 'Travel Multi-Currency' : 'Everyday Checking')}` }), 320);
           return;
         } else {
           const err = await res.json();
@@ -1454,6 +1460,15 @@ function AppContent() {
           </TouchableOpacity>
         </View>
       </MobileSheet>
+
+      <SuccessOverlay
+        open={!!success}
+        title={success?.title ?? ''}
+        amount={success?.amount ?? 0}
+        currency={success?.currency}
+        detail={success?.detail}
+        onDone={() => setSuccess(null)}
+      />
 
       {/* Toast notifications overlay */}
       <ToastHost toasts={toasts} onDismiss={dismiss} />
