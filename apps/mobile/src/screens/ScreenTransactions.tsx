@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, TextInput, ScrollView, TouchableOpacity, Share,
 import { Icon } from '../components/Icon';
 import { money, CategoryIcon, relTime } from '../components/UI';
 import { buildTransactionsCsv, exportFileName } from '../lib/csv';
+import { SwipeRow } from '../components/Motion';
 import { THEME, themedSheet } from '../theme';
 import type { AppData } from '../../App';
 
@@ -16,6 +17,8 @@ export function ScreenTransactions({ data, onExport, navigate }: TransactionsPro
   const [q, setQ] = useState('');
   const [cat, setCat] = useState('all');
   const [filterWalletId, setFilterWalletId] = useState<string | null>(null);
+  // One swiped-open row at a time (#127).
+  const [openId, setOpenId] = useState<string | null>(null);
 
   const walletName = (w: any) => w.name || (w.type === 'savings' ? 'Savings Vault' : w.type === 'travel' ? 'Travel Multi-Currency' : 'Everyday Checking');
 
@@ -57,10 +60,19 @@ export function ScreenTransactions({ data, onExport, navigate }: TransactionsPro
     const displayCat = t.type === 'deposit' ? 'deposit' : 'transfer';
     const amt = getDisplayAmt(t);
     return (
+      <SwipeRow
+        style={styles.swipeRow}
+        open={openId === t.id}
+        onOpenChange={o => setOpenId(o ? t.id : null)}
+        actions={[
+          { key: 'details', label: 'Details', icon: 'file', color: THEME.colors.accent, onPress: () => navigate?.(`tx:${t.id}`) },
+          { key: 'report', label: 'Report', icon: 'alertTriangle', color: THEME.colors.neg, onPress: () => navigate?.('disputes') },
+        ]}
+      >
       <TouchableOpacity
         style={[styles.card, styles.txCard]}
         activeOpacity={0.7}
-        onPress={() => navigate?.(`tx:${t.id}`)}
+        onPress={() => (openId === t.id ? setOpenId(null) : navigate?.(`tx:${t.id}`))}
         accessibilityRole="button"
         accessibilityLabel={`${t.description}, ${money(amt, t.currency || 'EUR', { signed: true })}`}
       >
@@ -76,8 +88,9 @@ export function ScreenTransactions({ data, onExport, navigate }: TransactionsPro
           <Icon name="chevRight" size={14} color={THEME.colors.text3} style={{ marginTop: 2 }} />
         </View>
       </TouchableOpacity>
+      </SwipeRow>
     );
-  }, [data.wallets, navigate]);
+  }, [data.wallets, navigate, openId]);
 
   const listHeader = useMemo(() => (
     <>
@@ -190,6 +203,8 @@ export function ScreenTransactions({ data, onExport, navigate }: TransactionsPro
       data={filtered}
       keyExtractor={t => t.id}
       renderItem={renderTx}
+      extraData={openId}
+      onScrollBeginDrag={() => openId && setOpenId(null)}
       ListHeaderComponent={listHeader}
       ListEmptyComponent={
         <View style={styles.emptyState}>
@@ -327,6 +342,7 @@ const styles = themedSheet(() => StyleSheet.create({
     paddingHorizontal: 16,
     gap: 8,
   },
+  swipeRow: { borderRadius: THEME.radius.regular },
   txCard: {
     flexDirection: 'row',
     alignItems: 'center',

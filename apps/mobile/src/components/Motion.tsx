@@ -1,7 +1,8 @@
 import React, { useEffect, useRef, useState, useCallback, useMemo } from 'react';
-import { AccessibilityInfo, Animated, Pressable, View, Text, Easing, StyleSheet, type ViewStyle, type TextStyle, type NativeSyntheticEvent, type NativeScrollEvent } from 'react-native';
+import { AccessibilityInfo, Animated, PanResponder, Pressable, View, Text, Easing, StyleSheet, type ViewStyle, type TextStyle, type NativeSyntheticEvent, type NativeScrollEvent } from 'react-native';
 import { THEME } from '../theme';
 import { haptic } from '../haptics';
+import { Icon } from './Icon';
 
 /**
  * Shared motion primitives — one source of truth for press feedback,
@@ -441,5 +442,86 @@ export function RouteTransition({ routeKey, direction, children }: {
     >
       {children}
     </Animated.View>
+  );
+}
+
+// ── SwipeRow — swipe a list row left to reveal actions (#127) ───────
+// Built on PanResponder (no gesture library needed). Only a clearly
+// horizontal drag is claimed, so vertical list scrolling keeps working.
+// `open`/`onOpenChange` are controlled by the list so one row is open at a
+// time. Screen readers get the same actions through accessibilityActions.
+export interface SwipeAction { key: string; label: string; icon: string; color: string; onPress: () => void }
+
+export function SwipeRow({ actions, open, onOpenChange, children, style }: {
+  actions: SwipeAction[];
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  children: React.ReactNode;
+  style?: any;
+}) {
+  const ACTION_W = 76;
+  const width = actions.length * ACTION_W;
+  const tx = useRef(new Animated.Value(0)).current;
+  const base = useRef(0);
+  const armed = useRef(false);
+  const reduced = useReducedMotion();
+  const openRef = useRef(open);
+  openRef.current = open;
+
+  const settle = useCallback((toOpen: boolean) => {
+    const to = toOpen ? -width : 0;
+    base.current = to;
+    if (reduced) tx.setValue(to);
+    else Animated.spring(tx, { toValue: to, tension: 140, friction: 18, useNativeDriver: true }).start();
+  }, [width, reduced]);
+
+  useEffect(() => { settle(open); }, [open, settle]);
+
+  const pan = useMemo(() => PanResponder.create({
+    onMoveShouldSetPanResponder: (_, g) => Math.abs(g.dx) > 8 && Math.abs(g.dx) > Math.abs(g.dy) * 1.6,
+    onPanResponderTerminationRequest: () => false,
+    onPanResponderGrant: () => { armed.current = openRef.current; },
+    onPanResponderMove: (_, g) => {
+      let x = base.current + g.dx;
+      if (x > 0) x = x * 0.25;                          // rubber band past closed
+      if (x < -width) x = -width + (x + width) * 0.25;  // and past fully open
+      tx.setValue(x);
+      const past = x < -width / 2;
+      if (past !== armed.current) { armed.current = past; haptic.select(); }
+    },
+    onPanResponderRelease: (_, g) => {
+      const x = base.current + g.dx;
+      const shouldOpen = g.vx < -0.4 || (g.vx <= 0.4 && x < -width / 2);
+      settle(shouldOpen);
+      if (shouldOpen !== openRef.current) onOpenChange(shouldOpen);
+    },
+    onPanResponderTerminate: () => settle(openRef.current),
+  }), [width, settle, onOpenChange]);
+
+  return (
+    <View
+      style={[{ position: 'relative' }, style]}
+      accessibilityActions={actions.map(a => ({ name: a.key, label: a.label }))}
+      onAccessibilityAction={e => actions.find(a => a.key === e.nativeEvent.actionName)?.onPress()}
+    >
+      <View style={[StyleSheet.absoluteFill, { flexDirection: 'row', justifyContent: 'flex-end', borderRadius: THEME.radius.regular, overflow: 'hidden' }]}>
+        {actions.map(a => (
+          <Pressable
+            key={a.key}
+            onPress={() => { onOpenChange(false); a.onPress(); }}
+            style={{ width: ACTION_W, backgroundColor: a.color, alignItems: 'center', justifyContent: 'center', gap: 4 }}
+            accessibilityRole="button"
+            accessibilityLabel={a.label}
+            importantForAccessibility={open ? 'auto' : 'no-hide-descendants'}
+          >
+            <Icon name={a.icon} size={18} color="#fff" />
+            <Text style={{ color: '#fff', fontSize: 12, fontWeight: '700' }}>{a.label}</Text>
+          </Pressable>
+        ))}
+      </View>
+      <Animated.View style={{ transform: [{ translateX: tx }] }} {...pan.panHandlers}>
+        {children}
+      </Animated.View>
+    </View>
   );
 }

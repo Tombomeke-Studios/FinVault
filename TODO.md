@@ -41,7 +41,6 @@ Workflow rules live in [CLAUDE.md](CLAUDE.md#workflow-rules); short version:
 - [ ] App Store submission (the iOS build itself is in the Final Work MVP below)
 - [ ] iOS build profile + App Store submission
 - [ ] Parallax scroll effect on Overview hero card
-- [ ] Swipe-to-delete on transaction list items (swipeable row)
 - [ ] Search functionality in web top bar (currently non-functional input)
 
 ## Active — `fix/valid-ibans`
